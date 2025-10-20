@@ -2,11 +2,14 @@
 #include <SDL_image.h>
 
 #include <algorithm>
+#include <array>
 #include <cctype>
 #include <cmath>
 #include <cstdint>
 #include <cstdlib>
 #include <fstream>
+#include <iomanip>
+#include <iterator>
 #include <iostream>
 #include <limits>
 #include <optional>
@@ -456,6 +459,15 @@ std::vector<float> getNumberArray(const JsonValue &obj, const std::string &key)
     return result;
 }
 
+struct RespawnSettings
+{
+    float base = 5.0f;
+    float scale = 5.0f;
+    float k = 1.0f;
+    float floor = 0.0f;
+    float invuln = 0.0f;
+};
+
 struct GameConfig
 {
     float fixed_dt = 1.0f / 60.0f;
@@ -472,6 +484,9 @@ struct GameConfig
     std::string enemy_script = "assets/spawn_level1.json";
     std::string map_path = "assets/maps/level1.tmx";
     int rng_seed = 1337;
+    RespawnSettings yuna_respawn{5.0f, 5.0f, 1.0f, 0.0f, 2.0f};
+    RespawnSettings commander_respawn{8.0f, 5.0f, 2.0f, 12.0f, 2.0f};
+    int commander_auto_reinforce = 0;
 };
 
 struct EntityStats
@@ -518,6 +533,58 @@ enum class EnemyArchetype
 {
     Slime,
     Wallbreaker
+};
+
+enum class ArmyStance
+{
+    RushNearest,
+    PushForward,
+    FollowLeader,
+    DefendBase
+};
+
+enum class Formation
+{
+    Swarm,
+    Wedge,
+    Line,
+    Ring
+};
+
+enum class SkillType
+{
+    ToggleFollow,
+    MakeWall,
+    SpawnRate,
+    Detonate
+};
+
+struct SkillDef
+{
+    std::string id;
+    std::string displayName;
+    SkillType type = SkillType::ToggleFollow;
+    int hotkey = 1;
+    float cooldown = 0.0f;
+    float mana = 0.0f;
+    float radius = 0.0f;
+    float duration = 0.0f;
+    int lenTiles = 0;
+    float hpPerSegment = 0.0f;
+    float multiplier = 1.0f;
+    float damage = 0.0f;
+    float respawnPenalty = 1.0f;
+    float spawnSlowMult = 1.0f;
+    float spawnSlowDuration = 0.0f;
+    float respawnBonusPerHit = 0.0f;
+    float respawnBonusCap = 0.0f;
+};
+
+struct RuntimeSkill
+{
+    SkillDef def;
+    float cooldownRemaining = 0.0f;
+    float activeTimer = 0.0f;
 };
 
 EnemyArchetype enemyTypeFromString(const std::string &typeId)
@@ -590,6 +657,24 @@ std::optional<GameConfig> parseGameConfig(const std::string &path)
         }
         cfg.yuna_scatter_y = getNumber(*spawn, "yuna_scatter_y_px", cfg.yuna_scatter_y);
     }
+    if (const JsonValue *respawn = getObjectField(*json, "respawn"))
+    {
+        if (const JsonValue *chibi = getObjectField(*respawn, "chibi"))
+        {
+            cfg.yuna_respawn.base = getNumber(*chibi, "base_s", cfg.yuna_respawn.base);
+            cfg.yuna_respawn.scale = getNumber(*chibi, "scale_s", cfg.yuna_respawn.scale);
+            cfg.yuna_respawn.k = getNumber(*chibi, "k", cfg.yuna_respawn.k);
+            cfg.yuna_respawn.invuln = getNumber(*chibi, "invuln_s", cfg.yuna_respawn.invuln);
+        }
+        if (const JsonValue *commander = getObjectField(*respawn, "commander"))
+        {
+            cfg.commander_respawn.base = getNumber(*commander, "base_s", cfg.commander_respawn.base);
+            cfg.commander_respawn.scale = getNumber(*commander, "scale_s", cfg.commander_respawn.scale);
+            cfg.commander_respawn.k = getNumber(*commander, "k", cfg.commander_respawn.k);
+            cfg.commander_respawn.floor = getNumber(*commander, "floor_s", cfg.commander_respawn.floor);
+            cfg.commander_respawn.invuln = getNumber(*commander, "invuln_s", cfg.commander_respawn.invuln);
+        }
+    }
     if (const JsonValue *victory = getObjectField(*json, "victory"))
     {
         cfg.victory_grace = getNumber(*victory, "grace_period_s", cfg.victory_grace);
@@ -598,6 +683,10 @@ std::optional<GameConfig> parseGameConfig(const std::string &path)
     {
         cfg.telemetry_duration = getNumber(*result, "telemetry_duration_s", cfg.telemetry_duration);
         cfg.restart_delay = getNumber(*result, "restart_delay_s", cfg.restart_delay);
+    }
+    if (const JsonValue *onDeath = getObjectField(*json, "on_commander_death"))
+    {
+        cfg.commander_auto_reinforce = getInt(*onDeath, "auto_reinforce_chibi", cfg.commander_auto_reinforce);
     }
     cfg.enemy_script = getString(*json, "enemy_script", cfg.enemy_script);
     cfg.map_path = getString(*json, "map", cfg.map_path);
@@ -780,6 +869,188 @@ std::optional<SpawnScript> parseSpawnScript(const std::string &path)
     return script;
 }
 
+SkillType skillTypeFromString(const std::string &type)
+{
+    if (type == "make_wall")
+    {
+        return SkillType::MakeWall;
+    }
+    if (type == "spawn_rate")
+    {
+        return SkillType::SpawnRate;
+    }
+    if (type == "detonate" || type == "self_destruct")
+    {
+        return SkillType::Detonate;
+    }
+    return SkillType::ToggleFollow;
+}
+
+std::string prettifySkillName(const std::string &id)
+{
+    std::string result;
+    result.reserve(id.size());
+    for (std::size_t i = 0; i < id.size(); ++i)
+    {
+        char c = id[i];
+        if (c == '_')
+        {
+            result.push_back(' ');
+        }
+        else
+        {
+            result.push_back(static_cast<char>(std::tolower(static_cast<unsigned char>(c))));
+        }
+    }
+    bool capitalize = true;
+    for (char &c : result)
+    {
+        if (capitalize && std::isalpha(static_cast<unsigned char>(c)))
+        {
+            c = static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
+            capitalize = false;
+        }
+        else if (c == ' ')
+        {
+            capitalize = true;
+        }
+    }
+    return result;
+}
+
+std::optional<std::vector<SkillDef>> parseSkillCatalog(const std::string &path)
+{
+    auto json = loadJsonFile(path);
+    if (!json.has_value())
+    {
+        return std::nullopt;
+    }
+    if (json->type != JsonValue::Type::Object)
+    {
+        std::cerr << "skills.json root must be an object\n";
+        return std::nullopt;
+    }
+    std::vector<SkillDef> defs;
+    defs.reserve(json->object.size());
+    for (const auto &kv : json->object)
+    {
+        const JsonValue &node = kv.second;
+        if (node.type != JsonValue::Type::Object)
+        {
+            continue;
+        }
+        SkillDef def;
+        def.id = kv.first;
+        def.displayName = prettifySkillName(kv.first);
+        def.hotkey = getInt(node, "key", def.hotkey);
+        def.cooldown = getNumber(node, "cooldown_s", def.cooldown);
+        def.mana = getNumber(node, "mana", def.mana);
+        def.radius = getNumber(node, "radius_px", def.radius);
+        std::string typeId = getString(node, "type", "toggle_follow");
+        def.type = skillTypeFromString(typeId);
+        switch (def.type)
+        {
+        case SkillType::ToggleFollow:
+            // radius already handled
+            break;
+        case SkillType::MakeWall:
+            def.lenTiles = getInt(node, "len_tiles", def.lenTiles);
+            def.duration = getNumber(node, "life_s", def.duration);
+            def.hpPerSegment = getNumber(node, "hp_per_segment", def.hpPerSegment);
+            break;
+        case SkillType::SpawnRate:
+            def.multiplier = getNumber(node, "mult", def.multiplier);
+            def.duration = getNumber(node, "duration_s", def.duration);
+            break;
+        case SkillType::Detonate:
+            def.damage = getNumber(node, "damage", def.damage);
+            def.respawnPenalty = getNumber(node, "respawn_penalty_ratio", def.respawnPenalty);
+            if (const JsonValue *slow = getObjectField(node, "spawn_slow"))
+            {
+                def.spawnSlowMult = getNumber(*slow, "mult", def.spawnSlowMult);
+                def.spawnSlowDuration = getNumber(*slow, "duration_s", def.spawnSlowDuration);
+            }
+            def.respawnBonusPerHit = getNumber(node, "respawn_bonus_per_hit_s", def.respawnBonusPerHit);
+            def.respawnBonusCap = getNumber(node, "respawn_bonus_cap_s", def.respawnBonusCap);
+            break;
+        }
+        if (def.radius < 0.0f)
+        {
+            def.radius = 0.0f;
+        }
+        if (def.lenTiles <= 0)
+        {
+            def.lenTiles = 1;
+        }
+        if (def.hpPerSegment <= 0.0f)
+        {
+            def.hpPerSegment = 1.0f;
+        }
+        if (def.multiplier <= 0.0f)
+        {
+            def.multiplier = 1.0f;
+        }
+        if (def.spawnSlowMult <= 0.0f)
+        {
+            def.spawnSlowMult = 1.0f;
+        }
+        defs.push_back(def);
+    }
+    std::sort(defs.begin(), defs.end(), [](const SkillDef &a, const SkillDef &b) { return a.hotkey < b.hotkey; });
+    return defs;
+}
+
+std::vector<SkillDef> buildDefaultSkills()
+{
+    std::vector<SkillDef> defs;
+    SkillDef rally;
+    rally.id = "rally";
+    rally.displayName = "Rally";
+    rally.type = SkillType::ToggleFollow;
+    rally.hotkey = 1;
+    rally.cooldown = 3.0f;
+    rally.radius = 160.0f;
+    defs.push_back(rally);
+
+    SkillDef wall;
+    wall.id = "wall";
+    wall.displayName = "Wall";
+    wall.type = SkillType::MakeWall;
+    wall.hotkey = 2;
+    wall.cooldown = 15.0f;
+    wall.lenTiles = 8;
+    wall.duration = 20.0f;
+    wall.hpPerSegment = 10.0f;
+    defs.push_back(wall);
+
+    SkillDef surge;
+    surge.id = "surge";
+    surge.displayName = "Surge";
+    surge.type = SkillType::SpawnRate;
+    surge.hotkey = 3;
+    surge.cooldown = 40.0f;
+    surge.multiplier = 1.5f;
+    surge.duration = 20.0f;
+    defs.push_back(surge);
+
+    SkillDef selfDestruct;
+    selfDestruct.id = "self_destruct";
+    selfDestruct.displayName = "Self Destruct";
+    selfDestruct.type = SkillType::Detonate;
+    selfDestruct.hotkey = 4;
+    selfDestruct.cooldown = 60.0f;
+    selfDestruct.radius = 128.0f;
+    selfDestruct.damage = 80.0f;
+    selfDestruct.respawnPenalty = 2.0f;
+    selfDestruct.spawnSlowMult = 2.0f;
+    selfDestruct.spawnSlowDuration = 10.0f;
+    selfDestruct.respawnBonusPerHit = 0.5f;
+    selfDestruct.respawnBonusCap = 6.0f;
+    defs.push_back(selfDestruct);
+
+    return defs;
+}
+
 Vec2 tileToWorld(const Vec2 &tile, int tileSize)
 {
     return {tile.x * tileSize + tileSize * 0.5f, tile.y * tileSize + tileSize * 0.5f};
@@ -805,11 +1076,97 @@ Vec2 leftmostGateWorld(const MapDefs &defs)
     return best;
 }
 
+std::vector<Vec2> computeFormationOffsets(Formation formation, std::size_t count)
+{
+    std::vector<Vec2> offsets;
+    offsets.reserve(count);
+    if (count == 0)
+    {
+        return offsets;
+    }
+    if (count == 1)
+    {
+        offsets.push_back({0.0f, 32.0f});
+        return offsets;
+    }
+    constexpr float pi = 3.14159265358979323846f;
+    switch (formation)
+    {
+    case Formation::Swarm:
+    case Formation::Ring:
+    {
+        const float radius = formation == Formation::Ring ? 40.0f : 48.0f;
+        for (std::size_t i = 0; i < count; ++i)
+        {
+            const float angle = (static_cast<float>(i) / static_cast<float>(count)) * 2.0f * pi;
+            offsets.push_back({std::cos(angle) * radius, std::sin(angle) * radius});
+        }
+        break;
+    }
+    case Formation::Line:
+    {
+        for (std::size_t i = 0; i < count; ++i)
+        {
+            const float offsetX = (static_cast<float>(i) - (static_cast<float>(count) - 1.0f) * 0.5f) * 24.0f;
+            offsets.push_back({offsetX, 32.0f});
+        }
+        break;
+    }
+    case Formation::Wedge:
+    {
+        std::size_t produced = 0;
+        int row = 0;
+        while (produced < count)
+        {
+            const int rowCount = row + 1;
+            for (int i = 0; i < rowCount && produced < count; ++i)
+            {
+                const float offsetX = (static_cast<float>(i) - (rowCount - 1) * 0.5f) * 26.0f;
+                const float offsetY = 32.0f + row * 28.0f;
+                offsets.push_back({offsetX, offsetY});
+                ++produced;
+            }
+            ++row;
+        }
+        break;
+    }
+    }
+    return offsets;
+}
+
+const char *stanceLabel(ArmyStance stance)
+{
+    switch (stance)
+    {
+    case ArmyStance::RushNearest: return "Rush Nearest";
+    case ArmyStance::PushForward: return "Push Forward";
+    case ArmyStance::FollowLeader: return "Follow Leader";
+    case ArmyStance::DefendBase: return "Defend Base";
+    }
+    return "Unknown";
+}
+
+const char *formationLabel(Formation formation)
+{
+    switch (formation)
+    {
+    case Formation::Swarm: return "Swarm";
+    case Formation::Wedge: return "Wedge";
+    case Formation::Line: return "Line";
+    case Formation::Ring: return "Ring";
+    }
+    return "Unknown";
+}
+
 struct Unit
 {
     Vec2 pos;
     float hp = 0.0f;
     float radius = 4.0f;
+    bool followBySkill = false;
+    bool followByStance = false;
+    bool effectiveFollower = false;
+    Vec2 formationOffset{0.0f, 0.0f};
 };
 
 struct CommanderUnit
@@ -826,6 +1183,14 @@ struct EnemyUnit
     float hp = 0.0f;
     float radius = 0.0f;
     EnemyArchetype type = EnemyArchetype::Slime;
+};
+
+struct WallSegment
+{
+    Vec2 pos;
+    float hp = 0.0f;
+    float life = 0.0f;
+    float radius = 0.0f;
 };
 
 struct ActiveSpawn
@@ -1325,6 +1690,8 @@ struct Simulation
     std::vector<Unit> yunas;
     std::vector<EnemyUnit> enemies;
     std::vector<ActiveSpawn> activeSpawns;
+    std::vector<WallSegment> walls;
+    std::vector<RuntimeSkill> skills;
     std::size_t nextWave = 0;
     float spawnTimer = 0.0f;
     float yunaSpawnTimer = 0.0f;
@@ -1339,8 +1706,36 @@ struct Simulation
     std::uniform_real_distribution<float> scatterY;
     std::uniform_real_distribution<float> gateJitter;
 
+    ArmyStance stance = ArmyStance::RushNearest;
+    Formation formation = Formation::Swarm;
+    int selectedSkill = 0;
+    bool rallyState = false;
+    float spawnRateMultiplier = 1.0f;
+    float spawnSlowMultiplier = 1.0f;
+    float spawnSlowTimer = 0.0f;
+    float commanderRespawnTimer = 0.0f;
+    float commanderInvulnTimer = 0.0f;
+    float pendingRespawnPenalty = 1.0f;
+    int reinforcementQueue = 0;
+    float pendingRespawnBonus = 0.0f;
+
     Vec2 basePos;
     Vec2 yunaSpawnPos;
+
+    void configureSkills(const std::vector<SkillDef> &defs)
+    {
+        skills.clear();
+        skills.reserve(defs.size());
+        for (const SkillDef &def : defs)
+        {
+            RuntimeSkill runtime;
+            runtime.def = def;
+            runtime.cooldownRemaining = 0.0f;
+            runtime.activeTimer = 0.0f;
+            skills.push_back(runtime);
+        }
+        selectedSkill = 0;
+    }
 
     void reset()
     {
@@ -1351,6 +1746,7 @@ struct Simulation
         yunas.clear();
         enemies.clear();
         activeSpawns.clear();
+        walls.clear();
         nextWave = 0;
         spawnEnabled = true;
         result = GameResult::Playing;
@@ -1365,6 +1761,279 @@ struct Simulation
         commander.radius = commanderStats.radius;
         commander.pos = yunaSpawnPos;
         commander.alive = true;
+        commanderRespawnTimer = 0.0f;
+        commanderInvulnTimer = 0.0f;
+        pendingRespawnPenalty = 1.0f;
+        pendingRespawnBonus = 0.0f;
+        reinforcementQueue = 0;
+        spawnRateMultiplier = 1.0f;
+        spawnSlowMultiplier = 1.0f;
+        spawnSlowTimer = 0.0f;
+        rallyState = false;
+        stance = ArmyStance::RushNearest;
+        formation = Formation::Swarm;
+        selectedSkill = 0;
+        for (RuntimeSkill &skill : skills)
+        {
+            skill.cooldownRemaining = 0.0f;
+            skill.activeTimer = 0.0f;
+        }
+    }
+
+    float commanderRespawnBaseTime() const
+    {
+        return std::max(config.commander_respawn.floor, config.commander_respawn.base + config.commander_respawn.scale);
+    }
+
+    void updateSkillTimers(float dt)
+    {
+        for (RuntimeSkill &skill : skills)
+        {
+            if (skill.cooldownRemaining > 0.0f)
+            {
+                skill.cooldownRemaining = std::max(0.0f, skill.cooldownRemaining - dt);
+            }
+            if (skill.activeTimer > 0.0f)
+            {
+                skill.activeTimer = std::max(0.0f, skill.activeTimer - dt);
+                if (skill.activeTimer <= 0.0f)
+                {
+                    if (skill.def.type == SkillType::SpawnRate)
+                    {
+                        spawnRateMultiplier = 1.0f;
+                    }
+                }
+            }
+        }
+        if (spawnSlowTimer > 0.0f)
+        {
+            spawnSlowTimer = std::max(0.0f, spawnSlowTimer - dt);
+            if (spawnSlowTimer <= 0.0f)
+            {
+                spawnSlowMultiplier = 1.0f;
+            }
+        }
+        if (commanderInvulnTimer > 0.0f && commander.alive)
+        {
+            commanderInvulnTimer = std::max(0.0f, commanderInvulnTimer - dt);
+        }
+    }
+
+    void updateCommanderRespawn(float dt)
+    {
+        if (commander.alive)
+        {
+            return;
+        }
+        if (commanderRespawnTimer > 0.0f)
+        {
+            commanderRespawnTimer = std::max(0.0f, commanderRespawnTimer - dt);
+            if (commanderRespawnTimer <= 0.0f)
+            {
+                commander.alive = true;
+                commander.hp = commanderStats.hp;
+                commander.pos = yunaSpawnPos;
+                commanderInvulnTimer = config.commander_respawn.invuln;
+                pendingRespawnPenalty = 1.0f;
+                pendingRespawnBonus = 0.0f;
+            }
+        }
+    }
+
+    void updateWalls(float dt)
+    {
+        for (WallSegment &wall : walls)
+        {
+            if (wall.life > 0.0f)
+            {
+                wall.life = std::max(0.0f, wall.life - dt);
+            }
+        }
+        walls.erase(std::remove_if(walls.begin(), walls.end(), [](const WallSegment &wall) {
+                        return wall.life <= 0.0f || wall.hp <= 0.0f;
+                    }),
+                    walls.end());
+    }
+
+    void spawnYunaUnit()
+    {
+        Unit yuna;
+        yuna.pos = yunaSpawnPos;
+        yuna.pos.y += scatterY(rng);
+        yuna.hp = yunaStats.hp;
+        yuna.radius = yunaStats.radius;
+        yunas.push_back(yuna);
+    }
+
+    void scheduleCommanderRespawn(float penaltyMultiplier, float bonusSeconds)
+    {
+        commander.alive = false;
+        commander.hp = 0.0f;
+        pendingRespawnPenalty = std::max(1.0f, penaltyMultiplier);
+        pendingRespawnBonus = std::max(0.0f, bonusSeconds);
+        commanderRespawnTimer = commanderRespawnBaseTime() * pendingRespawnPenalty - pendingRespawnBonus;
+        if (commanderRespawnTimer < config.commander_respawn.floor)
+        {
+            commanderRespawnTimer = config.commander_respawn.floor;
+        }
+        commanderInvulnTimer = 0.0f;
+        reinforcementQueue += config.commander_auto_reinforce;
+        rallyState = false;
+        for (Unit &yuna : yunas)
+        {
+            yuna.followBySkill = false;
+            yuna.followByStance = false;
+            yuna.effectiveFollower = false;
+        }
+        hud.resultText = "Commander Down";
+        hud.resultTimer = config.telemetry_duration;
+    }
+
+    void spawnWallSegments(const SkillDef &def, const Vec2 &worldTarget)
+    {
+        if (!commander.alive)
+        {
+            return;
+        }
+        Vec2 direction = normalize(worldTarget - commander.pos);
+        if (lengthSq(direction) < 0.0001f)
+        {
+            direction = {-1.0f, 0.0f};
+        }
+        const float spacing = static_cast<float>(mapDefs.tile_size);
+        Vec2 start = commander.pos + direction * spacing;
+        for (int i = 0; i < def.lenTiles; ++i)
+        {
+            WallSegment segment;
+            segment.pos = start + direction * (spacing * static_cast<float>(i));
+            segment.hp = def.hpPerSegment;
+            segment.life = def.duration;
+            segment.radius = spacing * 0.5f;
+            walls.push_back(segment);
+        }
+        pushTelemetry("Wall deployed");
+    }
+
+    void detonateCommander(const SkillDef &def)
+    {
+        if (!commander.alive)
+        {
+            return;
+        }
+        const float radiusSq = def.radius * def.radius;
+        int hits = 0;
+        for (EnemyUnit &enemy : enemies)
+        {
+            if (lengthSq(enemy.pos - commander.pos) <= radiusSq)
+            {
+                enemy.hp -= def.damage;
+                ++hits;
+            }
+        }
+        spawnSlowMultiplier = def.spawnSlowMult;
+        spawnSlowTimer = def.spawnSlowDuration;
+        const float bonus = std::min(def.respawnBonusCap, def.respawnBonusPerHit * static_cast<float>(hits));
+        commander.hp = 0.0f;
+        scheduleCommanderRespawn(def.respawnPenalty, bonus);
+        pushTelemetry("Self Destruct!");
+    }
+
+    void activateSkillAtIndex(int index, const Vec2 &worldTarget)
+    {
+        if (index < 0 || index >= static_cast<int>(skills.size()))
+        {
+            return;
+        }
+        RuntimeSkill &skill = skills[static_cast<std::size_t>(index)];
+        if (skill.cooldownRemaining > 0.0f)
+        {
+            return;
+        }
+        switch (skill.def.type)
+        {
+        case SkillType::ToggleFollow:
+            rallyState = !rallyState;
+            if (rallyState)
+            {
+                const float radiusSq = skill.def.radius * skill.def.radius;
+                for (Unit &yuna : yunas)
+                {
+                    if (lengthSq(yuna.pos - worldTarget) <= radiusSq)
+                    {
+                        yuna.followBySkill = true;
+                    }
+                }
+                pushTelemetry("Rally!");
+            }
+            else
+            {
+                for (Unit &yuna : yunas)
+                {
+                    yuna.followBySkill = false;
+                }
+                pushTelemetry("Rally dismissed");
+            }
+            skill.cooldownRemaining = skill.def.cooldown;
+            break;
+        case SkillType::MakeWall:
+            spawnWallSegments(skill.def, worldTarget);
+            skill.cooldownRemaining = skill.def.cooldown;
+            break;
+        case SkillType::SpawnRate:
+            spawnRateMultiplier = skill.def.multiplier;
+            skill.activeTimer = skill.def.duration;
+            skill.cooldownRemaining = skill.def.cooldown;
+            pushTelemetry("Spawn surge");
+            break;
+        case SkillType::Detonate:
+            detonateCommander(skill.def);
+            skill.cooldownRemaining = skill.def.cooldown;
+            break;
+        }
+    }
+
+    void activateSelectedSkill(const Vec2 &worldTarget)
+    {
+        activateSkillAtIndex(selectedSkill, worldTarget);
+    }
+
+    void selectSkillByHotkey(int hotkey)
+    {
+        for (std::size_t i = 0; i < skills.size(); ++i)
+        {
+            if (skills[i].def.hotkey == hotkey)
+            {
+                selectedSkill = static_cast<int>(i);
+                return;
+            }
+        }
+    }
+
+    void cycleFormation(int direction)
+    {
+        static const std::array<Formation, 4> order{Formation::Swarm, Formation::Wedge, Formation::Line, Formation::Ring};
+        auto it = std::find(order.begin(), order.end(), formation);
+        if (it == order.end())
+        {
+            formation = Formation::Swarm;
+            return;
+        }
+        int index = static_cast<int>(std::distance(order.begin(), it));
+        index = (index + direction + static_cast<int>(order.size())) % static_cast<int>(order.size());
+        formation = order[static_cast<std::size_t>(index)];
+        std::string message = std::string("Formation: ") + formationLabel(formation);
+        pushTelemetry(message);
+    }
+
+    void setStance(ArmyStance newStance)
+    {
+        if (stance == newStance)
+        {
+            return;
+        }
+        stance = newStance;
+        std::string message = std::string("Stance: ") + stanceLabel(stance);
+        pushTelemetry(message);
     }
 
     void pushTelemetry(const std::string &text)
@@ -1422,10 +2091,13 @@ struct Simulation
             restartCooldown = std::max(0.0f, restartCooldown - dt);
         }
 
+        updateSkillTimers(dt);
         updateWaves();
         updateActiveSpawns(dt);
         updateYunaSpawn(dt);
+        updateCommanderRespawn(dt);
         updateCommander(dt, commanderMoveInput);
+        updateWalls(dt);
         updateUnits(dt);
         evaluateResult();
     }
@@ -1546,86 +2218,264 @@ struct Simulation
             return;
         }
         yunaSpawnTimer -= dt;
-        if (yunaSpawnTimer <= 0.0f)
+        const float minInterval = 0.1f;
+        const float spawnInterval = std::max(minInterval, (config.yuna_interval / std::max(spawnRateMultiplier, 0.1f)) * spawnSlowMultiplier);
+        while (yunaSpawnTimer <= 0.0f && static_cast<int>(yunas.size()) < config.yuna_max)
         {
-            Unit yuna;
-            yuna.pos = yunaSpawnPos;
-            yuna.pos.y += scatterY(rng);
-            yuna.hp = yunaStats.hp;
-            yuna.radius = yunaStats.radius;
-            yunas.push_back(yuna);
-            yunaSpawnTimer += config.yuna_interval;
+            spawnYunaUnit();
+            yunaSpawnTimer += spawnInterval;
+        }
+        while (reinforcementQueue > 0 && static_cast<int>(yunas.size()) < config.yuna_max)
+        {
+            spawnYunaUnit();
+            --reinforcementQueue;
         }
     }
 
     void updateUnits(float dt)
     {
-        // Update Yuna movement and combat
+        constexpr std::size_t followLimit = 30;
+        const float yunaSpeedPx = yunaStats.speed_u_s * config.pixels_per_unit;
+        const float followerSnapDistSq = 16.0f;
+
         for (Unit &yuna : yunas)
         {
-            if (!enemies.empty())
+            yuna.followByStance = false;
+            yuna.effectiveFollower = false;
+        }
+
+        if (stance == ArmyStance::FollowLeader && commander.alive)
+        {
+            std::vector<std::pair<float, Unit *>> distances;
+            distances.reserve(yunas.size());
+            for (Unit &yuna : yunas)
             {
-                auto nearestIt = std::min_element(enemies.begin(), enemies.end(), [&yuna](const EnemyUnit &a, const EnemyUnit &b) {
-                    return lengthSq(a.pos - yuna.pos) < lengthSq(b.pos - yuna.pos);
-                });
-                Vec2 dir = normalize(nearestIt->pos - yuna.pos);
-                const float speedPx = yunaStats.speed_u_s * config.pixels_per_unit;
-                yuna.pos += dir * (speedPx * dt);
+                distances.emplace_back(lengthSq(yuna.pos - commander.pos), &yuna);
+            }
+            std::sort(distances.begin(), distances.end(), [](const auto &a, const auto &b) { return a.first < b.first; });
+            const std::size_t take = std::min<std::size_t>(followLimit, distances.size());
+            for (std::size_t i = 0; i < take; ++i)
+            {
+                distances[i].second->followByStance = true;
+            }
+        }
+
+        std::vector<std::pair<float, Unit *>> skillFollowers;
+        skillFollowers.reserve(yunas.size());
+        for (Unit &yuna : yunas)
+        {
+            if (yuna.followBySkill)
+            {
+                skillFollowers.emplace_back(lengthSq(yuna.pos - commander.pos), &yuna);
+            }
+        }
+        std::sort(skillFollowers.begin(), skillFollowers.end(), [](const auto &a, const auto &b) { return a.first < b.first; });
+
+        std::vector<Unit *> followers;
+        followers.reserve(followLimit);
+        for (auto &entry : skillFollowers)
+        {
+            if (followers.size() >= followLimit)
+            {
+                break;
+            }
+            entry.second->effectiveFollower = true;
+            followers.push_back(entry.second);
+        }
+        if (followers.size() < followLimit)
+        {
+            for (Unit &yuna : yunas)
+            {
+                if (followers.size() >= followLimit)
+                {
+                    break;
+                }
+                if (!yuna.followBySkill && yuna.followByStance)
+                {
+                    yuna.effectiveFollower = true;
+                    followers.push_back(&yuna);
+                }
+            }
+        }
+
+        auto formationOffsets = computeFormationOffsets(formation, followers.size());
+        for (std::size_t i = 0; i < followers.size(); ++i)
+        {
+            followers[i]->formationOffset = formationOffsets[i];
+        }
+
+        const std::size_t totalFollowers = followers.size();
+        const std::size_t totalDefenders = yunas.size() > totalFollowers ? yunas.size() - totalFollowers : 0;
+        const std::size_t safeDefenders = totalDefenders > 0 ? totalDefenders : 1;
+        std::size_t defendIndex = 0;
+        std::size_t supportIndex = 0;
+
+        auto nearestEnemy = [this](const Vec2 &pos) -> EnemyUnit * {
+            EnemyUnit *best = nullptr;
+            float bestDist = std::numeric_limits<float>::max();
+            for (EnemyUnit &enemy : enemies)
+            {
+                const float dist = lengthSq(enemy.pos - pos);
+                if (dist < bestDist)
+                {
+                    bestDist = dist;
+                    best = &enemy;
+                }
+            }
+            return best;
+        };
+
+        for (Unit &yuna : yunas)
+        {
+            Vec2 velocity{0.0f, 0.0f};
+            if (yuna.effectiveFollower && commander.alive)
+            {
+                Vec2 desiredPos = commander.pos + yuna.formationOffset;
+                Vec2 toTarget = desiredPos - yuna.pos;
+                if (lengthSq(toTarget) > followerSnapDistSq)
+                {
+                    velocity = normalize(toTarget) * yunaSpeedPx;
+                }
             }
             else
             {
-                Vec2 dir = normalize(basePos - yuna.pos);
-                const float speedPx = yunaStats.speed_u_s * config.pixels_per_unit;
-                yuna.pos += dir * (speedPx * dt);
+                switch (stance)
+                {
+                case ArmyStance::RushNearest:
+                {
+                    if (EnemyUnit *target = nearestEnemy(yuna.pos))
+                    {
+                        velocity = normalize(target->pos - yuna.pos) * yunaSpeedPx;
+                    }
+                    else
+                    {
+                        velocity = normalize(basePos - yuna.pos) * yunaSpeedPx;
+                    }
+                    break;
+                }
+                case ArmyStance::PushForward:
+                {
+                    EnemyUnit *target = nearestEnemy(yuna.pos);
+                    Vec2 pushTarget{std::max(basePos.x - mapDefs.tile_size * 25.0f, mapDefs.tile_size * 4.0f), basePos.y};
+                    if (target && lengthSq(target->pos - yuna.pos) < 160.0f * 160.0f)
+                    {
+                        velocity = normalize(target->pos - yuna.pos) * yunaSpeedPx;
+                    }
+                    else
+                    {
+                        velocity = normalize(pushTarget - yuna.pos) * yunaSpeedPx;
+                    }
+                    break;
+                }
+                case ArmyStance::FollowLeader:
+                {
+                    if (commander.alive)
+                    {
+                        const float lane = static_cast<float>(supportIndex) - static_cast<float>(safeDefenders - 1) * 0.5f;
+                        Vec2 supportPos{commander.pos.x - 96.0f, commander.pos.y + lane * 20.0f};
+                        ++supportIndex;
+                        velocity = normalize(supportPos - yuna.pos) * yunaSpeedPx;
+                    }
+                    else if (EnemyUnit *target = nearestEnemy(yuna.pos))
+                    {
+                        velocity = normalize(target->pos - yuna.pos) * yunaSpeedPx;
+                    }
+                    else
+                    {
+                        velocity = normalize(basePos - yuna.pos) * yunaSpeedPx;
+                    }
+                    break;
+                }
+                case ArmyStance::DefendBase:
+                {
+                    EnemyUnit *target = nearestEnemy(basePos);
+                    if (target && lengthSq(target->pos - basePos) < (mapDefs.tile_size * 22.0f) * (mapDefs.tile_size * 22.0f))
+                    {
+                        velocity = normalize(target->pos - yuna.pos) * yunaSpeedPx;
+                    }
+                    else
+                    {
+                        const float angle = 2.0f * 3.14159265358979323846f * (static_cast<float>(defendIndex) / static_cast<float>(safeDefenders));
+                        Vec2 ringTarget{basePos.x + std::cos(angle) * 120.0f, basePos.y + std::sin(angle) * 80.0f};
+                        ++defendIndex;
+                        velocity = normalize(ringTarget - yuna.pos) * yunaSpeedPx;
+                    }
+                    break;
+                }
+                }
+            }
+            if (velocity.x != 0.0f || velocity.y != 0.0f)
+            {
+                yuna.pos += velocity * dt;
             }
         }
-        // Enemy movement towards base
+
         for (EnemyUnit &enemy : enemies)
         {
             Vec2 dir = normalize(basePos - enemy.pos);
             const float speedPx = enemySpeed(enemy);
             enemy.pos += dir * (speedPx * dt);
         }
+
+        for (EnemyUnit &enemy : enemies)
+        {
+            for (WallSegment &wall : walls)
+            {
+                const float combined = enemy.radius + wall.radius;
+                const float distSq = lengthSq(enemy.pos - wall.pos);
+                if (distSq <= combined * combined)
+                {
+                    float dist = std::sqrt(std::max(distSq, 0.0001f));
+                    Vec2 normal = dist > 0.0f ? (enemy.pos - wall.pos) / dist : Vec2{1.0f, 0.0f};
+                    const float overlap = combined - dist;
+                    enemy.pos += normal * overlap;
+                    const float dps = enemy.type == EnemyArchetype::Wallbreaker ? wallbreakerStats.dps_wall : slimeStats.dps;
+                    wall.hp -= dps * dt;
+                }
+            }
+        }
+
         if (commander.alive)
         {
             for (EnemyUnit &enemy : enemies)
             {
-                const float r = commander.radius + enemy.radius;
-                if (lengthSq(commander.pos - enemy.pos) <= r * r)
+                const float combined = commander.radius + enemy.radius;
+                if (lengthSq(commander.pos - enemy.pos) <= combined * combined)
                 {
                     enemy.hp -= commanderStats.dps * dt;
-                    commander.hp -= enemyDpsAgainstUnits(enemy) * dt;
-                    if (commander.hp <= 0.0f)
+                    if (commanderInvulnTimer <= 0.0f)
                     {
-                        commander.hp = 0.0f;
-                        commander.alive = false;
-                        setResult(GameResult::GameOver, "Commander Down");
-                        break;
+                        commander.hp -= enemyDpsAgainstUnits(enemy) * dt;
                     }
                 }
             }
+            if (commander.hp <= 0.0f)
+            {
+                scheduleCommanderRespawn(1.0f, 0.0f);
+            }
         }
-        // Combat Yuna vs Enemy
+
         for (Unit &yuna : yunas)
         {
             for (EnemyUnit &enemy : enemies)
             {
-                const float r = yuna.radius + enemy.radius;
-                if (lengthSq(yuna.pos - enemy.pos) <= r * r)
+                const float combined = yuna.radius + enemy.radius;
+                if (lengthSq(yuna.pos - enemy.pos) <= combined * combined)
                 {
                     enemy.hp -= yunaStats.dps * dt;
                     yuna.hp -= enemyDpsAgainstUnits(enemy) * dt;
                 }
             }
         }
+
         enemies.erase(std::remove_if(enemies.begin(), enemies.end(), [](const EnemyUnit &e) { return e.hp <= 0.0f; }), enemies.end());
         yunas.erase(std::remove_if(yunas.begin(), yunas.end(), [](const Unit &y) { return y.hp <= 0.0f; }), yunas.end());
-        // Enemy vs base
+
         const float baseRadius = std::max(config.base_aabb.x, config.base_aabb.y) * 0.5f;
         for (EnemyUnit &enemy : enemies)
         {
-            const float r = baseRadius + enemy.radius;
-            if (lengthSq(enemy.pos - basePos) <= r * r)
+            const float combined = baseRadius + enemy.radius;
+            if (lengthSq(enemy.pos - basePos) <= combined * combined)
             {
                 baseHp -= enemyDpsAgainstBase(enemy) * dt;
                 if (baseHp <= 0.0f)
@@ -1636,6 +2486,8 @@ struct Simulation
                 }
             }
         }
+
+        walls.erase(std::remove_if(walls.begin(), walls.end(), [](const WallSegment &wall) { return wall.hp <= 0.0f; }), walls.end());
     }
 
     void evaluateResult()
@@ -1664,6 +2516,11 @@ struct Camera
 Vec2 worldToScreen(const Vec2 &world, const Camera &camera)
 {
     return {world.x - camera.position.x, world.y - camera.position.y};
+}
+
+Vec2 screenToWorld(int screenX, int screenY, const Camera &camera)
+{
+    return {static_cast<float>(screenX) + camera.position.x, static_cast<float>(screenY) + camera.position.y};
 }
 
 void drawFilledCircle(SDL_Renderer *renderer, const Vec2 &pos, float radius)
@@ -1851,6 +2708,13 @@ void renderScene(SDL_Renderer *renderer, const Simulation &sim, const Camera &ca
         }
     }
 
+    SDL_SetRenderDrawColor(renderer, 120, 150, 200, 255);
+    for (const WallSegment &wall : sim.walls)
+    {
+        Vec2 screenPos = worldToScreen(wall.pos, camera);
+        drawFilledCircle(renderer, screenPos, wall.radius);
+    }
+
     if (atlas.texture)
     {
         for (const EnemyUnit &enemy : sim.enemies)
@@ -1937,6 +2801,37 @@ void renderScene(SDL_Renderer *renderer, const Simulation &sim, const Camera &ca
     std::ostringstream fpsText;
     fpsText << "FPS: " << static_cast<int>(fps);
     font.drawText(renderer, fpsText.str(), 12, y);
+    y += font.getLineHeight();
+    font.drawText(renderer, std::string("Stance (F1-F4): ") + stanceLabel(sim.stance), 20, y);
+    y += font.getLineHeight();
+    font.drawText(renderer, std::string("Formation (Z/X): ") + formationLabel(sim.formation), 20, y);
+    y += font.getLineHeight();
+    if (!sim.commander.alive)
+    {
+        std::ostringstream respawnText;
+        respawnText << "Commander respawn in " << std::fixed << std::setprecision(1) << sim.commanderRespawnTimer << "s";
+        font.drawText(renderer, respawnText.str(), 20, y);
+        y += font.getLineHeight();
+    }
+    font.drawText(renderer, "Skills (Right Click):", 20, y);
+    y += font.getLineHeight();
+    for (std::size_t i = 0; i < sim.skills.size(); ++i)
+    {
+        const RuntimeSkill &skill = sim.skills[i];
+        std::ostringstream skillLabel;
+        skillLabel << (static_cast<int>(i) == sim.selectedSkill ? "> " : "  ");
+        skillLabel << skill.def.hotkey << ": " << skill.def.displayName;
+        if (skill.cooldownRemaining > 0.0f)
+        {
+            skillLabel << " [" << std::fixed << std::setprecision(1) << skill.cooldownRemaining << "s]";
+        }
+        else if (skill.def.type == SkillType::SpawnRate && skill.activeTimer > 0.0f)
+        {
+            skillLabel << " (active " << std::fixed << std::setprecision(1) << skill.activeTimer << "s)";
+        }
+        font.drawText(renderer, skillLabel.str(), 20, y);
+        y += font.getLineHeight();
+    }
 
     if (!sim.hud.telemetryText.empty() && sim.hud.telemetryTimer > 0.0f)
     {
@@ -2002,6 +2897,7 @@ int main(int argc, char **argv)
     {
         spawnScriptOpt = parseSpawnScript(configOpt->enemy_script);
     }
+    auto skillsOpt = parseSkillCatalog("assets/skills.json");
 
     if (!configOpt || !entityCatalogOpt || !mapDefsOpt || !spawnScriptOpt)
     {
@@ -2033,6 +2929,8 @@ int main(int argc, char **argv)
     sim.commanderStats = entityCatalogOpt->commander;
     sim.mapDefs = *mapDefsOpt;
     sim.spawnScript = *spawnScriptOpt;
+    std::vector<SkillDef> skillDefs = skillsOpt ? *skillsOpt : buildDefaultSkills();
+    sim.configureSkills(skillDefs);
     sim.reset();
 
     BitmapFont font;
@@ -2080,6 +2978,18 @@ int main(int argc, char **argv)
                 case SDL_SCANCODE_ESCAPE:
                     running = false;
                     break;
+                case SDL_SCANCODE_F1:
+                    sim.setStance(ArmyStance::RushNearest);
+                    break;
+                case SDL_SCANCODE_F2:
+                    sim.setStance(ArmyStance::PushForward);
+                    break;
+                case SDL_SCANCODE_F3:
+                    sim.setStance(ArmyStance::FollowLeader);
+                    break;
+                case SDL_SCANCODE_F4:
+                    sim.setStance(ArmyStance::DefendBase);
+                    break;
                 case SDL_SCANCODE_SPACE:
                     camera.position = {sim.commander.pos.x - screenWidth * 0.5f, sim.commander.pos.y - screenHeight * 0.5f};
                     introActive = false;
@@ -2089,6 +2999,12 @@ int main(int argc, char **argv)
                     camera.position = {sim.basePos.x - screenWidth * 0.5f, sim.basePos.y - screenHeight * 0.5f};
                     introActive = false;
                     introTimer = 0.0f;
+                    break;
+                case SDL_SCANCODE_Z:
+                    sim.cycleFormation(-1);
+                    break;
+                case SDL_SCANCODE_X:
+                    sim.cycleFormation(1);
                     break;
                 case SDL_SCANCODE_R:
                     if (sim.result != GameResult::Playing && sim.canRestart())
@@ -2102,10 +3018,24 @@ int main(int argc, char **argv)
                         introActive = true;
                     }
                     break;
+                case SDL_SCANCODE_1:
+                case SDL_SCANCODE_2:
+                case SDL_SCANCODE_3:
+                case SDL_SCANCODE_4:
+                {
+                    const int hotkey = static_cast<int>(event.key.keysym.scancode - SDL_SCANCODE_1) + 1;
+                    sim.selectSkillByHotkey(hotkey);
+                    break;
+                }
                 default:
                     break;
                 }
             }
+        }
+        else if (event.type == SDL_MOUSEBUTTONDOWN && event.button.button == SDL_BUTTON_RIGHT)
+        {
+            Vec2 worldPos = screenToWorld(event.button.x, event.button.y, camera);
+            sim.activateSelectedSkill(worldPos);
         }
 
         const Uint64 nowCounter = SDL_GetPerformanceCounter();

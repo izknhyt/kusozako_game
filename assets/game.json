@@ -10,10 +10,15 @@
     "yuna_offset_px": [48, 0],
     "yuna_scatter_y_px": 16
   },
+  "respawn": {
+    "chibi": { "base_s": 5, "scale_s": 5, "k": 1.0, "invuln_s": 2 },
+    "commander": { "base_s": 8, "scale_s": 5, "k": 2.0, "floor_s": 12, "invuln_s": 2 }
+  },
   "victory": { "grace_period_s": 5.0 },
   "result": { "telemetry_duration_s": 3.0, "restart_delay_s": 2.0 },
   "enemy_script": "assets/spawn_level1.json",
   "map": "assets/maps/level1.tmx",
   "rng_seed": 1337,
+  "on_commander_death": { "auto_reinforce_chibi": 10 },
   "lod": { "threshold_entities": 300, "skip_draw_every": 2 }
 }
