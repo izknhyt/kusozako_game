@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "fixed_dt": 0.0166667,
+  "pixels_per_unit": 16,
+  "camera": { "zoom_steps": [1, 2, 3], "speed_u_s": 6.0 },
+  "base": { "hp": 300, "aabb_px": [32, 32] },
+  "spawn": {
+    "yuna_interval_s": 0.75,
+    "yuna_max": 200,
+    "yuna_offset_px": [48, 0],
+    "yuna_scatter_y_px": 16
+  },
+  "victory": { "grace_period_s": 5.0 },
+  "result": { "telemetry_duration_s": 3.0, "restart_delay_s": 2.0 },
+  "enemy_script": "assets/spawn_level1.json",
+  "map": "assets/maps/level1.tmx",
+  "rng_seed": 1337,
+  "lod": { "threshold_entities": 300, "skip_draw_every": 2 }
+}

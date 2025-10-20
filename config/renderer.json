@@ -1,0 +1,9 @@
+{
+  "backend": "auto",
+  "srgb": true,
+  "allow_hidpi": true,
+  "pixel_snap": true,
+  "integer_zoom_only": true,
+  "pixels_per_unit": 16,
+  "lod": { "threshold_entities": 300, "skip_draw_every": 2 }
+}

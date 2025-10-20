@@ -1,0 +1,32 @@
+{
+  "commander": {
+    "aabb_px": [24, 24],
+    "r_px": 12,
+    "speed_u_s": 1.6,
+    "hp": 60,
+    "dps": 15,
+    "sprite_prefix": "commander"
+  },
+  "yuna": {
+    "r_px": 4,
+    "speed_u_s": 1.8,
+    "hp": 10,
+    "dps": 3,
+    "sprite_prefix": "yuna_front"
+  },
+  "slime": {
+    "r_px": 11,
+    "speed_u_s": 0.9,
+    "hp": 80,
+    "dps": 5,
+    "sprite_prefix": "slime_walk"
+  },
+  "elite_wallbreaker": {
+    "r_px": 12,
+    "speed_u_s": 1.0,
+    "hp": 60,
+    "dps": { "wall": 15, "unit": 5, "base": 5 },
+    "sprite_prefix": "elite_wallbreaker",
+    "traits": { "ignore_knockback": true, "prefer_wall_radius_px": 256 }
+  }
+}

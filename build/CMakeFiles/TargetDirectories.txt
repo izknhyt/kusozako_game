@@ -1,0 +1,3 @@
+/Users/izumimotohayato/development/kusozako/build/CMakeFiles/kusozako.dir
+/Users/izumimotohayato/development/kusozako/build/CMakeFiles/edit_cache.dir
+/Users/izumimotohayato/development/kusozako/build/CMakeFiles/rebuild_cache.dir

@@ -1,0 +1,7 @@
+{
+  "FocusBase": "Space",
+  "Overview": "Tab",
+  "CameraMove": { "W": "up", "A": "left", "S": "down", "D": "right" },
+  "SummonMode": ["1", "2", "3", "4", "5"],
+  "Restart": "R"
+}
