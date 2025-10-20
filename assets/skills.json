@@ -1,0 +1,38 @@
+{
+  "rally": {
+    "type": "toggle_follow",
+    "radius_px": 160,
+    "cooldown_s": 3,
+    "mana": 0,
+    "key": 1
+  },
+  "wall": {
+    "type": "make_wall",
+    "len_tiles": 8,
+    "cooldown_s": 15,
+    "mana": 20,
+    "key": 2,
+    "life_s": 20,
+    "hp_per_segment": 10
+  },
+  "surge": {
+    "type": "spawn_rate",
+    "mult": 1.5,
+    "duration_s": 20,
+    "cooldown_s": 40,
+    "mana": 30,
+    "key": 3
+  },
+  "self_destruct": {
+    "type": "detonate",
+    "radius_px": 128,
+    "damage": 80,
+    "cooldown_s": 60,
+    "mana": 40,
+    "key": 4,
+    "respawn_penalty_ratio": 2.0,
+    "spawn_slow": { "mult": 2.0, "duration_s": 10 },
+    "respawn_bonus_per_hit_s": 0.5,
+    "respawn_bonus_cap_s": 6.0
+  }
+}
