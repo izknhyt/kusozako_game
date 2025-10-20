@@ -7,11 +7,13 @@
 #include <cmath>
 #include <cstdint>
 #include <cstdlib>
+#include <functional>
 #include <fstream>
 #include <iomanip>
 #include <iterator>
 #include <iostream>
 #include <limits>
+#include <numeric>
 #include <optional>
 #include <random>
 #include <sstream>
@@ -1715,12 +1717,11 @@ struct Simulation
     float spawnSlowTimer = 0.0f;
     float commanderRespawnTimer = 0.0f;
     float commanderInvulnTimer = 0.0f;
-    float pendingRespawnPenalty = 1.0f;
     int reinforcementQueue = 0;
-    float pendingRespawnBonus = 0.0f;
 
     Vec2 basePos;
     Vec2 yunaSpawnPos;
+    std::vector<float> yunaRespawnTimers;
 
     void configureSkills(const std::vector<SkillDef> &defs)
     {
@@ -1763,8 +1764,6 @@ struct Simulation
         commander.alive = true;
         commanderRespawnTimer = 0.0f;
         commanderInvulnTimer = 0.0f;
-        pendingRespawnPenalty = 1.0f;
-        pendingRespawnBonus = 0.0f;
         reinforcementQueue = 0;
         spawnRateMultiplier = 1.0f;
         spawnSlowMultiplier = 1.0f;
@@ -1778,11 +1777,37 @@ struct Simulation
             skill.cooldownRemaining = 0.0f;
             skill.activeTimer = 0.0f;
         }
+        yunaRespawnTimers.clear();
     }
 
-    float commanderRespawnBaseTime() const
+    float clampOverkillRatio(float overkill, float maxHp) const
     {
-        return std::max(config.commander_respawn.floor, config.commander_respawn.base + config.commander_respawn.scale);
+        if (maxHp <= 0.0f)
+        {
+            return 0.0f;
+        }
+        return std::clamp(overkill / maxHp, 0.0f, 3.0f);
+    }
+
+    float computeChibiRespawnTime(float overkillRatio) const
+    {
+        float time = config.yuna_respawn.base + config.yuna_respawn.k * overkillRatio * config.yuna_respawn.scale;
+        return std::max(0.0f, time);
+    }
+
+    float computeCommanderRespawnTime(float overkillRatio) const
+    {
+        float time = config.commander_respawn.base + config.commander_respawn.k * overkillRatio * config.commander_respawn.scale;
+        if (time < config.commander_respawn.floor)
+        {
+            time = config.commander_respawn.floor;
+        }
+        return time;
+    }
+
+    void enqueueYunaRespawn(float overkillRatio)
+    {
+        yunaRespawnTimers.push_back(computeChibiRespawnTime(overkillRatio));
     }
 
     void updateSkillTimers(float dt)
@@ -1834,8 +1859,6 @@ struct Simulation
                 commander.hp = commanderStats.hp;
                 commander.pos = yunaSpawnPos;
                 commanderInvulnTimer = config.commander_respawn.invuln;
-                pendingRespawnPenalty = 1.0f;
-                pendingRespawnBonus = 0.0f;
             }
         }
     }
@@ -1865,17 +1888,15 @@ struct Simulation
         yunas.push_back(yuna);
     }
 
-    void scheduleCommanderRespawn(float penaltyMultiplier, float bonusSeconds)
+    void scheduleCommanderRespawn(float penaltyMultiplier, float bonusSeconds, float overkillRatio)
     {
         commander.alive = false;
         commander.hp = 0.0f;
-        pendingRespawnPenalty = std::max(1.0f, penaltyMultiplier);
-        pendingRespawnBonus = std::max(0.0f, bonusSeconds);
-        commanderRespawnTimer = commanderRespawnBaseTime() * pendingRespawnPenalty - pendingRespawnBonus;
-        if (commanderRespawnTimer < config.commander_respawn.floor)
-        {
-            commanderRespawnTimer = config.commander_respawn.floor;
-        }
+        const float penalty = std::max(1.0f, penaltyMultiplier);
+        const float bonus = std::max(0.0f, bonusSeconds);
+        float respawnTime = computeCommanderRespawnTime(overkillRatio);
+        respawnTime = std::max(config.commander_respawn.floor, respawnTime * penalty - bonus);
+        commanderRespawnTimer = respawnTime;
         commanderInvulnTimer = 0.0f;
         reinforcementQueue += config.commander_auto_reinforce;
         rallyState = false;
@@ -1902,10 +1923,69 @@ struct Simulation
         }
         const float spacing = static_cast<float>(mapDefs.tile_size);
         Vec2 start = commander.pos + direction * spacing;
+        std::vector<Vec2> segmentPositions;
+        segmentPositions.reserve(def.lenTiles);
         for (int i = 0; i < def.lenTiles; ++i)
         {
+            segmentPositions.push_back(start + direction * (spacing * static_cast<float>(i)));
+        }
+
+        if (yunas.empty())
+        {
+            pushTelemetry("Need chibi allies for wall");
+            return;
+        }
+
+        const int maxSegments = std::min(static_cast<int>(segmentPositions.size()), static_cast<int>(yunas.size()));
+        std::vector<char> taken(yunas.size(), 0);
+        std::vector<std::size_t> convertIndices;
+        std::vector<Vec2> chosenPositions;
+        convertIndices.reserve(maxSegments);
+        chosenPositions.reserve(maxSegments);
+
+        for (int i = 0; i < maxSegments; ++i)
+        {
+            float bestDist = std::numeric_limits<float>::max();
+            std::size_t bestIndex = std::numeric_limits<std::size_t>::max();
+            for (std::size_t idx = 0; idx < yunas.size(); ++idx)
+            {
+                if (taken[idx])
+                {
+                    continue;
+                }
+                const float dist = lengthSq(yunas[idx].pos - segmentPositions[static_cast<std::size_t>(i)]);
+                if (dist < bestDist)
+                {
+                    bestDist = dist;
+                    bestIndex = idx;
+                }
+            }
+            if (bestIndex == std::numeric_limits<std::size_t>::max())
+            {
+                break;
+            }
+            taken[bestIndex] = 1;
+            convertIndices.push_back(bestIndex);
+            chosenPositions.push_back(segmentPositions[static_cast<std::size_t>(i)]);
+        }
+
+        if (convertIndices.empty())
+        {
+            pushTelemetry("Need chibi allies for wall");
+            return;
+        }
+
+        std::sort(convertIndices.begin(), convertIndices.end(), std::greater<>());
+        for (std::size_t idx : convertIndices)
+        {
+            enqueueYunaRespawn(0.0f);
+            yunas.erase(yunas.begin() + static_cast<std::ptrdiff_t>(idx));
+        }
+
+        for (const Vec2 &segmentPos : chosenPositions)
+        {
             WallSegment segment;
-            segment.pos = start + direction * (spacing * static_cast<float>(i));
+            segment.pos = segmentPos;
             segment.hp = def.hpPerSegment;
             segment.life = def.duration;
             segment.radius = spacing * 0.5f;
@@ -1934,7 +2014,7 @@ struct Simulation
         spawnSlowTimer = def.spawnSlowDuration;
         const float bonus = std::min(def.respawnBonusCap, def.respawnBonusPerHit * static_cast<float>(hits));
         commander.hp = 0.0f;
-        scheduleCommanderRespawn(def.respawnPenalty, bonus);
+        scheduleCommanderRespawn(def.respawnPenalty, bonus, 0.0f);
         pushTelemetry("Self Destruct!");
     }
 
@@ -2213,18 +2293,45 @@ struct Simulation
         {
             return;
         }
-        if (static_cast<int>(yunas.size()) >= config.yuna_max)
-        {
-            return;
-        }
+        const float rateMultiplier = std::max(spawnRateMultiplier, 0.1f);
+        const float slowMultiplier = std::max(spawnSlowMultiplier, 0.1f);
         yunaSpawnTimer -= dt;
         const float minInterval = 0.1f;
-        const float spawnInterval = std::max(minInterval, (config.yuna_interval / std::max(spawnRateMultiplier, 0.1f)) * spawnSlowMultiplier);
-        while (yunaSpawnTimer <= 0.0f && static_cast<int>(yunas.size()) < config.yuna_max)
+        const float spawnInterval = std::max(minInterval, (config.yuna_interval / rateMultiplier) * slowMultiplier);
+        while (yunaSpawnTimer <= 0.0f)
         {
-            spawnYunaUnit();
-            yunaSpawnTimer += spawnInterval;
+            if (static_cast<int>(yunas.size()) < config.yuna_max)
+            {
+                spawnYunaUnit();
+                yunaSpawnTimer += spawnInterval;
+            }
+            else
+            {
+                yunaSpawnTimer = 0.0f;
+                break;
+            }
         }
+
+        const float respawnRate = rateMultiplier / slowMultiplier;
+        for (float &timer : yunaRespawnTimers)
+        {
+            timer -= dt * respawnRate;
+        }
+        std::vector<float> remainingRespawns;
+        remainingRespawns.reserve(yunaRespawnTimers.size());
+        for (float timer : yunaRespawnTimers)
+        {
+            if (timer <= 0.0f && static_cast<int>(yunas.size()) < config.yuna_max)
+            {
+                spawnYunaUnit();
+            }
+            else
+            {
+                remainingRespawns.push_back(std::max(timer, 0.0f));
+            }
+        }
+        yunaRespawnTimers.swap(remainingRespawns);
+
         while (reinforcementQueue > 0 && static_cast<int>(yunas.size()) < config.yuna_max)
         {
             spawnYunaUnit();
@@ -2435,6 +2542,9 @@ struct Simulation
             }
         }
 
+        std::vector<float> yunaDamage(yunas.size(), 0.0f);
+        float commanderDamage = 0.0f;
+
         if (commander.alive)
         {
             for (EnemyUnit &enemy : enemies)
@@ -2445,31 +2555,68 @@ struct Simulation
                     enemy.hp -= commanderStats.dps * dt;
                     if (commanderInvulnTimer <= 0.0f)
                     {
-                        commander.hp -= enemyDpsAgainstUnits(enemy) * dt;
+                        commanderDamage += enemyDpsAgainstUnits(enemy) * dt;
                     }
                 }
             }
-            if (commander.hp <= 0.0f)
-            {
-                scheduleCommanderRespawn(1.0f, 0.0f);
-            }
         }
 
-        for (Unit &yuna : yunas)
+        for (std::size_t i = 0; i < yunas.size(); ++i)
         {
+            Unit &yuna = yunas[i];
             for (EnemyUnit &enemy : enemies)
             {
                 const float combined = yuna.radius + enemy.radius;
                 if (lengthSq(yuna.pos - enemy.pos) <= combined * combined)
                 {
                     enemy.hp -= yunaStats.dps * dt;
-                    yuna.hp -= enemyDpsAgainstUnits(enemy) * dt;
+                    yunaDamage[i] += enemyDpsAgainstUnits(enemy) * dt;
                 }
             }
         }
 
         enemies.erase(std::remove_if(enemies.begin(), enemies.end(), [](const EnemyUnit &e) { return e.hp <= 0.0f; }), enemies.end());
-        yunas.erase(std::remove_if(yunas.begin(), yunas.end(), [](const Unit &y) { return y.hp <= 0.0f; }), yunas.end());
+
+        if (commander.alive && commanderDamage > 0.0f)
+        {
+            const float hpBefore = commander.hp;
+            commander.hp -= commanderDamage;
+            if (commander.hp <= 0.0f)
+            {
+                const float overkill = std::max(0.0f, commanderDamage - std::max(hpBefore, 0.0f));
+                const float ratio = clampOverkillRatio(overkill, commanderStats.hp);
+                scheduleCommanderRespawn(1.0f, 0.0f, ratio);
+            }
+        }
+
+        if (!yunaDamage.empty())
+        {
+            std::vector<Unit> survivors;
+            survivors.reserve(yunas.size());
+            for (std::size_t i = 0; i < yunas.size(); ++i)
+            {
+                Unit &yuna = yunas[i];
+                if (yuna.hp <= 0.0f)
+                {
+                    enqueueYunaRespawn(0.0f);
+                    continue;
+                }
+                if (yunaDamage[i] > 0.0f)
+                {
+                    const float hpBefore = yuna.hp;
+                    yuna.hp -= yunaDamage[i];
+                    if (yuna.hp <= 0.0f)
+                    {
+                        const float overkill = std::max(0.0f, yunaDamage[i] - std::max(hpBefore, 0.0f));
+                        const float ratio = clampOverkillRatio(overkill, yunaStats.hp);
+                        enqueueYunaRespawn(ratio);
+                        continue;
+                    }
+                }
+                survivors.push_back(yuna);
+            }
+            yunas.swap(survivors);
+        }
 
         const float baseRadius = std::max(config.base_aabb.x, config.base_aabb.y) * 0.5f;
         for (EnemyUnit &enemy : enemies)
@@ -2648,64 +2795,133 @@ void renderScene(SDL_Renderer *renderer, const Simulation &sim, const Camera &ca
     const SDL_Rect *friendRing = atlas.getFrame("ring_friend");
     const SDL_Rect *enemyRing = atlas.getFrame("ring_enemy");
 
-    if (sim.commander.alive)
+    struct FriendlySprite
     {
-        Vec2 commanderScreen = worldToScreen(sim.commander.pos, camera);
-        if (atlas.texture && commanderFrame)
+        float y = 0.0f;
+        bool commander = false;
+        std::size_t index = 0;
+    };
+
+    std::vector<Uint8> yunaAlpha(sim.yunas.size(), 255);
+    const float crowdRadiusSq = 32.0f * 32.0f;
+    for (std::size_t i = 0; i < sim.yunas.size(); ++i)
+    {
+        int neighbors = 0;
+        for (std::size_t j = 0; j < sim.yunas.size(); ++j)
         {
-            SDL_Rect dest{
-                static_cast<int>(commanderScreen.x - commanderFrame->w * 0.5f),
-                static_cast<int>(commanderScreen.y - commanderFrame->h * 0.5f),
-                commanderFrame->w,
-                commanderFrame->h};
-            SDL_RenderCopy(renderer, atlas.texture, commanderFrame, &dest);
-            if (friendRing)
+            if (i == j)
             {
-                SDL_Rect ringDest{
-                    dest.x + (dest.w - friendRing->w) / 2,
-                    dest.y + dest.h - friendRing->h,
-                    friendRing->w,
-                    friendRing->h};
-                SDL_RenderCopy(renderer, atlas.texture, friendRing, &ringDest);
+                continue;
             }
-        }
-        else
-        {
-            SDL_SetRenderDrawColor(renderer, 200, 220, 255, 255);
-            drawFilledCircle(renderer, commanderScreen, sim.commander.radius);
+            if (lengthSq(sim.yunas[i].pos - sim.yunas[j].pos) <= crowdRadiusSq)
+            {
+                ++neighbors;
+                if (neighbors >= 4)
+                {
+                    yunaAlpha[i] = static_cast<Uint8>(255 * 0.3f);
+                    break;
+                }
+            }
         }
     }
 
-    if (atlas.texture && yunaFrame)
+    std::vector<FriendlySprite> friendSprites;
+    friendSprites.reserve(sim.yunas.size() + (sim.commander.alive ? 1 : 0));
+    if (sim.commander.alive)
     {
-        for (const Unit &yuna : sim.yunas)
+        friendSprites.push_back(FriendlySprite{sim.commander.pos.y, true, 0});
+    }
+    for (std::size_t i = 0; i < sim.yunas.size(); ++i)
+    {
+        friendSprites.push_back(FriendlySprite{sim.yunas[i].pos.y, false, i});
+    }
+    std::sort(friendSprites.begin(), friendSprites.end(), [](const FriendlySprite &a, const FriendlySprite &b) {
+        return a.y < b.y;
+    });
+
+    if (atlas.texture)
+    {
+        for (const FriendlySprite &sprite : friendSprites)
         {
-            Vec2 screenPos = worldToScreen(yuna.pos, camera);
-            SDL_Rect dest{
-                static_cast<int>(screenPos.x - yunaFrame->w * 0.5f),
-                static_cast<int>(screenPos.y - yunaFrame->h * 0.5f),
-                yunaFrame->w,
-                yunaFrame->h};
-            SDL_RenderCopy(renderer, atlas.texture, yunaFrame, &dest);
-            if (friendRing)
+            if (sprite.commander)
             {
-                SDL_Rect ringDest{
-                    dest.x + (dest.w - friendRing->w) / 2,
-                    dest.y + dest.h - friendRing->h,
-                    friendRing->w,
-                    friendRing->h};
-                SDL_RenderCopy(renderer, atlas.texture, friendRing, &ringDest);
+                Vec2 commanderScreen = worldToScreen(sim.commander.pos, camera);
+                if (commanderFrame)
+                {
+                    SDL_Rect dest{
+                        static_cast<int>(commanderScreen.x - commanderFrame->w * 0.5f),
+                        static_cast<int>(commanderScreen.y - commanderFrame->h * 0.5f),
+                        commanderFrame->w,
+                        commanderFrame->h};
+                    SDL_RenderCopy(renderer, atlas.texture, commanderFrame, &dest);
+                    if (friendRing)
+                    {
+                        SDL_Rect ringDest{
+                            dest.x + (dest.w - friendRing->w) / 2,
+                            dest.y + dest.h - friendRing->h,
+                            friendRing->w,
+                            friendRing->h};
+                        SDL_RenderCopy(renderer, atlas.texture, friendRing, &ringDest);
+                    }
+                }
+                else
+                {
+                    SDL_SetRenderDrawColor(renderer, 200, 220, 255, 255);
+                    drawFilledCircle(renderer, commanderScreen, sim.commander.radius);
+                }
+                continue;
+            }
+
+            const Unit &yuna = sim.yunas[sprite.index];
+            Vec2 screenPos = worldToScreen(yuna.pos, camera);
+            if (yunaFrame)
+            {
+                SDL_SetTextureAlphaMod(atlas.texture, yunaAlpha[sprite.index]);
+                SDL_Rect dest{
+                    static_cast<int>(screenPos.x - yunaFrame->w * 0.5f),
+                    static_cast<int>(screenPos.y - yunaFrame->h * 0.5f),
+                    yunaFrame->w,
+                    yunaFrame->h};
+                SDL_RenderCopy(renderer, atlas.texture, yunaFrame, &dest);
+                SDL_SetTextureAlphaMod(atlas.texture, 255);
+                if (friendRing)
+                {
+                    SDL_Rect ringDest{
+                        dest.x + (dest.w - friendRing->w) / 2,
+                        dest.y + dest.h - friendRing->h,
+                        friendRing->w,
+                        friendRing->h};
+                    SDL_RenderCopy(renderer, atlas.texture, friendRing, &ringDest);
+                }
+            }
+            else
+            {
+                SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+                SDL_SetRenderDrawColor(renderer, 240, 190, 60, yunaAlpha[sprite.index]);
+                drawFilledCircle(renderer, screenPos, yuna.radius);
+                SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
             }
         }
+        SDL_SetTextureAlphaMod(atlas.texture, 255);
     }
     else
     {
-        SDL_SetRenderDrawColor(renderer, 240, 190, 60, 255);
-        for (const Unit &yuna : sim.yunas)
+        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+        for (const FriendlySprite &sprite : friendSprites)
         {
+            if (sprite.commander)
+            {
+                Vec2 commanderScreen = worldToScreen(sim.commander.pos, camera);
+                SDL_SetRenderDrawColor(renderer, 200, 220, 255, 255);
+                drawFilledCircle(renderer, commanderScreen, sim.commander.radius);
+                continue;
+            }
+            const Unit &yuna = sim.yunas[sprite.index];
             Vec2 screenPos = worldToScreen(yuna.pos, camera);
+            SDL_SetRenderDrawColor(renderer, 240, 190, 60, yunaAlpha[sprite.index]);
             drawFilledCircle(renderer, screenPos, yuna.radius);
         }
+        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
     }
 
     SDL_SetRenderDrawColor(renderer, 120, 150, 200, 255);
@@ -2715,10 +2931,17 @@ void renderScene(SDL_Renderer *renderer, const Simulation &sim, const Camera &ca
         drawFilledCircle(renderer, screenPos, wall.radius);
     }
 
+    std::vector<std::size_t> enemyOrder(sim.enemies.size());
+    std::iota(enemyOrder.begin(), enemyOrder.end(), 0);
+    std::sort(enemyOrder.begin(), enemyOrder.end(), [&](std::size_t a, std::size_t b) {
+        return sim.enemies[a].pos.y < sim.enemies[b].pos.y;
+    });
+
     if (atlas.texture)
     {
-        for (const EnemyUnit &enemy : sim.enemies)
+        for (std::size_t idx : enemyOrder)
         {
+            const EnemyUnit &enemy = sim.enemies[idx];
             const SDL_Rect *frame = enemy.type == EnemyArchetype::Wallbreaker ? wallbreakerFrame : enemyFrame;
             Vec2 screenPos = worldToScreen(enemy.pos, camera);
             if (frame)
@@ -2738,19 +2961,21 @@ void renderScene(SDL_Renderer *renderer, const Simulation &sim, const Camera &ca
                         enemyRing->h};
                     SDL_RenderCopy(renderer, atlas.texture, enemyRing, &ringDest);
                 }
-                continue;
             }
-
-            SDL_SetRenderDrawColor(renderer, enemy.type == EnemyArchetype::Wallbreaker ? 200 : 80,
-                                   enemy.type == EnemyArchetype::Wallbreaker ? 80 : 160,
-                                   enemy.type == EnemyArchetype::Wallbreaker ? 80 : 220, 255);
-            drawFilledCircle(renderer, screenPos, enemy.radius);
+            else
+            {
+                SDL_SetRenderDrawColor(renderer, enemy.type == EnemyArchetype::Wallbreaker ? 200 : 80,
+                                       enemy.type == EnemyArchetype::Wallbreaker ? 80 : 160,
+                                       enemy.type == EnemyArchetype::Wallbreaker ? 80 : 220, 255);
+                drawFilledCircle(renderer, screenPos, enemy.radius);
+            }
         }
     }
     else
     {
-        for (const EnemyUnit &enemy : sim.enemies)
+        for (std::size_t idx : enemyOrder)
         {
+            const EnemyUnit &enemy = sim.enemies[idx];
             SDL_SetRenderDrawColor(renderer, enemy.type == EnemyArchetype::Wallbreaker ? 200 : 80,
                                    enemy.type == EnemyArchetype::Wallbreaker ? 80 : 160,
                                    enemy.type == EnemyArchetype::Wallbreaker ? 80 : 220, 255);
