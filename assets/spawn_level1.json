@@ -9,8 +9,17 @@
     { "t": 0,   "sets": [ { "gate": "A", "count": 3, "interval_s": 0.3 }, { "gate": "B", "count": 3, "interval_s": 0.3 } ], "telemetry": "左から敵！" },
     { "t": 15,  "sets": [ { "gate": "A", "count": 4, "interval_s": 0.3 }, { "gate": "C", "count": 2, "interval_s": 0.3 } ] },
     { "t": 30,  "sets": [ { "gate": "B", "count": 6, "interval_s": 0.3 } ], "telemetry": "増援が接近！" },
-    { "t": 60,  "sets": [ { "gate": "A", "count": 6, "interval_s": 0.25 }, { "gate": "C", "count": 6, "interval_s": 0.25 } ], "telemetry": "左右から敵！" },
+    { "t": 60,  "sets": [
+        { "gate": "A", "count": 6, "interval_s": 0.25 },
+        { "gate": "C", "count": 6, "interval_s": 0.25 },
+        { "gate": "B", "type": "elite_wallbreaker", "count": 1, "interval_s": 0.0 }
+      ], "telemetry": "左右から敵！ 壁を壊す敵接近！" },
     { "t": 90,  "sets": [ { "gate": "B", "count": 8, "interval_s": 0.25 } ] },
-    { "t": 120, "sets": [ { "gate": "A", "count": 6, "interval_s": 0.2 }, { "gate": "B", "count": 6, "interval_s": 0.2 }, { "gate": "C", "count": 6, "interval_s": 0.2 } ], "telemetry": "総攻撃！" }
+    { "t": 120, "sets": [
+        { "gate": "A", "count": 6, "interval_s": 0.2 },
+        { "gate": "B", "count": 6, "interval_s": 0.2 },
+        { "gate": "C", "count": 6, "interval_s": 0.2 },
+        { "gate": "B", "type": "elite_wallbreaker", "count": 1, "interval_s": 0.0 }
+      ], "telemetry": "総攻撃！" }
   ]
 }

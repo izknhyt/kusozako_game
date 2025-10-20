@@ -514,6 +514,21 @@ struct EntityCatalog
     WallbreakerStats wallbreaker;
 };
 
+enum class EnemyArchetype
+{
+    Slime,
+    Wallbreaker
+};
+
+EnemyArchetype enemyTypeFromString(const std::string &typeId)
+{
+    if (typeId == "elite_wallbreaker" || typeId == "wallbreaker" || typeId == "wall_breaker")
+    {
+        return EnemyArchetype::Wallbreaker;
+    }
+    return EnemyArchetype::Slime;
+}
+
 struct MapDefs
 {
     int tile_size = 16;
@@ -527,6 +542,8 @@ struct SpawnSet
     std::string gate;
     int count = 0;
     float interval = 0.3f;
+    std::string typeId = "slime";
+    EnemyArchetype type = EnemyArchetype::Slime;
 };
 
 struct Wave
@@ -539,6 +556,7 @@ struct Wave
 struct SpawnScript
 {
     float y_jitter = 0.0f;
+    std::unordered_map<std::string, Vec2> gate_tiles;
     std::vector<Wave> waves;
 };
 
@@ -697,6 +715,30 @@ std::optional<SpawnScript> parseSpawnScript(const std::string &path)
     }
     SpawnScript script;
     script.y_jitter = getNumber(*json, "y_jitter_px", 0.0f);
+    if (const JsonValue *gates = getObjectField(*json, "gates"))
+    {
+        if (gates->type == JsonValue::Type::Object)
+        {
+            for (const auto &kv : gates->object)
+            {
+                const JsonValue &gateObj = kv.second;
+                if (gateObj.type != JsonValue::Type::Object)
+                {
+                    continue;
+                }
+                if (const JsonValue *tile = getObjectField(gateObj, "tile"))
+                {
+                    if (tile->type == JsonValue::Type::Array && tile->array.size() >= 2 &&
+                        tile->array[0].type == JsonValue::Type::Number && tile->array[1].type == JsonValue::Type::Number)
+                    {
+                        script.gate_tiles[kv.first] = {
+                            static_cast<float>(tile->array[0].number),
+                            static_cast<float>(tile->array[1].number)};
+                    }
+                }
+            }
+        }
+    }
     if (const JsonValue *waves = getObjectField(*json, "waves"))
     {
         if (waves->type == JsonValue::Type::Array)
@@ -724,6 +766,8 @@ std::optional<SpawnScript> parseSpawnScript(const std::string &path)
                             set.gate = getString(setVal, "gate", "A");
                             set.count = getInt(setVal, "count", 1);
                             set.interval = getNumber(setVal, "interval_s", 0.3f);
+                            set.typeId = getString(setVal, "type", set.typeId);
+                            set.type = enemyTypeFromString(set.typeId);
                             wave.sets.push_back(set);
                         }
                     }
@@ -776,12 +820,21 @@ struct CommanderUnit
     bool alive = true;
 };
 
+struct EnemyUnit
+{
+    Vec2 pos;
+    float hp = 0.0f;
+    float radius = 0.0f;
+    EnemyArchetype type = EnemyArchetype::Slime;
+};
+
 struct ActiveSpawn
 {
     Vec2 position;
     int remaining = 0;
     float interval = 0.3f;
     float timer = 0.0f;
+    EnemyArchetype type = EnemyArchetype::Slime;
 };
 
 struct Glyph
@@ -1270,7 +1323,7 @@ struct Simulation
     MapDefs mapDefs;
     SpawnScript spawnScript;
     std::vector<Unit> yunas;
-    std::vector<Unit> enemies;
+    std::vector<EnemyUnit> enemies;
     std::vector<ActiveSpawn> activeSpawns;
     std::size_t nextWave = 0;
     float spawnTimer = 0.0f;
@@ -1333,6 +1386,22 @@ struct Simulation
         restartCooldown = config.restart_delay;
     }
 
+    float enemySpeed(const EnemyUnit &enemy) const
+    {
+        const float speed = enemy.type == EnemyArchetype::Wallbreaker ? wallbreakerStats.speed_u_s : slimeStats.speed_u_s;
+        return speed * config.pixels_per_unit;
+    }
+
+    float enemyDpsAgainstUnits(const EnemyUnit &enemy) const
+    {
+        return enemy.type == EnemyArchetype::Wallbreaker ? wallbreakerStats.dps_unit : slimeStats.dps;
+    }
+
+    float enemyDpsAgainstBase(const EnemyUnit &enemy) const
+    {
+        return enemy.type == EnemyArchetype::Wallbreaker ? wallbreakerStats.dps_base : slimeStats.dps;
+    }
+
     void update(float dt, const Vec2 &commanderMoveInput)
     {
         simTime += dt;
@@ -1387,16 +1456,28 @@ struct Simulation
             const Wave &wave = spawnScript.waves[nextWave];
             for (const SpawnSet &set : wave.sets)
             {
-                auto gateIt = mapDefs.gate_tiles.find(set.gate);
-                if (gateIt == mapDefs.gate_tiles.end())
+                Vec2 gateTile{};
+                bool foundGate = false;
+                if (auto scriptGate = spawnScript.gate_tiles.find(set.gate); scriptGate != spawnScript.gate_tiles.end())
+                {
+                    gateTile = scriptGate->second;
+                    foundGate = true;
+                }
+                else if (auto mapGate = mapDefs.gate_tiles.find(set.gate); mapGate != mapDefs.gate_tiles.end())
+                {
+                    gateTile = mapGate->second;
+                    foundGate = true;
+                }
+                if (!foundGate)
                 {
                     continue;
                 }
                 ActiveSpawn active;
-                active.position = tileToWorld(gateIt->second, mapDefs.tile_size);
+                active.position = tileToWorld(gateTile, mapDefs.tile_size);
                 active.remaining = set.count;
                 active.interval = set.interval;
                 active.timer = 0.0f;
+                active.type = set.type;
                 activeSpawns.push_back(active);
             }
             if (!wave.telemetry.empty())
@@ -1422,7 +1503,7 @@ struct Simulation
             spawn.timer -= dt;
             if (spawn.timer <= 0.0f)
             {
-                spawnOneEnemy(spawn.position);
+                spawnOneEnemy(spawn.position, spawn.type);
                 spawn.timer += spawn.interval;
                 --spawn.remaining;
                 if (spawn.remaining <= 0)
@@ -1434,13 +1515,22 @@ struct Simulation
         activeSpawns.erase(std::remove_if(activeSpawns.begin(), activeSpawns.end(), [](const ActiveSpawn &s) { return s.remaining <= 0; }), activeSpawns.end());
     }
 
-    void spawnOneEnemy(Vec2 gatePos)
+    void spawnOneEnemy(Vec2 gatePos, EnemyArchetype type)
     {
-        Unit enemy;
+        EnemyUnit enemy;
         enemy.pos = gatePos;
         enemy.pos.y += gateJitter(rng);
-        enemy.hp = slimeStats.hp;
-        enemy.radius = slimeStats.radius;
+        enemy.type = type;
+        if (type == EnemyArchetype::Wallbreaker)
+        {
+            enemy.hp = wallbreakerStats.hp;
+            enemy.radius = wallbreakerStats.radius;
+        }
+        else
+        {
+            enemy.hp = slimeStats.hp;
+            enemy.radius = slimeStats.radius;
+        }
         enemies.push_back(enemy);
         timeSinceLastEnemySpawn = 0.0f;
     }
@@ -1475,7 +1565,7 @@ struct Simulation
         {
             if (!enemies.empty())
             {
-                auto nearestIt = std::min_element(enemies.begin(), enemies.end(), [&yuna](const Unit &a, const Unit &b) {
+                auto nearestIt = std::min_element(enemies.begin(), enemies.end(), [&yuna](const EnemyUnit &a, const EnemyUnit &b) {
                     return lengthSq(a.pos - yuna.pos) < lengthSq(b.pos - yuna.pos);
                 });
                 Vec2 dir = normalize(nearestIt->pos - yuna.pos);
@@ -1490,21 +1580,21 @@ struct Simulation
             }
         }
         // Enemy movement towards base
-        for (Unit &enemy : enemies)
+        for (EnemyUnit &enemy : enemies)
         {
             Vec2 dir = normalize(basePos - enemy.pos);
-            const float speedPx = slimeStats.speed_u_s * config.pixels_per_unit;
+            const float speedPx = enemySpeed(enemy);
             enemy.pos += dir * (speedPx * dt);
         }
         if (commander.alive)
         {
-            for (Unit &enemy : enemies)
+            for (EnemyUnit &enemy : enemies)
             {
                 const float r = commander.radius + enemy.radius;
                 if (lengthSq(commander.pos - enemy.pos) <= r * r)
                 {
                     enemy.hp -= commanderStats.dps * dt;
-                    commander.hp -= slimeStats.dps * dt;
+                    commander.hp -= enemyDpsAgainstUnits(enemy) * dt;
                     if (commander.hp <= 0.0f)
                     {
                         commander.hp = 0.0f;
@@ -1518,26 +1608,26 @@ struct Simulation
         // Combat Yuna vs Enemy
         for (Unit &yuna : yunas)
         {
-            for (Unit &enemy : enemies)
+            for (EnemyUnit &enemy : enemies)
             {
                 const float r = yuna.radius + enemy.radius;
                 if (lengthSq(yuna.pos - enemy.pos) <= r * r)
                 {
                     enemy.hp -= yunaStats.dps * dt;
-                    yuna.hp -= slimeStats.dps * dt;
+                    yuna.hp -= enemyDpsAgainstUnits(enemy) * dt;
                 }
             }
         }
-        enemies.erase(std::remove_if(enemies.begin(), enemies.end(), [](const Unit &e) { return e.hp <= 0.0f; }), enemies.end());
+        enemies.erase(std::remove_if(enemies.begin(), enemies.end(), [](const EnemyUnit &e) { return e.hp <= 0.0f; }), enemies.end());
         yunas.erase(std::remove_if(yunas.begin(), yunas.end(), [](const Unit &y) { return y.hp <= 0.0f; }), yunas.end());
         // Enemy vs base
         const float baseRadius = std::max(config.base_aabb.x, config.base_aabb.y) * 0.5f;
-        for (Unit &enemy : enemies)
+        for (EnemyUnit &enemy : enemies)
         {
             const float r = baseRadius + enemy.radius;
             if (lengthSq(enemy.pos - basePos) <= r * r)
             {
-                baseHp -= slimeStats.dps * dt;
+                baseHp -= enemyDpsAgainstBase(enemy) * dt;
                 if (baseHp <= 0.0f)
                 {
                     baseHp = 0.0f;
@@ -1681,6 +1771,7 @@ void renderScene(SDL_Renderer *renderer, const Simulation &sim, const Camera &ca
     const SDL_Rect *commanderFrame = nullptr;
     const SDL_Rect *yunaFrame = nullptr;
     const SDL_Rect *enemyFrame = nullptr;
+    const SDL_Rect *wallbreakerFrame = nullptr;
     if (!sim.commanderStats.spritePrefix.empty())
     {
         commanderFrame = atlas.getFrame(sim.commanderStats.spritePrefix + "_0");
@@ -1692,6 +1783,10 @@ void renderScene(SDL_Renderer *renderer, const Simulation &sim, const Camera &ca
     if (!sim.slimeStats.spritePrefix.empty())
     {
         enemyFrame = atlas.getFrame(sim.slimeStats.spritePrefix + "_0");
+    }
+    if (!sim.wallbreakerStats.spritePrefix.empty())
+    {
+        wallbreakerFrame = atlas.getFrame(sim.wallbreakerStats.spritePrefix + "_0");
     }
     const SDL_Rect *friendRing = atlas.getFrame("ring_friend");
     const SDL_Rect *enemyRing = atlas.getFrame("ring_enemy");
@@ -1756,33 +1851,45 @@ void renderScene(SDL_Renderer *renderer, const Simulation &sim, const Camera &ca
         }
     }
 
-    if (atlas.texture && enemyFrame)
+    if (atlas.texture)
     {
-        for (const Unit &enemy : sim.enemies)
+        for (const EnemyUnit &enemy : sim.enemies)
         {
+            const SDL_Rect *frame = enemy.type == EnemyArchetype::Wallbreaker ? wallbreakerFrame : enemyFrame;
             Vec2 screenPos = worldToScreen(enemy.pos, camera);
-            SDL_Rect dest{
-                static_cast<int>(screenPos.x - enemyFrame->w * 0.5f),
-                static_cast<int>(screenPos.y - enemyFrame->h * 0.5f),
-                enemyFrame->w,
-                enemyFrame->h};
-            SDL_RenderCopy(renderer, atlas.texture, enemyFrame, &dest);
-            if (enemyRing)
+            if (frame)
             {
-                SDL_Rect ringDest{
-                    dest.x + (dest.w - enemyRing->w) / 2,
-                    dest.y + dest.h - enemyRing->h,
-                    enemyRing->w,
-                    enemyRing->h};
-                SDL_RenderCopy(renderer, atlas.texture, enemyRing, &ringDest);
+                SDL_Rect dest{
+                    static_cast<int>(screenPos.x - frame->w * 0.5f),
+                    static_cast<int>(screenPos.y - frame->h * 0.5f),
+                    frame->w,
+                    frame->h};
+                SDL_RenderCopy(renderer, atlas.texture, frame, &dest);
+                if (enemyRing)
+                {
+                    SDL_Rect ringDest{
+                        dest.x + (dest.w - enemyRing->w) / 2,
+                        dest.y + dest.h - enemyRing->h,
+                        enemyRing->w,
+                        enemyRing->h};
+                    SDL_RenderCopy(renderer, atlas.texture, enemyRing, &ringDest);
+                }
+                continue;
             }
+
+            SDL_SetRenderDrawColor(renderer, enemy.type == EnemyArchetype::Wallbreaker ? 200 : 80,
+                                   enemy.type == EnemyArchetype::Wallbreaker ? 80 : 160,
+                                   enemy.type == EnemyArchetype::Wallbreaker ? 80 : 220, 255);
+            drawFilledCircle(renderer, screenPos, enemy.radius);
         }
     }
     else
     {
-        SDL_SetRenderDrawColor(renderer, 80, 160, 220, 255);
-        for (const Unit &enemy : sim.enemies)
+        for (const EnemyUnit &enemy : sim.enemies)
         {
+            SDL_SetRenderDrawColor(renderer, enemy.type == EnemyArchetype::Wallbreaker ? 200 : 80,
+                                   enemy.type == EnemyArchetype::Wallbreaker ? 80 : 160,
+                                   enemy.type == EnemyArchetype::Wallbreaker ? 80 : 220, 255);
             Vec2 screenPos = worldToScreen(enemy.pos, camera);
             drawFilledCircle(renderer, screenPos, enemy.radius);
         }
