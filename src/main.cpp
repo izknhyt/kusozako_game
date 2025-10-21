@@ -2559,7 +2559,36 @@ struct Simulation
 
         for (EnemyUnit &enemy : enemies)
         {
-            Vec2 dir = normalize(basePos - enemy.pos);
+            Vec2 target = basePos;
+            if (enemy.type == EnemyArchetype::Wallbreaker)
+            {
+                const float preferRadius = wallbreakerStats.preferWallRadiusPx;
+                if (preferRadius > 0.0f)
+                {
+                    const float preferRadiusSq = preferRadius * preferRadius;
+                    WallSegment *bestWall = nullptr;
+                    float bestDistSq = preferRadiusSq;
+                    for (WallSegment &wall : walls)
+                    {
+                        if (wall.hp <= 0.0f)
+                        {
+                            continue;
+                        }
+                        const float distSq = lengthSq(wall.pos - enemy.pos);
+                        if (distSq < bestDistSq)
+                        {
+                            bestDistSq = distSq;
+                            bestWall = &wall;
+                        }
+                    }
+                    if (bestWall)
+                    {
+                        target = bestWall->pos;
+                    }
+                }
+            }
+
+            Vec2 dir = normalize(target - enemy.pos);
             const float speedPx = enemySpeed(enemy);
             enemy.pos += dir * (speedPx * dt);
         }
