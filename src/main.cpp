@@ -1642,7 +1642,7 @@ enum class GameResult
 {
     Playing,
     Victory,
-    GameOver
+    Defeat
 };
 
 std::string normalizeTelemetry(const std::string &text)
@@ -2628,7 +2628,7 @@ struct Simulation
                 if (baseHp <= 0.0f)
                 {
                     baseHp = 0.0f;
-                    setResult(GameResult::GameOver, "Game Over");
+                    setResult(GameResult::Defeat, "Defeat");
                     break;
                 }
             }
