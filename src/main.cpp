@@ -1154,6 +1154,18 @@ const char *stanceLabel(ArmyStance stance)
     return "Unknown";
 }
 
+const char *orderLabel(ArmyStance stance)
+{
+    switch (stance)
+    {
+    case ArmyStance::RushNearest: return "突撃";
+    case ArmyStance::PushForward: return "前進";
+    case ArmyStance::FollowLeader: return "追従";
+    case ArmyStance::DefendBase: return "防衛";
+    }
+    return "";
+}
+
 const char *formationLabel(Formation formation)
 {
     switch (formation)
@@ -1673,6 +1685,10 @@ struct Simulation
     std::uniform_real_distribution<float> gateJitter;
 
     ArmyStance stance = ArmyStance::RushNearest;
+    ArmyStance defaultStance = ArmyStance::RushNearest;
+    bool orderActive = false;
+    float orderTimer = 0.0f;
+    float orderDuration = 10.0f;
     Formation formation = Formation::Swarm;
     int selectedSkill = 0;
     bool rallyState = false;
@@ -1720,6 +1736,9 @@ struct Simulation
         rng.seed(static_cast<std::mt19937::result_type>(config.rng_seed));
         scatterY = std::uniform_real_distribution<float>(-config.yuna_scatter_y, config.yuna_scatter_y);
         gateJitter = std::uniform_real_distribution<float>(-spawnScript.y_jitter, spawnScript.y_jitter);
+        stance = defaultStance;
+        orderActive = false;
+        orderTimer = 0.0f;
         basePos = tileToWorld(mapDefs.base_tile, mapDefs.tile_size);
         yunaSpawnPos = tileToWorld(mapDefs.spawn_tile_yuna, mapDefs.tile_size) + config.yuna_offset_px;
         commander.hp = commanderStats.hp;
@@ -1733,7 +1752,7 @@ struct Simulation
         spawnSlowMultiplier = 1.0f;
         spawnSlowTimer = 0.0f;
         rallyState = false;
-        stance = ArmyStance::RushNearest;
+        stance = defaultStance;
         formation = Formation::Swarm;
         selectedSkill = 0;
         for (RuntimeSkill &skill : skills)
@@ -2069,21 +2088,42 @@ struct Simulation
         pushTelemetry(message);
     }
 
-    void setStance(ArmyStance newStance)
+    void issueOrder(ArmyStance newStance)
     {
-        if (stance == newStance)
-        {
-            return;
-        }
         stance = newStance;
-        std::string message = std::string("Stance: ") + stanceLabel(stance);
+        orderActive = true;
+        orderTimer = orderDuration;
+        std::string message = std::string("Order: ") + stanceLabel(stance);
         pushTelemetry(message);
     }
+
+    bool isOrderActive() const { return orderActive; }
+
+    float orderTimeRemaining() const { return std::max(orderTimer, 0.0f); }
+
+    ArmyStance currentOrder() const { return stance; }
 
     void pushTelemetry(const std::string &text)
     {
         hud.telemetryText = normalizeTelemetry(text);
         hud.telemetryTimer = config.telemetry_duration;
+    }
+
+    void updateOrderTimer(float dt)
+    {
+        if (!orderActive)
+        {
+            return;
+        }
+        if (orderTimer > 0.0f)
+        {
+            orderTimer = std::max(0.0f, orderTimer - dt);
+        }
+        if (orderTimer <= 0.0f)
+        {
+            orderActive = false;
+            stance = defaultStance;
+        }
     }
 
     void setResult(GameResult r, const std::string &text)
@@ -2136,6 +2176,7 @@ struct Simulation
         }
 
         updateSkillTimers(dt);
+        updateOrderTimer(dt);
         updateWaves();
         updateActiveSpawns(dt);
         updateYunaSpawn(dt);
@@ -3010,9 +3051,28 @@ void renderScene(SDL_Renderer *renderer, const Simulation &sim, const Camera &ca
         const int approxWidth = std::max(approxHeight / 2, 8);
         return static_cast<int>(text.size()) * approxWidth;
     };
+    int topUiAnchor = 20;
+    if (sim.isOrderActive())
+    {
+        std::ostringstream orderBanner;
+        orderBanner << "[号令:" << orderLabel(sim.currentOrder()) << " 残り"
+                    << static_cast<int>(std::ceil(sim.orderTimeRemaining())) << "s]";
+        const std::string bannerText = orderBanner.str();
+        const int padX = 18;
+        const int padY = 8;
+        const int textWidth = measureWithFallback(font, bannerText, lineHeight);
+        SDL_Rect bannerRect{screenW / 2 - (textWidth + padX * 2) / 2, 12, textWidth + padX * 2, lineHeight + padY * 2};
+        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+        SDL_SetRenderDrawColor(renderer, 0, 0, 0, 190);
+        countedRenderFillRect(renderer, &bannerRect, stats);
+        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
+        font.drawText(renderer, bannerText, bannerRect.x + padX, bannerRect.y + padY, &stats,
+                      SDL_Color{255, 220, 120, 255});
+        topUiAnchor = bannerRect.y + bannerRect.h + 12;
+    }
     const int baseHpInt = static_cast<int>(std::round(std::max(sim.baseHp, 0.0f)));
     const float hpRatio = sim.config.base_hp > 0 ? std::clamp(baseHpInt / static_cast<float>(sim.config.base_hp), 0.0f, 1.0f) : 0.0f;
-    SDL_Rect barBg{screenW / 2 - 160, 20, 320, 20};
+    SDL_Rect barBg{screenW / 2 - 160, topUiAnchor, 320, 20};
     SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
     SDL_SetRenderDrawColor(renderer, 28, 22, 40, 200);
     countedRenderFillRect(renderer, &barBg, stats);
@@ -3044,7 +3104,18 @@ void renderScene(SDL_Renderer *renderer, const Simulation &sim, const Camera &ca
         infoLines.push_back(respawnText.str());
     }
     infoLines.push_back("");
-    infoLines.push_back(std::string("Stance (F1-F4): ") + stanceLabel(sim.stance));
+    std::ostringstream orderLine;
+    orderLine << "Order (F1-F4): ";
+    if (sim.isOrderActive())
+    {
+        orderLine << stanceLabel(sim.currentOrder()) << " [" << std::fixed << std::setprecision(1)
+                  << sim.orderTimeRemaining() << "s]";
+    }
+    else
+    {
+        orderLine << "None (default " << stanceLabel(sim.defaultStance) << ")";
+    }
+    infoLines.push_back(orderLine.str());
     infoLines.push_back(std::string("Formation (Z/X): ") + formationLabel(sim.formation));
     infoLines.push_back("");
     infoLines.push_back("Skills (Right Click):");
@@ -3091,7 +3162,7 @@ void renderScene(SDL_Renderer *renderer, const Simulation &sim, const Camera &ca
         }
     }
 
-    int topRightAnchorY = 12;
+    int topRightAnchorY = sim.isOrderActive() ? topUiAnchor : 12;
     if (showDebugHud)
     {
         std::vector<std::string> perfLines;
@@ -3311,16 +3382,16 @@ int main(int argc, char **argv)
                     running = false;
                     break;
                 case SDL_SCANCODE_F1:
-                    sim.setStance(ArmyStance::RushNearest);
+                    sim.issueOrder(ArmyStance::RushNearest);
                     break;
                 case SDL_SCANCODE_F2:
-                    sim.setStance(ArmyStance::PushForward);
+                    sim.issueOrder(ArmyStance::PushForward);
                     break;
                 case SDL_SCANCODE_F3:
-                    sim.setStance(ArmyStance::FollowLeader);
+                    sim.issueOrder(ArmyStance::FollowLeader);
                     break;
                 case SDL_SCANCODE_F4:
-                    sim.setStance(ArmyStance::DefendBase);
+                    sim.issueOrder(ArmyStance::DefendBase);
                     break;
                 case SDL_SCANCODE_F10:
                     showDebugHud = !showDebugHud;
