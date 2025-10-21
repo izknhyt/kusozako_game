@@ -7255,3 +7255,212 @@ events:
         - "/Network/Library/Frameworks"
         - "/System/Library/Frameworks"
 ...
+
+---
+events:
+  -
+    kind: "find_package-v1"
+    backtrace:
+      - "CMakeLists.txt:22 (find_package)"
+    name: "SDL2_ttf"
+    configs:
+      -
+        filename: "SDL2_ttfConfig.cmake"
+        kind: "cmake"
+      -
+        filename: "sdl2_ttf-config.cmake"
+        kind: "cmake"
+    version_request:
+      exact: false
+    settings:
+      required: "required_explicit"
+      quiet: false
+      global: false
+      policy_scope: true
+      bypass_provider: false
+      names:
+        - "SDL2_ttf"
+      path_suffixes:
+        - ""
+      paths:
+        CMAKE_FIND_USE_CMAKE_PATH: true
+        CMAKE_FIND_USE_CMAKE_ENVIRONMENT_PATH: true
+        CMAKE_FIND_USE_SYSTEM_ENVIRONMENT_PATH: true
+        CMAKE_FIND_USE_CMAKE_SYSTEM_PATH: true
+        CMAKE_FIND_USE_INSTALL_PREFIX: true
+        CMAKE_FIND_USE_PACKAGE_ROOT_PATH: true
+        CMAKE_FIND_USE_CMAKE_PACKAGE_REGISTRY: true
+        CMAKE_FIND_USE_SYSTEM_PACKAGE_REGISTRY: true
+        CMAKE_FIND_ROOT_PATH_MODE: "BOTH"
+    candidates:
+      -
+        path: "/Users/izumimotohayato/development/kusozako/build/CMakeFiles/pkgRedirects/SDL2_ttfConfig.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/Users/izumimotohayato/development/kusozako/build/CMakeFiles/pkgRedirects/sdl2_ttf-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/usr/local/SDL2_ttfConfig.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/usr/local/sdl2_ttf-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/System/Cryptexes/App/usr/SDL2_ttfConfig.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/System/Cryptexes/App/usr/sdl2_ttf-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/usr/SDL2_ttfConfig.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/usr/sdl2_ttf-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/SDL2_ttfConfig.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/sdl2_ttf-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/opt/X11/SDL2_ttfConfig.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/opt/X11/sdl2_ttf-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/Library/Apple/usr/SDL2_ttfConfig.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/Library/Apple/usr/sdl2_ttf-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/var/folders/dw/m9d1g10x7pdbzl7zrfnvwk7w0000gn/T/.tmpM8d3hl/SDL2_ttfConfig.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/var/folders/dw/m9d1g10x7pdbzl7zrfnvwk7w0000gn/T/.tmpM8d3hl/sdl2_ttf-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/Users/izumimotohayato/.nvm/versions/node/v22.17.0/SDL2_ttfConfig.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/Users/izumimotohayato/.nvm/versions/node/v22.17.0/sdl2_ttf-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/Users/izumimotohayato/Library/Python/3.10/SDL2_ttfConfig.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/Users/izumimotohayato/Library/Python/3.10/sdl2_ttf-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/Users/izumimotohayato/.local/SDL2_ttfConfig.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/Users/izumimotohayato/.local/sdl2_ttf-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/usr/local/lib/ruby/gems/3.4.0/SDL2_ttfConfig.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/usr/local/lib/ruby/gems/3.4.0/sdl2_ttf-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/usr/local/opt/ruby/SDL2_ttfConfig.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/usr/local/opt/ruby/sdl2_ttf-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/opt/homebrew/SDL2_ttfConfig.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/opt/homebrew/sdl2_ttf-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "/opt/homebrew/lib/cmake/SDL2_ttf/SDL2_ttfConfig.cmake"
+        mode: "config"
+        reason: "no_exist"
+    found:
+      path: "/opt/homebrew/lib/cmake/SDL2_ttf/sdl2_ttf-config.cmake"
+      mode: "config"
+      version: "2.24.0"
+    search_context:
+      ENV{PATH}:
+        - "/usr/local/bin"
+        - "/System/Cryptexes/App/usr/bin"
+        - "/usr/bin"
+        - "/bin"
+        - "/usr/sbin"
+        - "/sbin"
+        - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/local/bin"
+        - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin"
+        - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin"
+        - "/opt/X11/bin"
+        - "/Library/Apple/usr/bin"
+        - "/var/folders/dw/m9d1g10x7pdbzl7zrfnvwk7w0000gn/T/.tmpM8d3hl"
+        - "/opt/homebrew/opt/python@3.12/bin"
+        - "/Users/izumimotohayato/.nvm/versions/node/v22.17.0/bin"
+        - "/Users/izumimotohayato/Library/Python/3.10/bin"
+        - "/Users/izumimotohayato/.local/bin"
+        - "/Users/izumimotohayato/development/flutter/bin"
+        - "/usr/local/lib/ruby/gems/3.6.7/bin"
+        - "/usr/local/lib/ruby/gems/3.4.0/bin"
+        - "/usr/local/opt/ruby/bin"
+        - "/opt/homebrew/opt/ruby/bin"
+        - "/opt/homebrew/bin"
+        - "/Library/Frameworks/Python.framework/Versions/3.10/bin"
+        - "/Users/izumimotohayato/.vscode/extensions/openai.chatgpt-0.4.9-darwin-arm64/bin/macos-aarch64"
+      CMAKE_INSTALL_PREFIX: "/usr/local"
+      CMAKE_SYSTEM_PREFIX_PATH:
+        - "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr"
+        - "/usr/local"
+        - "/usr/local"
+        - "/usr"
+        - "/"
+        - "/opt/homebrew"
+        - "/usr/local"
+        - "/usr/X11R6"
+        - "/usr/pkg"
+        - "/opt"
+        - "/sw"
+        - "/opt/local"
+      CMAKE_SYSTEM_FRAMEWORK_PATH:
+        - "~/Library/Frameworks"
+        - "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/Library/Frameworks"
+        - "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/Network/Library/Frameworks"
+        - "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/System/Library/Frameworks"
+        - "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks"
+        - "/Applications/Xcode.app/Contents/Developer/Library/Frameworks"
+        - "/Library/Frameworks"
+        - "/Network/Library/Frameworks"
+        - "/System/Library/Frameworks"
+...

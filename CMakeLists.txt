@@ -19,8 +19,9 @@ target_include_directories(kusozako PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
 
 find_package(SDL2 REQUIRED)
 find_package(SDL2_image REQUIRED)
+find_package(SDL2_ttf REQUIRED)
 
-target_link_libraries(kusozako PRIVATE SDL2::SDL2 SDL2::SDL2main SDL2_image::SDL2_image)
+target_link_libraries(kusozako PRIVATE SDL2::SDL2 SDL2::SDL2main SDL2_image::SDL2_image SDL2_ttf::SDL2_ttf)
 
 if(APPLE)
   target_compile_definitions(kusozako PRIVATE SDL_HINT_VIDEO_HIGHDPI=1)

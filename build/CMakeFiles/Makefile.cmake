@@ -16,6 +16,8 @@ set(CMAKE_MAKEFILE_DEPENDS
   "/opt/homebrew/lib/cmake/SDL2_image/Findwebp.cmake"
   "/opt/homebrew/lib/cmake/SDL2_image/sdl2_image-config-version.cmake"
   "/opt/homebrew/lib/cmake/SDL2_image/sdl2_image-config.cmake"
+  "/opt/homebrew/lib/cmake/SDL2_ttf/sdl2_ttf-config-version.cmake"
+  "/opt/homebrew/lib/cmake/SDL2_ttf/sdl2_ttf-config.cmake"
   "/opt/homebrew/lib/cmake/libavif/libavif-config-release.cmake"
   "/opt/homebrew/lib/cmake/libavif/libavif-config-version.cmake"
   "/opt/homebrew/lib/cmake/libavif/libavif-config.cmake"

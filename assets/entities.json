@@ -2,7 +2,7 @@
   "commander": {
     "aabb_px": [24, 24],
     "r_px": 12,
-    "speed_u_s": 1.6,
+    "speed_u_s": 3.2,
     "hp": 60,
     "dps": 15,
     "sprite_prefix": "commander"

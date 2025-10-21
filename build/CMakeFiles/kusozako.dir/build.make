@@ -98,6 +98,7 @@ kusozako: CMakeFiles/kusozako.dir/build.make
 kusozako: /opt/homebrew/Cellar/sdl2/2.32.10/lib/libSDL2.dylib
 kusozako: /opt/homebrew/Cellar/sdl2/2.32.10/lib/libSDL2main.a
 kusozako: /opt/homebrew/Cellar/sdl2_image/2.8.8/lib/libSDL2_image.dylib
+kusozako: /opt/homebrew/Cellar/sdl2_ttf/2.24.0/lib/libSDL2_ttf.dylib
 kusozako: CMakeFiles/kusozako.dir/link.txt
 	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --bold --progress-dir=/Users/izumimotohayato/development/kusozako/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_2) "Linking CXX executable kusozako"
 	$(CMAKE_COMMAND) -E cmake_link_script CMakeFiles/kusozako.dir/link.txt --verbose=$(VERBOSE)

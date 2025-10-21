@@ -927,8 +927,11 @@ CMakeFiles/kusozako.dir/src/main.cpp.o: /Users/izumimotohayato/development/kusoz
   /opt/homebrew/Cellar/sdl2/2.32.10/include/SDL2/SDL_video.h \
   /opt/homebrew/Cellar/sdl2/2.32.10/include/SDL2/begin_code.h \
   /opt/homebrew/Cellar/sdl2/2.32.10/include/SDL2/close_code.h \
-  /opt/homebrew/Cellar/sdl2_image/2.8.8/include/SDL2/SDL_image.h
+  /opt/homebrew/Cellar/sdl2_image/2.8.8/include/SDL2/SDL_image.h \
+  /opt/homebrew/Cellar/sdl2_ttf/2.24.0/include/SDL2/SDL_ttf.h
 
+
+/opt/homebrew/Cellar/sdl2_ttf/2.24.0/include/SDL2/SDL_ttf.h:
 
 /opt/homebrew/Cellar/sdl2_image/2.8.8/include/SDL2/SDL_image.h:
 

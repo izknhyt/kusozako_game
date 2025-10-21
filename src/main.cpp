@@ -1,5 +1,6 @@
 #include <SDL.h>
 #include <SDL_image.h>
+#include <SDL_ttf.h>
 
 #include <algorithm>
 #include <array>
@@ -1209,69 +1210,32 @@ struct ActiveSpawn
     EnemyArchetype type = EnemyArchetype::Slime;
 };
 
-struct Glyph
-{
-    SDL_Rect src{0, 0, 0, 0};
-    int xoffset = 0;
-    int yoffset = 0;
-    int xadvance = 0;
-};
-
-class BitmapFont
+class TextRenderer
 {
   public:
-    bool load(const std::string &fntPath)
+    TextRenderer() = default;
+    ~TextRenderer() { unload(); }
+
+    bool load(const std::string &fontPath, int pointSize)
     {
-        std::ifstream file(fntPath);
-        if (!file.is_open())
+        unload();
+        font = TTF_OpenFont(fontPath.c_str(), pointSize);
+        if (!font)
         {
-            std::cerr << "Failed to open font metrics: " << fntPath << '\n';
+            std::cerr << "Failed to load font: " << fontPath << " -> " << TTF_GetError() << '\n';
             return false;
         }
-        std::string line;
-        while (std::getline(file, line))
-        {
-            if (line.rfind("char id=", 0) == 0)
-            {
-                parseCharLine(line);
-            }
-            else if (line.rfind("common ", 0) == 0)
-            {
-                parseCommonLine(line);
-            }
-        }
+        lineHeight = TTF_FontLineSkip(font);
         return true;
     }
 
-    void setTexture(SDL_Texture *tex)
+    void unload()
     {
-        texture = tex;
-    }
-
-    void drawText(SDL_Renderer *renderer, const std::string &text, int x, int y, RenderStats *stats = nullptr) const
-    {
-        if (!texture)
+        if (font)
         {
-            return;
-        }
-        int penX = x;
-        const int penY = y;
-        for (const unsigned char c : text)
-        {
-            auto it = glyphs.find(static_cast<int>(c));
-            if (it == glyphs.end())
-            {
-                penX += lineHeight / 2;
-                continue;
-            }
-            const Glyph &g = it->second;
-            SDL_Rect dst{penX + g.xoffset, penY + g.yoffset, g.src.w, g.src.h};
-            if (stats)
-            {
-                ++stats->drawCalls;
-            }
-            SDL_RenderCopy(renderer, texture, &g.src, &dst);
-            penX += g.xadvance;
+            TTF_CloseFont(font);
+            font = nullptr;
+            lineHeight = 0;
         }
     }
 
@@ -1279,95 +1243,55 @@ class BitmapFont
 
     int measureText(const std::string &text) const
     {
-        int width = 0;
-        for (const unsigned char c : text)
+        if (!font)
         {
-            auto it = glyphs.find(static_cast<int>(c));
-            if (it == glyphs.end())
-            {
-                width += lineHeight / 2;
-                continue;
-            }
-            width += it->second.xadvance;
+            return 0;
+        }
+        int width = 0;
+        if (TTF_SizeUTF8(font, text.c_str(), &width, nullptr) != 0)
+        {
+            return 0;
         }
         return width;
     }
 
+    void drawText(SDL_Renderer *renderer, const std::string &text, int x, int y, RenderStats *stats = nullptr,
+                  SDL_Color color = {255, 255, 255, 255}) const
+    {
+        if (!font || text.empty())
+        {
+            return;
+        }
+        SDL_Surface *surface = TTF_RenderUTF8_Blended(font, text.c_str(), color);
+        if (!surface)
+        {
+            std::cerr << "TTF_RenderUTF8_Blended failed: " << TTF_GetError() << '\n';
+            return;
+        }
+        SDL_Texture *texture = SDL_CreateTextureFromSurface(renderer, surface);
+        if (!texture)
+        {
+            std::cerr << "SDL_CreateTextureFromSurface failed: " << SDL_GetError() << '\n';
+            SDL_FreeSurface(surface);
+            return;
+        }
+        SDL_Rect dst{x, y, surface->w, surface->h};
+        if (SDL_RenderCopy(renderer, texture, nullptr, &dst) == 0)
+        {
+            if (stats)
+            {
+                ++stats->drawCalls;
+            }
+        }
+        SDL_DestroyTexture(texture);
+        SDL_FreeSurface(surface);
+    }
+
+    bool isLoaded() const { return font != nullptr; }
+
   private:
-    void parseCharLine(const std::string &line)
-    {
-        std::istringstream iss(line);
-        std::string token;
-        Glyph glyph;
-        int id = 0;
-        while (iss >> token)
-        {
-            auto eq = token.find('=');
-            if (eq == std::string::npos)
-            {
-                continue;
-            }
-            const std::string key = token.substr(0, eq);
-            const std::string value = token.substr(eq + 1);
-            if (key == "id")
-            {
-                id = std::stoi(value);
-            }
-            else if (key == "x")
-            {
-                glyph.src.x = std::stoi(value);
-            }
-            else if (key == "y")
-            {
-                glyph.src.y = std::stoi(value);
-            }
-            else if (key == "width")
-            {
-                glyph.src.w = std::stoi(value);
-            }
-            else if (key == "height")
-            {
-                glyph.src.h = std::stoi(value);
-            }
-            else if (key == "xoffset")
-            {
-                glyph.xoffset = std::stoi(value);
-            }
-            else if (key == "yoffset")
-            {
-                glyph.yoffset = std::stoi(value);
-            }
-            else if (key == "xadvance")
-            {
-                glyph.xadvance = std::stoi(value);
-            }
-        }
-        glyphs[id] = glyph;
-    }
-
-    void parseCommonLine(const std::string &line)
-    {
-        std::istringstream iss(line);
-        std::string token;
-        while (iss >> token)
-        {
-            auto eq = token.find('=');
-            if (eq == std::string::npos)
-            {
-                continue;
-            }
-            const std::string key = token.substr(0, eq);
-            const std::string value = token.substr(eq + 1);
-            if (key == "lineHeight")
-            {
-                lineHeight = std::stoi(value);
-            }
-        }
-    }
-
-    std::unordered_map<int, Glyph> glyphs;
-    SDL_Texture *texture = nullptr;
-    int lineHeight = 16;
+    TTF_Font *font = nullptr;
+    int lineHeight = 0;
 };
 
 struct TileMap
@@ -2810,8 +2734,9 @@ void drawTileLayer(SDL_Renderer *renderer, const TileMap &map, const std::vector
     }
 }
 
-void renderScene(SDL_Renderer *renderer, const Simulation &sim, const Camera &camera, const BitmapFont &font, const TileMap &map,
-                 const Atlas &atlas, int screenW, int screenH, FramePerf &perf)
+void renderScene(SDL_Renderer *renderer, const Simulation &sim, const Camera &camera, const TextRenderer &font,
+                 const TextRenderer &debugFont, const TileMap &map,
+                 const Atlas &atlas, int screenW, int screenH, FramePerf &perf, bool showDebugHud)
 {
     RenderStats stats;
     SDL_SetRenderDrawColor(renderer, 26, 32, 38, 255);
@@ -3073,29 +2998,18 @@ void renderScene(SDL_Renderer *renderer, const Simulation &sim, const Camera &ca
     countedRenderFillRect(renderer, &overlay, stats);
     SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
 
-    // HUD text
-    const int perfRight = screenW - 12;
-    int perfY = 16;
-    {
-        std::ostringstream line1;
-        line1 << std::fixed << std::setprecision(1) << "FPS " << perf.fps << "  Ents " << perf.entities;
-        const std::string line1Str = line1.str();
-        font.drawText(renderer, line1Str, perfRight - font.measureText(line1Str), perfY, &stats);
-        perfY += font.getLineHeight();
+    const int lineHeight = std::max(font.getLineHeight(), 18);
+    const int debugLineHeight = std::max(debugFont.isLoaded() ? debugFont.getLineHeight() : lineHeight, 14);
 
-        std::ostringstream line2;
-        line2 << std::fixed << std::setprecision(2) << "Upd " << perf.msUpdate << "ms  Ren " << perf.msRender << "ms";
-        const std::string line2Str = line2.str();
-        font.drawText(renderer, line2Str, perfRight - font.measureText(line2Str), perfY, &stats);
-        perfY += font.getLineHeight();
-
-        std::ostringstream line3;
-        line3 << "Draw " << perf.drawCalls;
-        const std::string line3Str = line3.str();
-        font.drawText(renderer, line3Str, perfRight - font.measureText(line3Str), perfY, &stats);
-    }
-
-    int y = 16;
+    auto measureWithFallback = [](const TextRenderer &renderer, const std::string &text, int approxHeight) {
+        const int measured = renderer.measureText(text);
+        if (measured > 0)
+        {
+            return measured;
+        }
+        const int approxWidth = std::max(approxHeight / 2, 8);
+        return static_cast<int>(text.size()) * approxWidth;
+    };
     const int baseHpInt = static_cast<int>(std::round(std::max(sim.baseHp, 0.0f)));
     const float hpRatio = sim.config.base_hp > 0 ? std::clamp(baseHpInt / static_cast<float>(sim.config.base_hp), 0.0f, 1.0f) : 0.0f;
     SDL_Rect barBg{screenW / 2 - 160, 20, 320, 20};
@@ -3108,41 +3022,32 @@ void renderScene(SDL_Renderer *renderer, const Simulation &sim, const Camera &ca
     SDL_SetRenderDrawColor(renderer, 90, 70, 120, 230);
     countedRenderDrawRect(renderer, &barBg, stats);
     SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
-    font.drawText(renderer, "Base HP", barBg.x, barBg.y - font.getLineHeight(), &stats);
+    font.drawText(renderer, "Base HP", barBg.x, barBg.y - lineHeight, &stats);
     font.drawText(renderer, std::to_string(baseHpInt), barBg.x + barBg.w + 12, barBg.y - 2, &stats);
 
-    y = barBg.y + barBg.h + 16;
     const int commanderHpInt = static_cast<int>(std::round(std::max(sim.commander.hp, 0.0f)));
-    font.drawText(renderer, "Allies: " + std::to_string(static_cast<int>(sim.yunas.size())), 20, y, &stats);
-    y += font.getLineHeight();
+    std::vector<std::string> infoLines;
+    infoLines.push_back("Allies: " + std::to_string(static_cast<int>(sim.yunas.size())));
     if (sim.commander.alive)
     {
-        font.drawText(renderer, "Commander HP: " + std::to_string(commanderHpInt), 20, y, &stats);
+        infoLines.push_back("Commander HP: " + std::to_string(commanderHpInt));
     }
     else
     {
-        font.drawText(renderer, "Commander: Down", 20, y, &stats);
+        infoLines.push_back("Commander: Down");
     }
-    y += font.getLineHeight();
-    font.drawText(renderer, "Enemies: " + std::to_string(static_cast<int>(sim.enemies.size())), 20, y, &stats);
-    y += font.getLineHeight();
-    std::ostringstream fpsText;
-    fpsText << "FPS: " << static_cast<int>(std::round(perf.fps));
-    font.drawText(renderer, fpsText.str(), 12, y, &stats);
-    y += font.getLineHeight();
-    font.drawText(renderer, std::string("Stance (F1-F4): ") + stanceLabel(sim.stance), 20, y, &stats);
-    y += font.getLineHeight();
-    font.drawText(renderer, std::string("Formation (Z/X): ") + formationLabel(sim.formation), 20, y, &stats);
-    y += font.getLineHeight();
+    infoLines.push_back("Enemies: " + std::to_string(static_cast<int>(sim.enemies.size())));
     if (!sim.commander.alive)
     {
         std::ostringstream respawnText;
         respawnText << "Commander respawn in " << std::fixed << std::setprecision(1) << sim.commanderRespawnTimer << "s";
-        font.drawText(renderer, respawnText.str(), 20, y, &stats);
-        y += font.getLineHeight();
+        infoLines.push_back(respawnText.str());
     }
-    font.drawText(renderer, "Skills (Right Click):", 20, y, &stats);
-    y += font.getLineHeight();
+    infoLines.push_back("");
+    infoLines.push_back(std::string("Stance (F1-F4): ") + stanceLabel(sim.stance));
+    infoLines.push_back(std::string("Formation (Z/X): ") + formationLabel(sim.formation));
+    infoLines.push_back("");
+    infoLines.push_back("Skills (Right Click):");
     for (std::size_t i = 0; i < sim.skills.size(); ++i)
     {
         const RuntimeSkill &skill = sim.skills[i];
@@ -3157,19 +3062,100 @@ void renderScene(SDL_Renderer *renderer, const Simulation &sim, const Camera &ca
         {
             skillLabel << " (active " << std::fixed << std::setprecision(1) << skill.activeTimer << "s)";
         }
-        font.drawText(renderer, skillLabel.str(), 20, y, &stats);
-        y += font.getLineHeight();
+        infoLines.push_back(skillLabel.str());
+    }
+
+    if (!infoLines.empty())
+    {
+        int infoPanelWidth = 0;
+        for (const std::string &line : infoLines)
+        {
+            infoPanelWidth = std::max(infoPanelWidth, measureWithFallback(font, line, lineHeight));
+        }
+        const int infoPadding = 8;
+        const int infoPanelHeight = static_cast<int>(infoLines.size()) * lineHeight + infoPadding * 2;
+        SDL_Rect infoPanel{12, barBg.y + barBg.h + 20, infoPanelWidth + infoPadding * 2, infoPanelHeight};
+        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+        SDL_SetRenderDrawColor(renderer, 0, 0, 0, 160);
+        countedRenderFillRect(renderer, &infoPanel, stats);
+        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
+
+        int infoY = infoPanel.y + infoPadding;
+        for (const std::string &line : infoLines)
+        {
+            if (!line.empty())
+            {
+                font.drawText(renderer, line, infoPanel.x + infoPadding, infoY, &stats);
+            }
+            infoY += lineHeight;
+        }
+    }
+
+    int topRightAnchorY = 12;
+    if (showDebugHud)
+    {
+        std::vector<std::string> perfLines;
+        std::ostringstream line1;
+        line1 << std::fixed << std::setprecision(1) << "FPS " << perf.fps << "  Ents " << perf.entities;
+        perfLines.push_back(line1.str());
+        std::ostringstream line2;
+        line2 << std::fixed << std::setprecision(2) << "Upd " << perf.msUpdate << "ms  Ren " << perf.msRender << "ms";
+        perfLines.push_back(line2.str());
+        std::ostringstream line3;
+        line3 << "Draw " << perf.drawCalls;
+        perfLines.push_back(line3.str());
+
+        int debugWidth = 0;
+        for (const std::string &line : perfLines)
+        {
+            debugWidth = std::max(debugWidth, measureWithFallback(debugFont, line, debugLineHeight));
+        }
+        const int debugPadX = 10;
+        const int debugPadY = 8;
+        SDL_Rect debugPanel{screenW - (debugWidth + debugPadX * 2) - 12, topRightAnchorY,
+                            debugWidth + debugPadX * 2, static_cast<int>(perfLines.size()) * debugLineHeight + debugPadY * 2};
+        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+        SDL_SetRenderDrawColor(renderer, 0, 0, 0, 170);
+        countedRenderFillRect(renderer, &debugPanel, stats);
+        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
+
+        int debugY = debugPanel.y + debugPadY;
+        for (const std::string &line : perfLines)
+        {
+            debugFont.drawText(renderer, line, debugPanel.x + debugPadX, debugY, &stats);
+            debugY += debugLineHeight;
+        }
+        topRightAnchorY += debugPanel.h + 12;
     }
 
     if (!sim.hud.telemetryText.empty() && sim.hud.telemetryTimer > 0.0f)
     {
-        const int textWidth = font.measureText(sim.hud.telemetryText);
-        font.drawText(renderer, sim.hud.telemetryText, screenW - textWidth - 12, 12, &stats);
+        const int telePadX = 12;
+        const int telePadY = 6;
+        const int textWidth = measureWithFallback(font, sim.hud.telemetryText, lineHeight);
+        SDL_Rect telePanel{screenW - (textWidth + telePadX * 2) - 12, topRightAnchorY,
+                           textWidth + telePadX * 2, lineHeight + telePadY * 2};
+        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+        SDL_SetRenderDrawColor(renderer, 0, 0, 0, 180);
+        countedRenderFillRect(renderer, &telePanel, stats);
+        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
+        font.drawText(renderer, sim.hud.telemetryText, telePanel.x + telePadX, telePanel.y + telePadY, &stats);
+        topRightAnchorY += telePanel.h + 12;
     }
     if (!sim.hud.resultText.empty() && sim.hud.resultTimer > 0.0f)
     {
-        const int textWidth = font.measureText(sim.hud.resultText);
-        font.drawText(renderer, sim.hud.resultText, screenW / 2 - textWidth / 2, screenH / 2 - font.getLineHeight(), &stats);
+        const int resultPadX = 24;
+        const int resultPadY = 12;
+        const int textWidth = measureWithFallback(font, sim.hud.resultText, lineHeight);
+        SDL_Rect resultPanel{screenW / 2 - (textWidth + resultPadX * 2) / 2,
+                             screenH / 2 - lineHeight - resultPadY,
+                             textWidth + resultPadX * 2,
+                             lineHeight + resultPadY * 2};
+        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+        SDL_SetRenderDrawColor(renderer, 0, 0, 0, 200);
+        countedRenderFillRect(renderer, &resultPanel, stats);
+        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
+        font.drawText(renderer, sim.hud.resultText, resultPanel.x + resultPadX, resultPanel.y + resultPadY, &stats);
     }
 
     perf.drawCalls = stats.drawCalls;
@@ -3262,17 +3248,26 @@ int main(int argc, char **argv)
     sim.configureSkills(skillDefs);
     sim.reset();
 
-    BitmapFont font;
-    if (!font.load("assets/ui/hud_font.fnt"))
+    if (TTF_Init() != 0)
     {
-        std::cerr << "Failed to load HUD font metrics.\n";
+        std::cerr << "TTF_Init failed: " << TTF_GetError() << '\n';
+        SDL_DestroyRenderer(renderer);
+        SDL_DestroyWindow(window);
+        IMG_Quit();
+        SDL_Quit();
+        return 1;
     }
-    SDL_Texture *fontTex = IMG_LoadTexture(renderer, "assets/ui/hud_font.png");
-    if (!fontTex)
+
+    TextRenderer hudFont;
+    if (!hudFont.load("assets/ui/NotoSansJP-Regular.ttf", 22))
     {
-        std::cerr << "Failed to load HUD font texture: " << IMG_GetError() << '\n';
+        std::cerr << "Failed to load HUD font (NotoSansJP-Regular.ttf).\n";
     }
-    font.setTexture(fontTex);
+    TextRenderer debugFont;
+    if (!debugFont.load("assets/ui/NotoSansJP-Regular.ttf", 18))
+    {
+        std::cerr << "Failed to load debug font fallback, using HUD font size.\n";
+    }
 
     Camera camera;
     Vec2 baseCameraTarget{sim.basePos.x - screenWidth * 0.5f, sim.basePos.y - screenHeight * 0.5f};
@@ -3297,6 +3292,7 @@ int main(int argc, char **argv)
     double renderAccum = 0.0;
     double entityAccum = 0.0;
     int perfLogFrames = 0;
+    bool showDebugHud = false;
 
     while (running)
     {
@@ -3325,6 +3321,9 @@ int main(int argc, char **argv)
                     break;
                 case SDL_SCANCODE_F4:
                     sim.setStance(ArmyStance::DefendBase);
+                    break;
+                case SDL_SCANCODE_F10:
+                    showDebugHud = !showDebugHud;
                     break;
                 case SDL_SCANCODE_SPACE:
                     camera.position = {sim.commander.pos.x - screenWidth * 0.5f, sim.commander.pos.y - screenHeight * 0.5f};
@@ -3367,11 +3366,11 @@ int main(int argc, char **argv)
                     break;
                 }
             }
-        }
-        else if (event.type == SDL_MOUSEBUTTONDOWN && event.button.button == SDL_BUTTON_RIGHT)
-        {
-            Vec2 worldPos = screenToWorld(event.button.x, event.button.y, camera);
-            sim.activateSelectedSkill(worldPos);
+            else if (event.type == SDL_MOUSEBUTTONDOWN && event.button.button == SDL_BUTTON_RIGHT)
+            {
+                Vec2 worldPos = screenToWorld(event.button.x, event.button.y, camera);
+                sim.activateSelectedSkill(worldPos);
+            }
         }
 
         const Uint64 nowCounter = SDL_GetPerformanceCounter();
@@ -3434,7 +3433,8 @@ int main(int argc, char **argv)
         framePerf.fps = currentFps;
         framePerf.entities = static_cast<int>(sim.yunas.size() + sim.enemies.size() + (sim.commander.alive ? 1 : 0));
         const Uint64 renderStart = SDL_GetPerformanceCounter();
-        renderScene(renderer, sim, renderCamera, font, tileMap, atlas, screenWidth, screenHeight, framePerf);
+        renderScene(renderer, sim, renderCamera, hudFont, debugFont, tileMap, atlas, screenWidth, screenHeight, framePerf,
+                     showDebugHud);
         const Uint64 renderEnd = SDL_GetPerformanceCounter();
         const double renderMs = (renderEnd - renderStart) * 1000.0 / frequency;
         framePerf.msRender = static_cast<float>(renderMs);
@@ -3468,10 +3468,6 @@ int main(int argc, char **argv)
         }
     }
 
-    if (fontTex)
-    {
-        SDL_DestroyTexture(fontTex);
-    }
     if (atlas.texture)
     {
         SDL_DestroyTexture(atlas.texture);
@@ -3482,6 +3478,9 @@ int main(int argc, char **argv)
     }
     SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(window);
+    hudFont.unload();
+    debugFont.unload();
+    TTF_Quit();
     IMG_Quit();
     SDL_Quit();
     return 0;
