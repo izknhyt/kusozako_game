@@ -468,6 +468,79 @@ std::vector<float> getNumberArray(const JsonValue &obj, const std::string &key)
     return result;
 }
 
+std::vector<std::string> getStringArray(const JsonValue &obj, const std::string &key)
+{
+    std::vector<std::string> result;
+    if (const JsonValue *value = getObjectField(obj, key))
+    {
+        if (value->type == JsonValue::Type::Array)
+        {
+            for (const JsonValue &elem : value->array)
+            {
+                if (elem.type == JsonValue::Type::String)
+                {
+                    result.push_back(elem.string);
+                }
+            }
+        }
+        else if (value->type == JsonValue::Type::String)
+        {
+            result.push_back(value->string);
+        }
+    }
+    return result;
+}
+
+TemperamentRange readRangeValue(const JsonValue &value, TemperamentRange fallback)
+{
+    TemperamentRange range = fallback;
+    if (value.type == JsonValue::Type::Array && !value.array.empty())
+    {
+        if (!value.array.empty() && value.array[0].type == JsonValue::Type::Number)
+        {
+            range.min = static_cast<float>(value.array[0].number);
+        }
+        if (value.array.size() > 1 && value.array[1].type == JsonValue::Type::Number)
+        {
+            range.max = static_cast<float>(value.array[1].number);
+        }
+        else
+        {
+            range.max = range.min;
+        }
+    }
+    else if (value.type == JsonValue::Type::Number)
+    {
+        range.min = static_cast<float>(value.number);
+        range.max = range.min;
+    }
+    return range;
+}
+
+TemperamentRange getRangeField(const JsonValue &obj, const std::string &key, TemperamentRange fallback)
+{
+    if (const JsonValue *value = getObjectField(obj, key))
+    {
+        return readRangeValue(*value, fallback);
+    }
+    return fallback;
+}
+
+std::optional<TemperamentBehavior> temperamentBehaviorFromString(const std::string &id)
+{
+    if (id == "CHARGE_NEAREST") return TemperamentBehavior::ChargeNearest;
+    if (id == "FLEE_NEAREST") return TemperamentBehavior::FleeNearest;
+    if (id == "FOLLOW_YUNA") return TemperamentBehavior::FollowYuna;
+    if (id == "RAID_GATE") return TemperamentBehavior::RaidGate;
+    if (id == "HOMEBOUND") return TemperamentBehavior::Homebound;
+    if (id == "WANDER") return TemperamentBehavior::Wander;
+    if (id == "DOZE") return TemperamentBehavior::Doze;
+    if (id == "GUARD_BASE") return TemperamentBehavior::GuardBase;
+    if (id == "TARGET_TAG") return TemperamentBehavior::TargetTag;
+    if (id == "MIMIC") return TemperamentBehavior::Mimic;
+    return std::nullopt;
+}
+
 struct RespawnSettings
 {
     float base = 5.0f;
@@ -598,6 +671,92 @@ struct RuntimeSkill
     SkillDef def;
     float cooldownRemaining = 0.0f;
     float activeTimer = 0.0f;
+};
+
+enum class TemperamentBehavior
+{
+    ChargeNearest,
+    FleeNearest,
+    FollowYuna,
+    RaidGate,
+    Homebound,
+    Wander,
+    Doze,
+    GuardBase,
+    TargetTag,
+    Mimic
+};
+
+struct TemperamentRange
+{
+    float min = 0.0f;
+    float max = 0.0f;
+};
+
+struct TemperamentFollowCatchup
+{
+    float distance = 0.0f;
+    float duration = 0.0f;
+    float multiplier = 1.0f;
+};
+
+struct TemperamentChargeDash
+{
+    float duration = 0.0f;
+    float multiplier = 1.0f;
+};
+
+struct TemperamentDefinition
+{
+    std::string id;
+    std::string label;
+    TemperamentBehavior behavior = TemperamentBehavior::Wander;
+    float spawnRate = 0.0f;
+    float homeRadius = 0.0f;
+    float avoidEnemyRadius = 0.0f;
+    TemperamentRange cryPauseEvery{0.0f, 0.0f};
+    float cryPauseDuration = 0.0f;
+    float panicOnHit = 0.0f;
+    std::vector<std::string> targetTags;
+    TemperamentRange mimicEvery{0.0f, 0.0f};
+    TemperamentRange mimicDuration{0.0f, 0.0f};
+    std::vector<TemperamentBehavior> mimicPool;
+    TemperamentBehavior mimicDefault = TemperamentBehavior::Wander;
+};
+
+struct TemperamentConfig
+{
+    float orderDuration = 10.0f;
+    float fearRadius = 160.0f;
+    TemperamentFollowCatchup followCatchup{160.0f, 0.5f, 1.2f};
+    TemperamentRange wanderTurnInterval{1.5f, 2.5f};
+    TemperamentRange sleepEvery{8.0f, 12.0f};
+    float sleepDuration = 0.6f;
+    TemperamentChargeDash chargeDash{0.2f, 1.2f};
+    std::vector<TemperamentDefinition> definitions;
+    std::vector<float> cumulativeWeights;
+};
+
+struct TemperamentState
+{
+    const TemperamentDefinition *definition = nullptr;
+    TemperamentBehavior currentBehavior = TemperamentBehavior::Wander;
+    TemperamentBehavior lastBehavior = TemperamentBehavior::Wander;
+    bool mimicActive = false;
+    TemperamentBehavior mimicBehavior = TemperamentBehavior::Wander;
+    float mimicCooldown = 0.0f;
+    float mimicDuration = 0.0f;
+    Vec2 wanderDirection{1.0f, 0.0f};
+    float wanderTimer = 0.0f;
+    float sleepTimer = 0.0f;
+    float sleepRemaining = 0.0f;
+    bool sleeping = false;
+    float catchupTimer = 0.0f;
+    float cryTimer = 0.0f;
+    float cryPauseTimer = 0.0f;
+    bool crying = false;
+    float panicTimer = 0.0f;
+    float chargeDashTimer = 0.0f;
 };
 
 EnemyArchetype enemyTypeFromString(const std::string &typeId)
@@ -1248,6 +1407,126 @@ std::optional<std::vector<SkillDef>> parseSkillCatalog(const std::string &path)
     return defs;
 }
 
+std::optional<TemperamentConfig> parseTemperamentConfig(const std::string &path)
+{
+    auto json = loadJsonFile(path);
+    if (!json.has_value())
+    {
+        return std::nullopt;
+    }
+    if (json->type != JsonValue::Type::Object)
+    {
+        std::cerr << "ai_temperaments root must be an object\n";
+        return std::nullopt;
+    }
+
+    TemperamentConfig config;
+    config.orderDuration = getNumber(*json, "order_duration_s", config.orderDuration);
+    config.fearRadius = getNumber(*json, "fear_radius_px", config.fearRadius);
+    if (const JsonValue *follow = getObjectField(*json, "follow_catchup"))
+    {
+        config.followCatchup.distance = getNumber(*follow, "dist_px", config.followCatchup.distance);
+        config.followCatchup.duration = getNumber(*follow, "dur_s", config.followCatchup.duration);
+        config.followCatchup.multiplier = getNumber(*follow, "mult", config.followCatchup.multiplier);
+    }
+    config.wanderTurnInterval = getRangeField(*json, "wander_turn_interval_s", config.wanderTurnInterval);
+    config.sleepEvery = getRangeField(*json, "sleep_every_s", config.sleepEvery);
+    config.sleepDuration = getNumber(*json, "sleep_dur_s", config.sleepDuration);
+    if (const JsonValue *dash = getObjectField(*json, "charge_dash"))
+    {
+        config.chargeDash.duration = getNumber(*dash, "dur_s", config.chargeDash.duration);
+        config.chargeDash.multiplier = getNumber(*dash, "mult", config.chargeDash.multiplier);
+    }
+
+    const JsonValue *temperaments = getObjectField(*json, "temperaments");
+    if (!temperaments || temperaments->type != JsonValue::Type::Object)
+    {
+        std::cerr << "temperaments object missing or invalid\n";
+        return std::nullopt;
+    }
+
+    config.definitions.reserve(temperaments->object.size());
+    for (const auto &kv : temperaments->object)
+    {
+        const JsonValue &node = kv.second;
+        if (node.type != JsonValue::Type::Object)
+        {
+            continue;
+        }
+        TemperamentDefinition def;
+        def.id = kv.first;
+        def.label = getString(node, "label", def.id);
+        def.spawnRate = getNumber(node, "spawn_rate", def.spawnRate);
+        std::string behaviorId = getString(node, "behavior", "");
+        auto behavior = temperamentBehaviorFromString(behaviorId);
+        if (!behavior.has_value())
+        {
+            std::cerr << "Unknown temperament behavior: " << behaviorId << "\n";
+            continue;
+        }
+        def.behavior = *behavior;
+        def.homeRadius = getNumber(node, "home_r_px", def.homeRadius);
+        def.avoidEnemyRadius = getNumber(node, "avoid_enemy_r_px", def.avoidEnemyRadius);
+        def.cryPauseEvery = getRangeField(node, "cry_pause_every_s", def.cryPauseEvery);
+        def.cryPauseDuration = getNumber(node, "cry_pause_dur_s", def.cryPauseDuration);
+        def.panicOnHit = getNumber(node, "panic_on_hit_s", def.panicOnHit);
+        def.targetTags = getStringArray(node, "target_tag");
+        if (def.behavior == TemperamentBehavior::Mimic)
+        {
+            std::string defaultBehavior = getString(node, "default_behavior", "WANDER");
+            if (auto defaultParsed = temperamentBehaviorFromString(defaultBehavior))
+            {
+                def.mimicDefault = *defaultParsed == TemperamentBehavior::Mimic ? TemperamentBehavior::Wander : *defaultParsed;
+            }
+            else
+            {
+                def.mimicDefault = TemperamentBehavior::Wander;
+            }
+            def.mimicEvery = getRangeField(node, "mimic_every_s", def.mimicEvery);
+            def.mimicDuration = getRangeField(node, "mimic_dur_s", def.mimicDuration);
+            for (const std::string &poolId : getStringArray(node, "mimic_pool"))
+            {
+                if (auto parsed = temperamentBehaviorFromString(poolId))
+                {
+                    if (*parsed != TemperamentBehavior::Mimic)
+                    {
+                        def.mimicPool.push_back(*parsed);
+                    }
+                }
+            }
+            if (def.mimicPool.empty())
+            {
+                def.mimicPool.push_back(def.mimicDefault);
+            }
+        }
+        config.definitions.push_back(def);
+    }
+
+    if (config.definitions.empty())
+    {
+        return std::nullopt;
+    }
+
+    config.cumulativeWeights.clear();
+    config.cumulativeWeights.reserve(config.definitions.size());
+    float total = 0.0f;
+    for (const TemperamentDefinition &def : config.definitions)
+    {
+        total += std::max(0.0f, def.spawnRate);
+        config.cumulativeWeights.push_back(total);
+    }
+    if (total <= 0.0f)
+    {
+        config.cumulativeWeights.clear();
+        for (std::size_t i = 0; i < config.definitions.size(); ++i)
+        {
+            config.cumulativeWeights.push_back(static_cast<float>(i + 1));
+        }
+    }
+
+    return config;
+}
+
 std::vector<SkillDef> buildDefaultSkills()
 {
     std::vector<SkillDef> defs;
@@ -1427,6 +1706,7 @@ struct Unit
     bool followByStance = false;
     bool effectiveFollower = false;
     Vec2 formationOffset{0.0f, 0.0f};
+    TemperamentState temperament;
 };
 
 struct CommanderUnit
@@ -1904,6 +2184,7 @@ std::string normalizeTelemetry(const std::string &text)
 struct Simulation
 {
     GameConfig config;
+    TemperamentConfig temperamentConfig;
     EntityStats yunaStats;
     EntityStats slimeStats;
     WallbreakerStats wallbreakerStats;
@@ -2029,6 +2310,7 @@ struct Simulation
         stance = defaultStance;
         orderActive = false;
         orderTimer = 0.0f;
+        orderDuration = temperamentConfig.orderDuration;
         basePos = tileToWorld(mapDefs.base_tile, mapDefs.tile_size);
         yunaSpawnPos = tileToWorld(mapDefs.spawn_tile_yuna, mapDefs.tile_size) + config.yuna_offset_px;
         commander.hp = commanderStats.hp;
@@ -2152,6 +2434,89 @@ struct Simulation
                     walls.end());
     }
 
+    Vec2 randomUnitVector()
+    {
+        std::uniform_real_distribution<float> angleDist(0.0f, 2.0f * 3.14159265358979323846f);
+        const float angle = angleDist(rng);
+        return {std::cos(angle), std::sin(angle)};
+    }
+
+    float randomRange(const TemperamentRange &range)
+    {
+        if (range.max <= range.min)
+        {
+            return range.min;
+        }
+        std::uniform_real_distribution<float> dist(range.min, range.max);
+        return dist(rng);
+    }
+
+    const TemperamentDefinition *selectTemperamentDefinition()
+    {
+        if (temperamentConfig.definitions.empty())
+        {
+            return nullptr;
+        }
+        if (temperamentConfig.cumulativeWeights.empty())
+        {
+            return &temperamentConfig.definitions.front();
+        }
+        const float total = temperamentConfig.cumulativeWeights.back();
+        if (total <= 0.0f)
+        {
+            return &temperamentConfig.definitions.front();
+        }
+        std::uniform_real_distribution<float> dist(0.0f, total);
+        const float roll = dist(rng);
+        auto it = std::lower_bound(temperamentConfig.cumulativeWeights.begin(), temperamentConfig.cumulativeWeights.end(), roll);
+        if (it == temperamentConfig.cumulativeWeights.end())
+        {
+            return &temperamentConfig.definitions.back();
+        }
+        std::size_t index = static_cast<std::size_t>(std::distance(temperamentConfig.cumulativeWeights.begin(), it));
+        if (index >= temperamentConfig.definitions.size())
+        {
+            index = temperamentConfig.definitions.size() - 1;
+        }
+        return &temperamentConfig.definitions[index];
+    }
+
+    void assignTemperament(Unit &yuna)
+    {
+        yuna.temperament = {};
+        const TemperamentDefinition *def = selectTemperamentDefinition();
+        yuna.temperament.definition = def;
+        if (!def)
+        {
+            return;
+        }
+        TemperamentState &state = yuna.temperament;
+        if (def->behavior == TemperamentBehavior::Mimic)
+        {
+            state.currentBehavior = def->mimicDefault;
+            state.mimicActive = false;
+            state.mimicBehavior = def->mimicDefault;
+            state.mimicCooldown = randomRange(def->mimicEvery);
+            state.mimicDuration = 0.0f;
+        }
+        else
+        {
+            state.currentBehavior = def->behavior;
+        }
+        state.lastBehavior = state.currentBehavior;
+        state.wanderDirection = randomUnitVector();
+        state.wanderTimer = randomRange(temperamentConfig.wanderTurnInterval);
+        state.sleepTimer = randomRange(temperamentConfig.sleepEvery);
+        state.sleepRemaining = temperamentConfig.sleepDuration;
+        state.sleeping = false;
+        state.catchupTimer = 0.0f;
+        state.cryTimer = def->cryPauseEvery.max > 0.0f ? randomRange(def->cryPauseEvery) : 0.0f;
+        state.cryPauseTimer = 0.0f;
+        state.crying = false;
+        state.panicTimer = 0.0f;
+        state.chargeDashTimer = state.currentBehavior == TemperamentBehavior::ChargeNearest ? temperamentConfig.chargeDash.duration : 0.0f;
+    }
+
     void spawnYunaUnit()
     {
         Unit yuna;
@@ -2160,6 +2525,7 @@ struct Simulation
         yuna.hp = yunaStats.hp;
         yuna.radius = yunaStats.radius;
         yunas.push_back(yuna);
+        assignTemperament(yunas.back());
     }
 
     void disableGate(const std::string &gate)
@@ -3008,6 +3374,422 @@ struct Simulation
         }
     }
 
+    std::vector<Vec2> collectRaidTargets() const
+    {
+        std::vector<Vec2> targets;
+        targets.reserve(captureZones.size() + spawnScript.gate_tiles.size() + mapDefs.gate_tiles.size());
+        for (const CaptureRuntime &zone : captureZones)
+        {
+            if (!zone.captured)
+            {
+                targets.push_back(zone.worldPos);
+            }
+        }
+        std::unordered_set<std::string> seen;
+        for (const auto &kv : spawnScript.gate_tiles)
+        {
+            if (disabledGates.find(kv.first) != disabledGates.end())
+            {
+                continue;
+            }
+            targets.push_back(tileToWorld(kv.second, mapDefs.tile_size));
+            seen.insert(kv.first);
+        }
+        for (const auto &kv : mapDefs.gate_tiles)
+        {
+            if (disabledGates.find(kv.first) != disabledGates.end())
+            {
+                continue;
+            }
+            if (seen.insert(kv.first).second)
+            {
+                targets.push_back(tileToWorld(kv.second, mapDefs.tile_size));
+            }
+        }
+        return targets;
+    }
+
+    EnemyUnit *findTargetByTags(const Vec2 &from, const std::vector<std::string> &tags)
+    {
+        for (const std::string &tag : tags)
+        {
+            EnemyUnit *best = nullptr;
+            float bestDist = std::numeric_limits<float>::max();
+            if (tag == "boss")
+            {
+                for (EnemyUnit &enemy : enemies)
+                {
+                    if (enemy.hp > 0.0f && enemy.type == EnemyArchetype::Boss)
+                    {
+                        const float distSq = lengthSq(enemy.pos - from);
+                        if (distSq < bestDist)
+                        {
+                            bestDist = distSq;
+                            best = &enemy;
+                        }
+                    }
+                }
+            }
+            else if (tag == "elite")
+            {
+                for (EnemyUnit &enemy : enemies)
+                {
+                    if (enemy.hp > 0.0f && enemy.type == EnemyArchetype::Wallbreaker)
+                    {
+                        const float distSq = lengthSq(enemy.pos - from);
+                        if (distSq < bestDist)
+                        {
+                            bestDist = distSq;
+                            best = &enemy;
+                        }
+                    }
+                }
+            }
+            else if (tag == "enemy" || tag == "any")
+            {
+                for (EnemyUnit &enemy : enemies)
+                {
+                    if (enemy.hp > 0.0f && enemy.type != EnemyArchetype::Boss)
+                    {
+                        const float distSq = lengthSq(enemy.pos - from);
+                        if (distSq < bestDist)
+                        {
+                            bestDist = distSq;
+                            best = &enemy;
+                        }
+                    }
+                }
+            }
+            if (best)
+            {
+                return best;
+            }
+        }
+        return nullptr;
+    }
+
+    Vec2 computeTemperamentVelocity(Unit &yuna,
+                                    float dt,
+                                    float baseSpeed,
+                                    const std::function<EnemyUnit *(const Vec2 &)> &nearestEnemy,
+                                    const std::vector<Vec2> &raidTargets)
+    {
+        TemperamentState &state = yuna.temperament;
+        if (!state.definition)
+        {
+            return {0.0f, 0.0f};
+        }
+        const TemperamentDefinition &def = *state.definition;
+
+        if (def.behavior == TemperamentBehavior::Mimic)
+        {
+            if (state.mimicActive)
+            {
+                state.mimicDuration -= dt;
+                if (state.mimicDuration <= 0.0f)
+                {
+                    state.mimicActive = false;
+                    state.currentBehavior = def.mimicDefault;
+                    state.mimicCooldown = randomRange(def.mimicEvery);
+                }
+            }
+            if (!state.mimicActive)
+            {
+                if (state.mimicCooldown > 0.0f)
+                {
+                    state.mimicCooldown = std::max(0.0f, state.mimicCooldown - dt);
+                }
+                if (state.mimicCooldown <= 0.0f && !def.mimicPool.empty())
+                {
+                    std::uniform_int_distribution<std::size_t> pick(0, def.mimicPool.size() - 1);
+                    state.mimicBehavior = def.mimicPool[pick(rng)];
+                    state.currentBehavior = state.mimicBehavior;
+                    state.mimicActive = true;
+                    state.mimicDuration = randomRange(def.mimicDuration);
+                    if (state.mimicDuration <= 0.0f)
+                    {
+                        state.mimicDuration = def.mimicDuration.max > 0.0f ? def.mimicDuration.max : 1.0f;
+                    }
+                }
+                else if (!state.mimicActive)
+                {
+                    state.currentBehavior = def.mimicDefault;
+                }
+            }
+        }
+        else
+        {
+            state.currentBehavior = def.behavior;
+        }
+
+        if (state.lastBehavior != state.currentBehavior)
+        {
+            if (state.currentBehavior == TemperamentBehavior::ChargeNearest)
+            {
+                state.chargeDashTimer = temperamentConfig.chargeDash.duration;
+            }
+            if (state.currentBehavior == TemperamentBehavior::Wander || state.currentBehavior == TemperamentBehavior::Homebound || state.currentBehavior == TemperamentBehavior::GuardBase)
+            {
+                state.wanderDirection = randomUnitVector();
+                state.wanderTimer = randomRange(temperamentConfig.wanderTurnInterval);
+            }
+            state.lastBehavior = state.currentBehavior;
+        }
+
+        float dashTime = state.chargeDashTimer;
+        if (state.chargeDashTimer > 0.0f)
+        {
+            state.chargeDashTimer = std::max(0.0f, state.chargeDashTimer - dt);
+        }
+        float catchupTime = state.catchupTimer;
+        if (state.catchupTimer > 0.0f)
+        {
+            state.catchupTimer = std::max(0.0f, state.catchupTimer - dt);
+        }
+        bool panicking = state.panicTimer > 0.0f;
+        if (state.panicTimer > 0.0f)
+        {
+            state.panicTimer = std::max(0.0f, state.panicTimer - dt);
+        }
+
+        const bool dozing = state.currentBehavior == TemperamentBehavior::Doze;
+        if (dozing)
+        {
+            if (state.sleeping)
+            {
+                state.sleepRemaining = std::max(0.0f, state.sleepRemaining - dt);
+                if (state.sleepRemaining <= 0.0f)
+                {
+                    state.sleeping = false;
+                    state.sleepTimer = randomRange(temperamentConfig.sleepEvery);
+                    state.sleepRemaining = temperamentConfig.sleepDuration;
+                }
+            }
+            else
+            {
+                state.sleepTimer = std::max(0.0f, state.sleepTimer - dt);
+                if (state.sleepTimer <= 0.0f)
+                {
+                    state.sleeping = true;
+                    state.sleepRemaining = temperamentConfig.sleepDuration;
+                }
+            }
+        }
+        else
+        {
+            state.sleeping = false;
+        }
+
+        if (def.cryPauseEvery.max > 0.0f)
+        {
+            if (state.crying)
+            {
+                state.cryPauseTimer = std::max(0.0f, state.cryPauseTimer - dt);
+                if (state.cryPauseTimer <= 0.0f)
+                {
+                    state.crying = false;
+                    state.cryTimer = randomRange(def.cryPauseEvery);
+                }
+            }
+            else
+            {
+                state.cryTimer = std::max(0.0f, state.cryTimer - dt);
+                if (state.cryTimer <= 0.0f)
+                {
+                    state.crying = true;
+                    state.cryPauseTimer = def.cryPauseDuration > 0.0f ? def.cryPauseDuration : 0.1f;
+                }
+            }
+        }
+        else
+        {
+            state.crying = false;
+        }
+
+        if (state.sleeping || state.crying)
+        {
+            return {0.0f, 0.0f};
+        }
+
+        if (panicking)
+        {
+            if (EnemyUnit *threat = nearestEnemy(yuna.pos))
+            {
+                Vec2 dir = normalize(yuna.pos - threat->pos);
+                if (lengthSq(dir) > 0.0f)
+                {
+                    return dir * baseSpeed;
+                }
+            }
+        }
+
+        float speed = baseSpeed;
+        auto ensureWander = [&]() {
+            if (state.wanderTimer <= 0.0f || lengthSq(state.wanderDirection) < 0.0001f)
+            {
+                state.wanderDirection = randomUnitVector();
+                state.wanderTimer = randomRange(temperamentConfig.wanderTurnInterval);
+            }
+        };
+        if (state.wanderTimer > 0.0f)
+        {
+            state.wanderTimer = std::max(0.0f, state.wanderTimer - dt);
+        }
+
+        switch (state.currentBehavior)
+        {
+        case TemperamentBehavior::ChargeNearest:
+        {
+            if (EnemyUnit *target = nearestEnemy(yuna.pos))
+            {
+                Vec2 dir = normalize(target->pos - yuna.pos);
+                if (dashTime > 0.0f)
+                {
+                    speed *= temperamentConfig.chargeDash.multiplier;
+                }
+                return dir * speed;
+            }
+            Vec2 dir = normalize(basePos - yuna.pos);
+            return dir * speed;
+        }
+        case TemperamentBehavior::FleeNearest:
+        {
+            if (EnemyUnit *threat = nearestEnemy(yuna.pos))
+            {
+                const float fear = temperamentConfig.fearRadius;
+                if (fear <= 0.0f || lengthSq(threat->pos - yuna.pos) <= fear * fear)
+                {
+                    Vec2 dir = normalize(yuna.pos - threat->pos);
+                    if (lengthSq(dir) > 0.0f)
+                    {
+                        return dir * speed;
+                    }
+                }
+            }
+            Vec2 dir = normalize(basePos - yuna.pos);
+            return dir * speed;
+        }
+        case TemperamentBehavior::FollowYuna:
+        {
+            Vec2 target = commander.alive ? commander.pos : basePos;
+            Vec2 toTarget = target - yuna.pos;
+            const float distSq = lengthSq(toTarget);
+            if (commander.alive && distSq > temperamentConfig.followCatchup.distance * temperamentConfig.followCatchup.distance)
+            {
+                if (state.catchupTimer <= 0.0f)
+                {
+                    state.catchupTimer = temperamentConfig.followCatchup.duration;
+                }
+                catchupTime = std::max(catchupTime, state.catchupTimer);
+            }
+            if (catchupTime > 0.0f || state.catchupTimer > 0.0f)
+            {
+                speed *= temperamentConfig.followCatchup.multiplier;
+            }
+            if (distSq > 1.0f)
+            {
+                return normalize(toTarget) * speed;
+            }
+            return Vec2{0.0f, 0.0f};
+        }
+        case TemperamentBehavior::RaidGate:
+        {
+            Vec2 target = basePos;
+            float best = std::numeric_limits<float>::max();
+            for (const Vec2 &candidate : raidTargets)
+            {
+                const float distSq = lengthSq(candidate - yuna.pos);
+                if (distSq < best)
+                {
+                    best = distSq;
+                    target = candidate;
+                }
+            }
+            if (best == std::numeric_limits<float>::max())
+            {
+                if (EnemyUnit *enemy = nearestEnemy(yuna.pos))
+                {
+                    target = enemy->pos;
+                }
+            }
+            Vec2 dir = normalize(target - yuna.pos);
+            return dir * speed;
+        }
+        case TemperamentBehavior::Homebound:
+        {
+            const float homeRadius = def.homeRadius > 0.0f ? def.homeRadius : 48.0f;
+            const float avoidRadius = def.avoidEnemyRadius > 0.0f ? def.avoidEnemyRadius : homeRadius * 2.0f;
+            Vec2 toBase = basePos - yuna.pos;
+            if (lengthSq(toBase) > homeRadius * homeRadius)
+            {
+                return normalize(toBase) * speed;
+            }
+            if (EnemyUnit *threat = nearestEnemy(basePos))
+            {
+                if (lengthSq(threat->pos - basePos) <= avoidRadius * avoidRadius)
+                {
+                    Vec2 away = basePos - threat->pos;
+                    if (lengthSq(away) > 0.0f)
+                    {
+                        Vec2 target = basePos + normalize(away) * std::max(homeRadius, 8.0f);
+                        return normalize(target - yuna.pos) * speed;
+                    }
+                }
+            }
+            ensureWander();
+            Vec2 wander = normalize(state.wanderDirection);
+            Vec2 desired = normalize(wander * homeRadius + toBase * 0.3f);
+            if (lengthSq(desired) < 0.0001f)
+            {
+                desired = normalize(toBase);
+            }
+            return desired * speed;
+        }
+        case TemperamentBehavior::Wander:
+        case TemperamentBehavior::Doze:
+        {
+            ensureWander();
+            Vec2 dir = normalize(state.wanderDirection);
+            return dir * speed;
+        }
+        case TemperamentBehavior::GuardBase:
+        {
+            const float guardRadius = mapDefs.tile_size * 22.0f;
+            if (EnemyUnit *target = nearestEnemy(basePos))
+            {
+                if (lengthSq(target->pos - basePos) <= guardRadius * guardRadius)
+                {
+                    return normalize(target->pos - yuna.pos) * speed;
+                }
+            }
+            ensureWander();
+            Vec2 dir = normalize(state.wanderDirection);
+            Vec2 guardTarget{basePos.x + dir.x * 120.0f, basePos.y + dir.y * 80.0f};
+            return normalize(guardTarget - yuna.pos) * speed;
+        }
+        case TemperamentBehavior::TargetTag:
+        {
+            if (EnemyUnit *target = findTargetByTags(yuna.pos, def.targetTags))
+            {
+                return normalize(target->pos - yuna.pos) * speed;
+            }
+            if (EnemyUnit *enemy = nearestEnemy(yuna.pos))
+            {
+                return normalize(enemy->pos - yuna.pos) * speed;
+            }
+            Vec2 dir = normalize(basePos - yuna.pos);
+            return dir * speed;
+        }
+        case TemperamentBehavior::Mimic:
+        {
+            ensureWander();
+            Vec2 dir = normalize(state.wanderDirection);
+            return dir * speed;
+        }
+        }
+        return {0.0f, 0.0f};
+    }
+
     void updateUnits(float dt)
     {
         constexpr std::size_t followLimit = 30;
@@ -3020,7 +3802,7 @@ struct Simulation
             yuna.effectiveFollower = false;
         }
 
-        if (stance == ArmyStance::FollowLeader && commander.alive)
+        if (orderActive && stance == ArmyStance::FollowLeader && commander.alive)
         {
             std::vector<std::pair<float, Unit *>> distances;
             distances.reserve(yunas.size());
@@ -3101,10 +3883,19 @@ struct Simulation
             return best;
         };
 
+        std::vector<Vec2> raidTargets = collectRaidTargets();
+
         for (Unit &yuna : yunas)
         {
+            Vec2 temperamentVelocity = computeTemperamentVelocity(yuna, dt, yunaSpeedPx, nearestEnemy, raidTargets);
             Vec2 velocity{0.0f, 0.0f};
-            if (yuna.effectiveFollower && commander.alive)
+            const bool panicActive = yuna.temperament.panicTimer > 0.0f;
+
+            if (panicActive)
+            {
+                velocity = temperamentVelocity;
+            }
+            else if (yuna.effectiveFollower && commander.alive)
             {
                 Vec2 desiredPos = commander.pos + yuna.formationOffset;
                 Vec2 toTarget = desiredPos - yuna.pos;
@@ -3112,8 +3903,12 @@ struct Simulation
                 {
                     velocity = normalize(toTarget) * yunaSpeedPx;
                 }
+                else
+                {
+                    velocity = temperamentVelocity;
+                }
             }
-            else
+            else if (orderActive)
             {
                 switch (stance)
                 {
@@ -3180,6 +3975,11 @@ struct Simulation
                 }
                 }
             }
+            else
+            {
+                velocity = temperamentVelocity;
+            }
+
             if (velocity.x != 0.0f || velocity.y != 0.0f)
             {
                 yuna.pos += velocity * dt;
@@ -3313,6 +4113,10 @@ struct Simulation
                         const float ratio = clampOverkillRatio(overkill, yunaStats.hp);
                         enqueueYunaRespawn(ratio);
                         continue;
+                    }
+                    if (yuna.temperament.definition && yuna.temperament.definition->panicOnHit > 0.0f)
+                    {
+                        yuna.temperament.panicTimer = std::max(yuna.temperament.panicTimer, yuna.temperament.definition->panicOnHit);
                     }
                 }
                 survivors.push_back(yuna);
@@ -4085,6 +4889,7 @@ int main(int argc, char **argv)
     auto configOpt = parseGameConfig("assets/game.json");
     auto entityCatalogOpt = parseEntityCatalog("assets/entities.json");
     auto mapDefsOpt = parseMapDefs("assets/map_defs.json");
+    auto temperamentOpt = parseTemperamentConfig("assets/ai_temperaments.json");
     std::optional<SpawnScript> spawnScriptOpt;
     std::optional<MissionConfig> missionOpt;
     if (configOpt)
@@ -4101,7 +4906,7 @@ int main(int argc, char **argv)
     }
     auto skillsOpt = parseSkillCatalog("assets/skills.json");
 
-    if (!configOpt || !entityCatalogOpt || !mapDefsOpt || !spawnScriptOpt)
+    if (!configOpt || !entityCatalogOpt || !mapDefsOpt || !spawnScriptOpt || !temperamentOpt)
     {
         std::cerr << "Failed to load configuration files.\n";
         SDL_DestroyRenderer(renderer);
@@ -4125,6 +4930,7 @@ int main(int argc, char **argv)
 
     Simulation sim;
     sim.config = *configOpt;
+    sim.temperamentConfig = *temperamentOpt;
     sim.yunaStats = entityCatalogOpt->yuna;
     sim.slimeStats = entityCatalogOpt->slime;
     sim.wallbreakerStats = entityCatalogOpt->wallbreaker;

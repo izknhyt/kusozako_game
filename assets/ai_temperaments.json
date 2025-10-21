@@ -1,0 +1,56 @@
+{
+  "order_duration_s": 10,
+  "fear_radius_px": 160,
+  "follow_catchup": { "dist_px": 160, "dur_s": 0.5, "mult": 1.2 },
+  "wander_turn_interval_s": [1.5, 2.5],
+  "sleep_every_s": [8, 12],
+  "sleep_dur_s": 0.6,
+  "charge_dash": { "dur_s": 0.2, "mult": 1.2 },
+
+  "temperaments": {
+    "chototsu_moushin": { "label": "ちょとつもうしん", "behavior": "CHARGE_NEAREST", "spawn_rate": 0.20 },
+    "kowagari":         { "label": "こわがり",         "behavior": "FLEE_NEAREST",   "spawn_rate": 0.10 },
+    "amaenbo":          { "label": "あまえんぼ",       "behavior": "FOLLOW_YUNA",    "spawn_rate": 0.20 },
+    "hinekuremono":     { "label": "ひねくれもの",     "behavior": "RAID_GATE",      "spawn_rate": 0.12 },
+
+    "hikikomori": {
+      "label": "ひきこもり",
+      "behavior": "HOMEBOUND",
+      "spawn_rate": 0.10,
+      "home_r_px": 48,
+      "avoid_enemy_r_px": 96
+    },
+
+    "kimagure":   { "label": "きまぐれ",   "behavior": "WANDER", "spawn_rate": 0.09 },
+    "nemurinbo":  { "label": "ねむりんぼ", "behavior": "DOZE",   "spawn_rate": 0.07 },
+
+    "nakimushi": {
+      "label": "なきむし",
+      "behavior": "FOLLOW_YUNA",
+      "spawn_rate": 0.08,
+      "cry_pause_every_s": [7, 10],
+      "cry_pause_dur_s": 0.4,
+      "panic_on_hit_s": 0.5
+    },
+
+    "yukan": {
+      "label": "ゆうかん",
+      "behavior": "TARGET_TAG",
+      "spawn_rate": 0.04,
+      "target_tag": ["boss", "elite", "enemy"]
+    },
+
+    "fushigichan": {
+      "label": "ふしぎちゃん",
+      "behavior": "MIMIC",
+      "spawn_rate": 0.10,
+      "default_behavior": "WANDER",
+      "mimic_every_s": [6, 10],
+      "mimic_dur_s": [2, 3],
+      "mimic_pool": [
+        "CHARGE_NEAREST", "FLEE_NEAREST", "FOLLOW_YUNA",
+        "GUARD_BASE", "WANDER", "RAID_GATE"
+      ]
+    }
+  }
+}
