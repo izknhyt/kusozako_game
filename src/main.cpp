@@ -491,6 +491,26 @@ std::vector<std::string> getStringArray(const JsonValue &obj, const std::string 
     return result;
 }
 
+enum class TemperamentBehavior
+{
+    ChargeNearest,
+    FleeNearest,
+    FollowYuna,
+    RaidGate,
+    Homebound,
+    Wander,
+    Doze,
+    GuardBase,
+    TargetTag,
+    Mimic
+};
+
+struct TemperamentRange
+{
+    float min = 0.0f;
+    float max = 0.0f;
+};
+
 TemperamentRange readRangeValue(const JsonValue &value, TemperamentRange fallback)
 {
     TemperamentRange range = fallback;
@@ -541,6 +561,24 @@ std::optional<TemperamentBehavior> temperamentBehaviorFromString(const std::stri
     return std::nullopt;
 }
 
+const char *temperamentBehaviorName(TemperamentBehavior behavior)
+{
+    switch (behavior)
+    {
+    case TemperamentBehavior::ChargeNearest: return "Charge";
+    case TemperamentBehavior::FleeNearest: return "Flee";
+    case TemperamentBehavior::FollowYuna: return "Follow";
+    case TemperamentBehavior::RaidGate: return "Raid";
+    case TemperamentBehavior::Homebound: return "Home";
+    case TemperamentBehavior::Wander: return "Wander";
+    case TemperamentBehavior::Doze: return "Doze";
+    case TemperamentBehavior::GuardBase: return "Guard";
+    case TemperamentBehavior::TargetTag: return "Target";
+    case TemperamentBehavior::Mimic: return "Mimic";
+    }
+    return "Unknown";
+}
+
 struct RespawnSettings
 {
     float base = 5.0f;
@@ -556,6 +594,8 @@ struct GameConfig
     float pixels_per_unit = 16.0f;
     int base_hp = 300;
     Vec2 base_aabb = {32.0f, 32.0f};
+    float gate_radius = 28.0f;
+    float gate_hp = 200.0f;
     float yuna_interval = 0.75f;
     int yuna_max = 200;
     Vec2 yuna_offset_px = {48.0f, 0.0f};
@@ -671,26 +711,6 @@ struct RuntimeSkill
     SkillDef def;
     float cooldownRemaining = 0.0f;
     float activeTimer = 0.0f;
-};
-
-enum class TemperamentBehavior
-{
-    ChargeNearest,
-    FleeNearest,
-    FollowYuna,
-    RaidGate,
-    Homebound,
-    Wander,
-    Doze,
-    GuardBase,
-    TargetTag,
-    Mimic
-};
-
-struct TemperamentRange
-{
-    float min = 0.0f;
-    float max = 0.0f;
 };
 
 struct TemperamentFollowCatchup
@@ -905,6 +925,11 @@ std::optional<GameConfig> parseGameConfig(const std::string &path)
         {
             cfg.base_aabb = {aabb[0], aabb[1]};
         }
+    }
+    if (const JsonValue *gates = getObjectField(*json, "enemy_gate"))
+    {
+        cfg.gate_radius = getNumber(*gates, "radius_px", cfg.gate_radius);
+        cfg.gate_hp = getNumber(*gates, "hp", cfg.gate_hp);
     }
     if (const JsonValue *spawn = getObjectField(*json, "spawn"))
     {
@@ -1738,6 +1763,16 @@ struct WallSegment
     float radius = 0.0f;
 };
 
+struct GateRuntime
+{
+    std::string id;
+    Vec2 pos;
+    float radius = 24.0f;
+    float hp = 0.0f;
+    float maxHp = 0.0f;
+    bool destroyed = false;
+};
+
 struct ActiveSpawn
 {
     Vec2 position;
@@ -2196,7 +2231,10 @@ struct Simulation
     std::vector<EnemyUnit> enemies;
     std::vector<ActiveSpawn> activeSpawns;
     std::vector<WallSegment> walls;
+    std::vector<GateRuntime> gates;
     std::vector<RuntimeSkill> skills;
+    Vec2 worldMin{0.0f, 0.0f};
+    Vec2 worldMax{1280.0f, 720.0f};
     std::size_t nextWave = 0;
     float spawnTimer = 0.0f;
     float yunaSpawnTimer = 0.0f;
@@ -2274,6 +2312,34 @@ struct Simulation
     Vec2 yunaSpawnPos;
     std::vector<float> yunaRespawnTimers;
 
+    void setWorldBounds(float width, float height)
+    {
+        if (width <= 0.0f || height <= 0.0f)
+        {
+            worldMin = {0.0f, 0.0f};
+            worldMax = {1280.0f, 720.0f};
+            return;
+        }
+        worldMin = {0.0f, 0.0f};
+        worldMax = {width, height};
+    }
+
+    void clampToWorld(Vec2 &pos, float radius) const
+    {
+        const float minX = worldMin.x + radius;
+        const float maxX = worldMax.x - radius;
+        const float minY = worldMin.y + radius;
+        const float maxY = worldMax.y - radius;
+        if (minX <= maxX)
+        {
+            pos.x = std::clamp(pos.x, minX, maxX);
+        }
+        if (minY <= maxY)
+        {
+            pos.y = std::clamp(pos.y, minY, maxY);
+        }
+    }
+
     void configureSkills(const std::vector<SkillDef> &defs)
     {
         skills.clear();
@@ -2333,6 +2399,7 @@ struct Simulation
             skill.activeTimer = 0.0f;
         }
         yunaRespawnTimers.clear();
+        rebuildGates();
         initializeMissionState();
     }
 
@@ -2526,6 +2593,90 @@ struct Simulation
         yuna.radius = yunaStats.radius;
         yunas.push_back(yuna);
         assignTemperament(yunas.back());
+        clampToWorld(yunas.back().pos, yunas.back().radius);
+    }
+
+    GateRuntime *findGate(const std::string &id)
+    {
+        for (GateRuntime &gate : gates)
+        {
+            if (gate.id == id)
+            {
+                return &gate;
+            }
+        }
+        return nullptr;
+    }
+
+    const GateRuntime *findGate(const std::string &id) const
+    {
+        for (const GateRuntime &gate : gates)
+        {
+            if (gate.id == id)
+            {
+                return &gate;
+            }
+        }
+        return nullptr;
+    }
+
+    void destroyGate(GateRuntime &gate, bool silent = false)
+    {
+        if (gate.destroyed)
+        {
+            return;
+        }
+        gate.destroyed = true;
+        gate.hp = 0.0f;
+        disabledGates.insert(gate.id);
+        activeSpawns.erase(std::remove_if(activeSpawns.begin(), activeSpawns.end(),
+                                          [&](const ActiveSpawn &spawn) { return spawn.gateId == gate.id; }),
+                          activeSpawns.end());
+        if (!silent)
+        {
+            pushTelemetry(std::string("Gate ") + gate.id + " destroyed!");
+        }
+    }
+
+    void rebuildGates()
+    {
+        gates.clear();
+        auto upsertGate = [&](const std::string &id, const Vec2 &tile) {
+            if (id.empty())
+            {
+                return;
+            }
+            Vec2 world = tileToWorld(tile, mapDefs.tile_size);
+            for (GateRuntime &gate : gates)
+            {
+                if (gate.id == id)
+                {
+                    gate.pos = world;
+                    gate.radius = config.gate_radius;
+                    gate.maxHp = config.gate_hp;
+                    gate.hp = gate.maxHp;
+                    gate.destroyed = false;
+                    return;
+                }
+            }
+            GateRuntime gate;
+            gate.id = id;
+            gate.pos = world;
+            gate.radius = config.gate_radius;
+            gate.maxHp = config.gate_hp;
+            gate.hp = gate.maxHp;
+            gate.destroyed = false;
+            gates.push_back(gate);
+        };
+
+        for (const auto &kv : mapDefs.gate_tiles)
+        {
+            upsertGate(kv.first, kv.second);
+        }
+        for (const auto &kv : spawnScript.gate_tiles)
+        {
+            upsertGate(kv.first, kv.second);
+        }
     }
 
     void disableGate(const std::string &gate)
@@ -2535,6 +2686,10 @@ struct Simulation
             return;
         }
         disabledGates.insert(gate);
+        if (GateRuntime *runtime = findGate(gate))
+        {
+            destroyGate(*runtime, true);
+        }
         activeSpawns.erase(std::remove_if(activeSpawns.begin(), activeSpawns.end(),
                                           [&](const ActiveSpawn &spawn) { return spawn.gateId == gate; }),
                           activeSpawns.end());
@@ -2637,6 +2792,7 @@ struct Simulation
             if (lengthSq(push) > 0.0f)
             {
                 commander.pos += push;
+                clampToWorld(commander.pos, commanderStats.radius);
             }
             if (commander.hp <= 0.0f)
             {
@@ -2659,6 +2815,7 @@ struct Simulation
                     if (lengthSq(push) > 0.0f)
                     {
                         yuna.pos += push;
+                        clampToWorld(yuna.pos, yuna.radius);
                     }
                     const float hpBefore = yuna.hp;
                     yuna.hp -= boss.mechanic.damage;
@@ -3207,6 +3364,7 @@ struct Simulation
         }
         const float speedPx = commanderStats.speed_u_s * config.pixels_per_unit;
         commander.pos += dir * (speedPx * dt);
+        clampToWorld(commander.pos, commanderStats.radius);
     }
 
     void updateWaves()
@@ -3268,6 +3426,22 @@ struct Simulation
             if (spawn.remaining <= 0)
             {
                 continue;
+            }
+            if (!spawn.gateId.empty())
+            {
+                if (const GateRuntime *gate = findGate(spawn.gateId))
+                {
+                    if (gate->destroyed)
+                    {
+                        spawn.remaining = 0;
+                        continue;
+                    }
+                }
+                else if (disabledGates.find(spawn.gateId) != disabledGates.end())
+                {
+                    spawn.remaining = 0;
+                    continue;
+                }
             }
             spawn.timer -= dt;
             if (spawn.timer <= 0.0f)
@@ -3399,6 +3573,13 @@ struct Simulation
             {
                 continue;
             }
+            if (const GateRuntime *gate = findGate(kv.first))
+            {
+                if (gate->destroyed)
+                {
+                    continue;
+                }
+            }
             targets.push_back(tileToWorld(kv.second, mapDefs.tile_size));
             seen.insert(kv.first);
         }
@@ -3407,6 +3588,13 @@ struct Simulation
             if (disabledGates.find(kv.first) != disabledGates.end())
             {
                 continue;
+            }
+            if (const GateRuntime *gate = findGate(kv.first))
+            {
+                if (gate->destroyed)
+                {
+                    continue;
+                }
             }
             if (seen.insert(kv.first).second)
             {
@@ -3990,6 +4178,7 @@ struct Simulation
             if (velocity.x != 0.0f || velocity.y != 0.0f)
             {
                 yuna.pos += velocity * dt;
+                clampToWorld(yuna.pos, yuna.radius);
             }
         }
 
@@ -4068,6 +4257,22 @@ struct Simulation
                     }
                 }
             }
+            for (GateRuntime &gate : gates)
+            {
+                if (gate.destroyed)
+                {
+                    continue;
+                }
+                const float combined = commander.radius + gate.radius;
+                if (lengthSq(commander.pos - gate.pos) <= combined * combined)
+                {
+                    gate.hp = std::max(0.0f, gate.hp - commanderStats.dps * dt);
+                    if (gate.hp <= 0.0f)
+                    {
+                        destroyGate(gate);
+                    }
+                }
+            }
         }
 
         for (std::size_t i = 0; i < yunas.size(); ++i)
@@ -4080,6 +4285,22 @@ struct Simulation
                 {
                     enemy.hp -= yunaStats.dps * dt;
                     yunaDamage[i] += enemy.dpsUnit * dt;
+                }
+            }
+            for (GateRuntime &gate : gates)
+            {
+                if (gate.destroyed)
+                {
+                    continue;
+                }
+                const float combined = yuna.radius + gate.radius;
+                if (lengthSq(yuna.pos - gate.pos) <= combined * combined)
+                {
+                    gate.hp = std::max(0.0f, gate.hp - yunaStats.dps * dt);
+                    if (gate.hp <= 0.0f)
+                    {
+                        destroyGate(gate);
+                    }
                 }
             }
         }
@@ -4271,6 +4492,67 @@ void renderScene(SDL_Renderer *renderer, const Simulation &sim, const Camera &ca
     const bool lodActive = sim.config.lod_threshold_entities > 0 && perf.entities >= sim.config.lod_threshold_entities;
     const bool skipActors = lodActive && sim.config.lod_skip_draw_every > 1 &&
                             (lodFrameCounter % sim.config.lod_skip_draw_every != 0);
+    const int lineHeight = std::max(font.getLineHeight(), 18);
+    const int debugLineHeight = std::max(debugFont.isLoaded() ? debugFont.getLineHeight() : lineHeight, 14);
+
+    auto measureWithFallback = [](const TextRenderer &renderer, const std::string &text, int approxHeight) {
+        const int measured = renderer.measureText(text);
+        if (measured > 0)
+        {
+            return measured;
+        }
+        const int approxWidth = std::max(approxHeight / 2, 8);
+        return static_cast<int>(text.size()) * approxWidth;
+    };
+
+    auto temperamentColorForBehavior = [](TemperamentBehavior behavior) -> SDL_Color {
+        switch (behavior)
+        {
+        case TemperamentBehavior::ChargeNearest: return SDL_Color{255, 120, 80, 255};
+        case TemperamentBehavior::FleeNearest: return SDL_Color{110, 190, 255, 255};
+        case TemperamentBehavior::FollowYuna: return SDL_Color{120, 255, 170, 255};
+        case TemperamentBehavior::RaidGate: return SDL_Color{220, 140, 255, 255};
+        case TemperamentBehavior::Homebound: return SDL_Color{120, 230, 210, 255};
+        case TemperamentBehavior::Wander: return SDL_Color{255, 230, 120, 255};
+        case TemperamentBehavior::Doze: return SDL_Color{180, 200, 255, 255};
+        case TemperamentBehavior::GuardBase: return SDL_Color{255, 190, 110, 255};
+        case TemperamentBehavior::TargetTag: return SDL_Color{255, 140, 190, 255};
+        case TemperamentBehavior::Mimic: return SDL_Color{210, 210, 210, 255};
+        }
+        return SDL_Color{240, 240, 240, 255};
+    };
+
+    auto drawTemperamentLabel = [&](const Unit &yuna, float spriteTopY, float centerX) {
+        if (!debugFont.isLoaded() || !yuna.temperament.definition)
+        {
+            return;
+        }
+        std::string label = yuna.temperament.definition->label.empty() ? yuna.temperament.definition->id : yuna.temperament.definition->label;
+        if (yuna.temperament.definition->behavior == TemperamentBehavior::Mimic && yuna.temperament.mimicActive)
+        {
+            label += " -> ";
+            label += temperamentBehaviorName(yuna.temperament.mimicBehavior);
+        }
+        const int textWidth = measureWithFallback(debugFont, label, debugLineHeight);
+        const int padX = 4;
+        const int padY = 2;
+        SDL_Rect bg{
+            static_cast<int>(std::round(centerX)) - textWidth / 2 - padX,
+            static_cast<int>(std::round(spriteTopY)) - (debugLineHeight + padY * 2) - 6,
+            textWidth + padX * 2,
+            debugLineHeight + padY * 2
+        };
+        if (bg.x < 4) bg.x = 4;
+        if (bg.x + bg.w > screenW - 4) bg.x = screenW - bg.w - 4;
+        if (bg.y < 4) bg.y = 4;
+        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+        SDL_SetRenderDrawColor(renderer, 0, 0, 0, 170);
+        countedRenderFillRect(renderer, &bg, stats);
+        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
+        SDL_Color color = temperamentColorForBehavior(yuna.temperament.currentBehavior);
+        debugFont.drawText(renderer, label, bg.x + padX, bg.y + padY, &stats, color);
+    };
+
     SDL_SetRenderDrawColor(renderer, 26, 32, 38, 255);
     countedRenderClear(renderer, stats);
 
@@ -4327,6 +4609,53 @@ void renderScene(SDL_Renderer *renderer, const Simulation &sim, const Camera &ca
             fill.y = outline.y + (outline.h - fill.h);
             SDL_SetRenderDrawColor(renderer, 80, 210, 255, 100);
             countedRenderFillRect(renderer, &fill, stats);
+        }
+        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
+    }
+
+    if (!sim.gates.empty())
+    {
+        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+        for (const GateRuntime &gate : sim.gates)
+        {
+            Vec2 screenPos = worldToScreen(gate.pos, camera);
+            const SDL_Color baseColor = gate.destroyed ? SDL_Color{80, 90, 110, 110} : SDL_Color{70, 140, 255, 140};
+            SDL_SetRenderDrawColor(renderer, baseColor.r, baseColor.g, baseColor.b, baseColor.a);
+            drawFilledCircle(renderer, screenPos, gate.radius, stats);
+            if (!gate.destroyed && gate.maxHp > 0.0f)
+            {
+                const float ratio = std::clamp(gate.hp / gate.maxHp, 0.0f, 1.0f);
+                if (ratio > 0.0f)
+                {
+                    const float innerRadius = std::max(2.0f, gate.radius * ratio);
+                    SDL_SetRenderDrawColor(renderer, 160, 210, 255, 180);
+                    drawFilledCircle(renderer, screenPos, innerRadius, stats);
+                }
+            }
+            else if (gate.destroyed)
+            {
+                SDL_SetRenderDrawColor(renderer, 40, 45, 60, 180);
+                drawFilledCircle(renderer, screenPos, std::max(2.0f, gate.radius * 0.4f), stats);
+            }
+
+            if (debugFont.isLoaded())
+            {
+                const std::string label = "Gate " + gate.id;
+                const int labelWidth = measureWithFallback(debugFont, label, debugLineHeight);
+                const int labelPad = 4;
+                SDL_Rect labelBg{
+                    static_cast<int>(std::round(screenPos.x)) - labelWidth / 2 - labelPad,
+                    static_cast<int>(std::round(screenPos.y - gate.radius)) - (debugLineHeight + labelPad * 2) - 4,
+                    labelWidth + labelPad * 2,
+                    debugLineHeight + labelPad * 2};
+                if (labelBg.x < 4) labelBg.x = 4;
+                if (labelBg.x + labelBg.w > screenW - 4) labelBg.x = screenW - labelBg.w - 4;
+                if (labelBg.y < 4) labelBg.y = 4;
+                SDL_SetRenderDrawColor(renderer, 10, 20, 40, 150);
+                countedRenderFillRect(renderer, &labelBg, stats);
+                SDL_Color textColor = gate.destroyed ? SDL_Color{170, 170, 190, 255} : SDL_Color{210, 230, 255, 255};
+                debugFont.drawText(renderer, label, labelBg.x + labelPad, labelBg.y + labelPad, &stats, textColor);
+            }
         }
         SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
     }
@@ -4456,6 +4785,7 @@ void renderScene(SDL_Renderer *renderer, const Simulation &sim, const Camera &ca
                         friendRing->h};
                     countedRenderCopy(renderer, atlas.texture, friendRing, &ringDest, stats);
                 }
+                drawTemperamentLabel(yuna, static_cast<float>(dest.y), static_cast<float>(dest.x + dest.w * 0.5f));
             }
             else
             {
@@ -4467,6 +4797,7 @@ void renderScene(SDL_Renderer *renderer, const Simulation &sim, const Camera &ca
                 SDL_SetRenderDrawColor(renderer, 240, 190, 60, yunaAlpha[sprite.index]);
                 drawFilledCircle(renderer, screenPos, yuna.radius, stats);
                 SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
+                drawTemperamentLabel(yuna, screenPos.y - yuna.radius, screenPos.x);
             }
         }
         SDL_SetTextureAlphaMod(atlas.texture, 255);
@@ -4495,6 +4826,7 @@ void renderScene(SDL_Renderer *renderer, const Simulation &sim, const Camera &ca
             Vec2 screenPos = worldToScreen(yuna.pos, camera);
             SDL_SetRenderDrawColor(renderer, 240, 190, 60, yunaAlpha[sprite.index]);
             drawFilledCircle(renderer, screenPos, yuna.radius, stats);
+            drawTemperamentLabel(yuna, screenPos.y - yuna.radius, screenPos.x);
         }
         SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
     }
@@ -4527,6 +4859,16 @@ void renderScene(SDL_Renderer *renderer, const Simulation &sim, const Camera &ca
             }
             const SDL_Rect *frame = enemy.type == EnemyArchetype::Wallbreaker ? wallbreakerFrame : enemyFrame;
             Vec2 screenPos = worldToScreen(enemy.pos, camera);
+            if (enemy.type == EnemyArchetype::Boss)
+            {
+                SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+                SDL_SetRenderDrawColor(renderer, 255, 80, 160, 110);
+                drawFilledCircle(renderer, screenPos, enemy.radius + 26.0f, stats);
+                SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
+            }
+
+            SDL_Rect spriteRect{};
+            bool hasSpriteRect = false;
             if (frame)
             {
                 SDL_Rect dest{
@@ -4544,6 +4886,8 @@ void renderScene(SDL_Renderer *renderer, const Simulation &sim, const Camera &ca
                         enemyRing->h};
                     countedRenderCopy(renderer, atlas.texture, enemyRing, &ringDest, stats);
                 }
+                spriteRect = dest;
+                hasSpriteRect = true;
             }
             else
             {
@@ -4551,6 +4895,31 @@ void renderScene(SDL_Renderer *renderer, const Simulation &sim, const Camera &ca
                                        enemy.type == EnemyArchetype::Wallbreaker ? 80 : 160,
                                        enemy.type == EnemyArchetype::Wallbreaker ? 80 : 220, 255);
                 drawFilledCircle(renderer, screenPos, enemy.radius, stats);
+            }
+
+            if (enemy.type == EnemyArchetype::Boss && debugFont.isLoaded())
+            {
+                const std::string bossText = "BOSS";
+                const int textWidth = measureWithFallback(debugFont, bossText, debugLineHeight);
+                const int padX = 6;
+                const int padY = 3;
+                const float spriteTop = hasSpriteRect ? static_cast<float>(spriteRect.y) : screenPos.y - enemy.radius;
+                const float centerX = hasSpriteRect ? static_cast<float>(spriteRect.x + spriteRect.w * 0.5f) : screenPos.x;
+                SDL_Rect labelBg{
+                    static_cast<int>(std::round(centerX)) - textWidth / 2 - padX,
+                    static_cast<int>(std::round(spriteTop)) - (debugLineHeight + padY * 2) - 8,
+                    textWidth + padX * 2,
+                    debugLineHeight + padY * 2
+                };
+                if (labelBg.x < 4) labelBg.x = 4;
+                if (labelBg.x + labelBg.w > screenW - 4) labelBg.x = screenW - labelBg.w - 4;
+                if (labelBg.y < 4) labelBg.y = 4;
+                SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+                SDL_SetRenderDrawColor(renderer, 70, 0, 80, 200);
+                countedRenderFillRect(renderer, &labelBg, stats);
+                SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
+                debugFont.drawText(renderer, bossText, labelBg.x + padX, labelBg.y + padY, &stats,
+                                   SDL_Color{255, 180, 255, 255});
             }
         }
     }
@@ -4563,11 +4932,40 @@ void renderScene(SDL_Renderer *renderer, const Simulation &sim, const Camera &ca
             {
                 continue;
             }
+            Vec2 screenPos = worldToScreen(enemy.pos, camera);
+            if (enemy.type == EnemyArchetype::Boss)
+            {
+                SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+                SDL_SetRenderDrawColor(renderer, 255, 80, 160, 110);
+                drawFilledCircle(renderer, screenPos, enemy.radius + 26.0f, stats);
+                SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
+            }
             SDL_SetRenderDrawColor(renderer, enemy.type == EnemyArchetype::Wallbreaker ? 200 : 80,
                                    enemy.type == EnemyArchetype::Wallbreaker ? 80 : 160,
                                    enemy.type == EnemyArchetype::Wallbreaker ? 80 : 220, 255);
-            Vec2 screenPos = worldToScreen(enemy.pos, camera);
             drawFilledCircle(renderer, screenPos, enemy.radius, stats);
+            if (enemy.type == EnemyArchetype::Boss && debugFont.isLoaded())
+            {
+                const std::string bossText = "BOSS";
+                const int textWidth = measureWithFallback(debugFont, bossText, debugLineHeight);
+                const int padX = 6;
+                const int padY = 3;
+                SDL_Rect labelBg{
+                    static_cast<int>(std::round(screenPos.x)) - textWidth / 2 - padX,
+                    static_cast<int>(std::round(screenPos.y - enemy.radius)) - (debugLineHeight + padY * 2) - 8,
+                    textWidth + padX * 2,
+                    debugLineHeight + padY * 2
+                };
+                if (labelBg.x < 4) labelBg.x = 4;
+                if (labelBg.x + labelBg.w > screenW - 4) labelBg.x = screenW - labelBg.w - 4;
+                if (labelBg.y < 4) labelBg.y = 4;
+                SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+                SDL_SetRenderDrawColor(renderer, 70, 0, 80, 200);
+                countedRenderFillRect(renderer, &labelBg, stats);
+                SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
+                debugFont.drawText(renderer, bossText, labelBg.x + padX, labelBg.y + padY, &stats,
+                                   SDL_Color{255, 180, 255, 255});
+            }
         }
     }
 
@@ -4578,18 +4976,6 @@ void renderScene(SDL_Renderer *renderer, const Simulation &sim, const Camera &ca
     countedRenderFillRect(renderer, &overlay, stats);
     SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
 
-    const int lineHeight = std::max(font.getLineHeight(), 18);
-    const int debugLineHeight = std::max(debugFont.isLoaded() ? debugFont.getLineHeight() : lineHeight, 14);
-
-    auto measureWithFallback = [](const TextRenderer &renderer, const std::string &text, int approxHeight) {
-        const int measured = renderer.measureText(text);
-        if (measured > 0)
-        {
-            return measured;
-        }
-        const int approxWidth = std::max(approxHeight / 2, 8);
-        return static_cast<int>(text.size()) * approxWidth;
-    };
     auto formatTimer = [](float seconds) {
         seconds = std::max(seconds, 0.0f);
         int total = static_cast<int>(seconds + 0.5f);
@@ -4952,6 +5338,16 @@ int main(int argc, char **argv)
     else
     {
         sim.hasMission = false;
+    }
+
+    if (tileMap.width > 0 && tileMap.height > 0)
+    {
+        sim.setWorldBounds(static_cast<float>(tileMap.width * tileMap.tileWidth),
+                           static_cast<float>(tileMap.height * tileMap.tileHeight));
+    }
+    else
+    {
+        sim.setWorldBounds(static_cast<float>(screenWidth), static_cast<float>(screenHeight));
     }
     std::vector<SkillDef> skillDefs = skillsOpt ? *skillsOpt : buildDefaultSkills();
     sim.configureSkills(skillDefs);
