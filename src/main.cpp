@@ -3000,11 +3000,18 @@ struct Simulation
         }
         const float radiusSq = def.radius * def.radius;
         int hits = 0;
+        const float knockbackDistance = def.radius * 0.5f;
         for (EnemyUnit &enemy : enemies)
         {
-            if (lengthSq(enemy.pos - commander.pos) <= radiusSq)
+            const Vec2 offset = enemy.pos - commander.pos;
+            const float distanceSq = lengthSq(offset);
+            if (distanceSq <= radiusSq)
             {
                 enemy.hp -= def.damage;
+                if (!enemy.noOverlap && distanceSq > 0.0001f)
+                {
+                    enemy.pos += normalize(offset) * knockbackDistance;
+                }
                 ++hits;
             }
         }
