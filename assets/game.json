@@ -18,6 +18,7 @@
   "result": { "telemetry_duration_s": 3.0, "restart_delay_s": 2.0 },
   "enemy_script": "assets/spawn_level1.json",
   "map": "assets/maps/level1.tmx",
+  "mission": "assets/mission_level1.json",
   "rng_seed": 1337,
   "on_commander_death": { "auto_reinforce_chibi": 10 },
   "lod": { "threshold_entities": 300, "skip_draw_every": 2 }
