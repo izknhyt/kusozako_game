@@ -20,6 +20,7 @@
 #include <sstream>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 namespace
@@ -492,6 +493,9 @@ struct GameConfig
     std::string enemy_script = "assets/spawn_level1.json";
     std::string map_path = "assets/maps/level1.tmx";
     int rng_seed = 1337;
+    int lod_threshold_entities = 0;
+    int lod_skip_draw_every = 1;
+    std::string mission_path;
     RespawnSettings yuna_respawn{5.0f, 5.0f, 1.0f, 0.0f, 2.0f};
     RespawnSettings commander_respawn{8.0f, 5.0f, 2.0f, 12.0f, 2.0f};
     int commander_auto_reinforce = 0;
@@ -540,7 +544,8 @@ struct EntityCatalog
 enum class EnemyArchetype
 {
     Slime,
-    Wallbreaker
+    Wallbreaker,
+    Boss
 };
 
 enum class ArmyStance
@@ -635,6 +640,94 @@ struct SpawnScript
     std::vector<Wave> waves;
 };
 
+enum class MissionMode
+{
+    None,
+    Boss,
+    Capture,
+    Survival
+};
+
+struct MissionUIOptions
+{
+    bool showGoalText = false;
+    bool showTimer = false;
+    bool showBossHpBar = false;
+    std::string goalText;
+};
+
+struct MissionFailConditions
+{
+    bool baseHpZero = true;
+};
+
+struct MissionBossMechanic
+{
+    float period = 0.0f;
+    float windup = 0.0f;
+    float radius = 0.0f;
+    float damage = 0.0f;
+};
+
+struct MissionBossConfig
+{
+    std::string id;
+    Vec2 tile{};
+    float hp = 0.0f;
+    float speed_u_s = 0.0f;
+    float radius_px = 0.0f;
+    bool noOverlap = false;
+    MissionBossMechanic slam;
+};
+
+struct MissionCaptureAction
+{
+    std::string disableGate;
+    std::string telemetry;
+};
+
+struct MissionCaptureZone
+{
+    std::string id;
+    Vec2 tile{};
+    float radius_px = 0.0f;
+    float capture_s = 0.0f;
+    float decay_s = 0.0f;
+    MissionCaptureAction onCapture;
+};
+
+struct MissionSurvivalElite
+{
+    float time = 0.0f;
+    std::string gate;
+    std::string typeId = "slime";
+    EnemyArchetype type = EnemyArchetype::Slime;
+};
+
+struct MissionSurvivalConfig
+{
+    float duration = 0.0f;
+    float pacingStep = 0.0f;
+    float pacingMultiplier = 1.0f;
+    std::vector<MissionSurvivalElite> elites;
+};
+
+struct MissionConfig
+{
+    MissionMode mode = MissionMode::None;
+    MissionUIOptions ui;
+    MissionFailConditions fail;
+    MissionBossConfig boss;
+    std::vector<MissionCaptureZone> captureZones;
+    MissionSurvivalConfig survival;
+    struct
+    {
+        bool bossDown = false;
+        int requireCaptured = 0;
+        float surviveTime = 0.0f;
+    } win;
+};
+
 std::optional<GameConfig> parseGameConfig(const std::string &path)
 {
     auto json = loadJsonFile(path);
@@ -699,6 +792,12 @@ std::optional<GameConfig> parseGameConfig(const std::string &path)
     cfg.enemy_script = getString(*json, "enemy_script", cfg.enemy_script);
     cfg.map_path = getString(*json, "map", cfg.map_path);
     cfg.rng_seed = getInt(*json, "rng_seed", cfg.rng_seed);
+    if (const JsonValue *lod = getObjectField(*json, "lod"))
+    {
+        cfg.lod_threshold_entities = getInt(*lod, "threshold_entities", cfg.lod_threshold_entities);
+        cfg.lod_skip_draw_every = std::max(1, getInt(*lod, "skip_draw_every", cfg.lod_skip_draw_every));
+    }
+    cfg.mission_path = getString(*json, "mission", cfg.mission_path);
     return cfg;
 }
 
@@ -875,6 +974,147 @@ std::optional<SpawnScript> parseSpawnScript(const std::string &path)
     }
     std::sort(script.waves.begin(), script.waves.end(), [](const Wave &a, const Wave &b) { return a.time < b.time; });
     return script;
+}
+
+MissionMode missionModeFromString(const std::string &mode)
+{
+    if (mode == "boss")
+    {
+        return MissionMode::Boss;
+    }
+    if (mode == "capture")
+    {
+        return MissionMode::Capture;
+    }
+    if (mode == "survival")
+    {
+        return MissionMode::Survival;
+    }
+    return MissionMode::None;
+}
+
+std::optional<MissionConfig> parseMissionConfig(const std::string &path)
+{
+    if (path.empty())
+    {
+        return std::nullopt;
+    }
+    auto json = loadJsonFile(path);
+    if (!json)
+    {
+        std::cerr << "Failed to load mission json: " << path << '\n';
+        return std::nullopt;
+    }
+    MissionConfig config;
+    const std::string modeStr = getString(*json, "mode", "");
+    config.mode = missionModeFromString(modeStr);
+    if (const JsonValue *ui = getObjectField(*json, "ui"))
+    {
+        config.ui.goalText = getString(*ui, "show_goal_text", config.ui.goalText);
+        config.ui.showGoalText = !config.ui.goalText.empty();
+        config.ui.showTimer = getBool(*ui, "show_timer", config.ui.showTimer);
+        config.ui.showBossHpBar = getBool(*ui, "boss_hp_bar", config.ui.showBossHpBar);
+    }
+    if (const JsonValue *fail = getObjectField(*json, "fail"))
+    {
+        config.fail.baseHpZero = getBool(*fail, "base_hp_zero", config.fail.baseHpZero);
+    }
+    if (const JsonValue *win = getObjectField(*json, "win"))
+    {
+        config.win.bossDown = getBool(*win, "boss_down", config.win.bossDown);
+        config.win.requireCaptured = getInt(*win, "require_captured", config.win.requireCaptured);
+        config.win.surviveTime = getNumber(*win, "survive_time", config.win.surviveTime);
+    }
+
+    if (const JsonValue *boss = getObjectField(*json, "boss"))
+    {
+        config.boss.id = getString(*boss, "id", config.boss.id);
+        std::vector<float> tile = getNumberArray(*boss, "tile");
+        if (tile.size() >= 2)
+        {
+            config.boss.tile = {tile[0], tile[1]};
+        }
+        config.boss.hp = getNumber(*boss, "hp", config.boss.hp);
+        config.boss.speed_u_s = getNumber(*boss, "speed_u_s", config.boss.speed_u_s);
+        config.boss.radius_px = getNumber(*boss, "radius_px", config.boss.radius_px);
+        if (const JsonValue *traits = getObjectField(*boss, "traits"))
+        {
+            config.boss.noOverlap = getBool(*traits, "no_overlap", config.boss.noOverlap);
+        }
+        if (const JsonValue *mechanics = getObjectField(*boss, "mechanics"))
+        {
+            if (const JsonValue *slam = getObjectField(*mechanics, "slam"))
+            {
+                config.boss.slam.period = getNumber(*slam, "period_s", config.boss.slam.period);
+                config.boss.slam.windup = getNumber(*slam, "windup_s", config.boss.slam.windup);
+                config.boss.slam.radius = getNumber(*slam, "radius_px", config.boss.slam.radius);
+                config.boss.slam.damage = getNumber(*slam, "damage", config.boss.slam.damage);
+            }
+        }
+    }
+
+    if (const JsonValue *capture = getObjectField(*json, "zones"))
+    {
+        if (capture->type == JsonValue::Type::Array)
+        {
+            for (const JsonValue &zoneVal : capture->array)
+            {
+                if (zoneVal.type != JsonValue::Type::Object)
+                {
+                    continue;
+                }
+                MissionCaptureZone zone;
+                zone.id = getString(zoneVal, "id", zone.id);
+                std::vector<float> tile = getNumberArray(zoneVal, "tile");
+                if (tile.size() >= 2)
+                {
+                    zone.tile = {tile[0], tile[1]};
+                }
+                zone.radius_px = getNumber(zoneVal, "radius_px", zone.radius_px);
+                zone.capture_s = getNumber(zoneVal, "capture_s", zone.capture_s);
+                zone.decay_s = getNumber(zoneVal, "decay_s", zone.decay_s);
+                if (const JsonValue *onCapture = getObjectField(zoneVal, "on_capture"))
+                {
+                    zone.onCapture.disableGate = getString(*onCapture, "disable_gate", zone.onCapture.disableGate);
+                    zone.onCapture.telemetry = getString(*onCapture, "telemetry", zone.onCapture.telemetry);
+                }
+                config.captureZones.push_back(zone);
+            }
+        }
+    }
+
+    if (config.mode == MissionMode::Survival)
+    {
+        config.survival.duration = getNumber(*json, "duration_s", config.survival.duration);
+        if (const JsonValue *pacing = getObjectField(*json, "pacing"))
+        {
+            config.survival.pacingStep = getNumber(*pacing, "step_s", config.survival.pacingStep);
+            config.survival.pacingMultiplier = getNumber(*pacing, "spawn_mult_per_step", config.survival.pacingMultiplier);
+        }
+        if (const JsonValue *elites = getObjectField(*json, "elites"))
+        {
+            if (elites->type == JsonValue::Type::Array)
+            {
+                for (const JsonValue &eliteVal : elites->array)
+                {
+                    if (eliteVal.type != JsonValue::Type::Object)
+                    {
+                        continue;
+                    }
+                    MissionSurvivalElite elite;
+                    elite.time = getNumber(eliteVal, "t", elite.time);
+                    elite.gate = getString(eliteVal, "gate", elite.gate);
+                    elite.typeId = getString(eliteVal, "type", elite.typeId);
+                    elite.type = enemyTypeFromString(elite.typeId);
+                    config.survival.elites.push_back(elite);
+                }
+                std::sort(config.survival.elites.begin(), config.survival.elites.end(),
+                          [](const MissionSurvivalElite &a, const MissionSurvivalElite &b) { return a.time < b.time; });
+            }
+        }
+    }
+
+    return config;
 }
 
 SkillType skillTypeFromString(const std::string &type)
@@ -1203,6 +1443,11 @@ struct EnemyUnit
     float hp = 0.0f;
     float radius = 0.0f;
     EnemyArchetype type = EnemyArchetype::Slime;
+    float speedPx = 0.0f;
+    float dpsUnit = 0.0f;
+    float dpsBase = 0.0f;
+    float dpsWall = 0.0f;
+    bool noOverlap = false;
 };
 
 struct WallSegment
@@ -1220,6 +1465,7 @@ struct ActiveSpawn
     float interval = 0.3f;
     float timer = 0.0f;
     EnemyArchetype type = EnemyArchetype::Slime;
+    std::string gateId;
 };
 
 class TextRenderer
@@ -1684,6 +1930,50 @@ struct Simulation
     std::uniform_real_distribution<float> scatterY;
     std::uniform_real_distribution<float> gateJitter;
 
+    bool hasMission = false;
+    MissionConfig missionConfig;
+    MissionMode missionMode = MissionMode::None;
+    MissionUIOptions missionUI;
+    MissionFailConditions missionFail;
+    float missionTimer = 0.0f;
+    float missionVictoryCountdown = -1.0f;
+
+    struct BossRuntime
+    {
+        bool active = false;
+        float hp = 0.0f;
+        float maxHp = 0.0f;
+        float speedPx = 0.0f;
+        float radius = 0.0f;
+        MissionBossMechanic mechanic;
+        float cycleTimer = 0.0f;
+        float windupTimer = 0.0f;
+        bool inWindup = false;
+    } boss;
+
+    struct CaptureRuntime
+    {
+        MissionCaptureZone config;
+        Vec2 worldPos{0.0f, 0.0f};
+        float progress = 0.0f;
+        bool captured = false;
+    };
+    std::vector<CaptureRuntime> captureZones;
+    int capturedZones = 0;
+    int captureGoal = 0;
+
+    struct SurvivalRuntime
+    {
+        float elapsed = 0.0f;
+        float duration = 0.0f;
+        float pacingTimer = 0.0f;
+        float spawnMultiplier = 1.0f;
+        std::vector<MissionSurvivalElite> elites;
+        std::size_t nextElite = 0;
+    } survival;
+
+    std::unordered_set<std::string> disabledGates;
+
     ArmyStance stance = ArmyStance::RushNearest;
     ArmyStance defaultStance = ArmyStance::RushNearest;
     bool orderActive = false;
@@ -1761,6 +2051,7 @@ struct Simulation
             skill.activeTimer = 0.0f;
         }
         yunaRespawnTimers.clear();
+        initializeMissionState();
     }
 
     float clampOverkillRatio(float overkill, float maxHp) const
@@ -1869,6 +2160,364 @@ struct Simulation
         yuna.hp = yunaStats.hp;
         yuna.radius = yunaStats.radius;
         yunas.push_back(yuna);
+    }
+
+    void disableGate(const std::string &gate)
+    {
+        if (gate.empty())
+        {
+            return;
+        }
+        disabledGates.insert(gate);
+        activeSpawns.erase(std::remove_if(activeSpawns.begin(), activeSpawns.end(),
+                                          [&](const ActiveSpawn &spawn) { return spawn.gateId == gate; }),
+                          activeSpawns.end());
+    }
+
+    void initializeMissionState()
+    {
+        missionTimer = 0.0f;
+        missionVictoryCountdown = -1.0f;
+        boss = {};
+        captureZones.clear();
+        capturedZones = 0;
+        captureGoal = 0;
+        survival = {};
+        disabledGates.clear();
+
+        if (!hasMission)
+        {
+            missionMode = MissionMode::None;
+            missionUI = {};
+            missionFail = {};
+            return;
+        }
+
+        missionMode = missionConfig.mode;
+        missionUI = missionConfig.ui;
+        missionFail = missionConfig.fail;
+
+        if (missionMode == MissionMode::Boss)
+        {
+            spawnMissionBoss();
+        }
+        if (missionMode == MissionMode::Capture)
+        {
+            for (const MissionCaptureZone &zone : missionConfig.captureZones)
+            {
+                CaptureRuntime runtime;
+                runtime.config = zone;
+                runtime.worldPos = tileToWorld(zone.tile, mapDefs.tile_size);
+                captureZones.push_back(runtime);
+            }
+            captureGoal = missionConfig.win.requireCaptured > 0
+                              ? missionConfig.win.requireCaptured
+                              : static_cast<int>(captureZones.size());
+        }
+        if (missionMode == MissionMode::Survival)
+        {
+            survival.duration = missionConfig.survival.duration > 0.0f ? missionConfig.survival.duration : missionConfig.win.surviveTime;
+            survival.spawnMultiplier = 1.0f;
+            survival.pacingTimer = missionConfig.survival.pacingStep;
+            survival.elites = missionConfig.survival.elites;
+            survival.nextElite = 0;
+        }
+    }
+
+    void spawnMissionBoss()
+    {
+        if (missionConfig.boss.hp <= 0.0f)
+        {
+            return;
+        }
+        Vec2 world = tileToWorld(missionConfig.boss.tile, mapDefs.tile_size);
+        EnemyUnit bossUnit;
+        bossUnit.type = EnemyArchetype::Boss;
+        bossUnit.pos = world;
+        bossUnit.hp = missionConfig.boss.hp;
+        bossUnit.radius = missionConfig.boss.radius_px > 0.0f ? missionConfig.boss.radius_px : 32.0f;
+        bossUnit.speedPx = missionConfig.boss.speed_u_s * config.pixels_per_unit;
+        bossUnit.dpsUnit = slimeStats.dps;
+        bossUnit.dpsBase = slimeStats.dps;
+        bossUnit.dpsWall = slimeStats.dps;
+        bossUnit.noOverlap = missionConfig.boss.noOverlap;
+        enemies.push_back(bossUnit);
+        boss.active = true;
+        boss.hp = bossUnit.hp;
+        boss.maxHp = bossUnit.hp;
+        boss.speedPx = bossUnit.speedPx;
+        boss.radius = bossUnit.radius;
+        boss.mechanic = missionConfig.boss.slam;
+        boss.cycleTimer = boss.mechanic.period;
+        boss.windupTimer = 0.0f;
+        boss.inWindup = false;
+        timeSinceLastEnemySpawn = 0.0f;
+    }
+
+    void performBossSlam(const EnemyUnit &bossEnemy)
+    {
+        if (boss.mechanic.radius <= 0.0f || boss.mechanic.damage <= 0.0f)
+        {
+            return;
+        }
+        const float radiusSq = boss.mechanic.radius * boss.mechanic.radius;
+        bool hitSomething = false;
+
+        if (commander.alive && lengthSq(commander.pos - bossEnemy.pos) <= radiusSq)
+        {
+            const float hpBefore = commander.hp;
+            commander.hp -= boss.mechanic.damage;
+            Vec2 push = normalize(commander.pos - bossEnemy.pos) * 48.0f;
+            if (lengthSq(push) > 0.0f)
+            {
+                commander.pos += push;
+            }
+            if (commander.hp <= 0.0f)
+            {
+                const float overkill = std::max(0.0f, boss.mechanic.damage - std::max(hpBefore, 0.0f));
+                const float ratio = clampOverkillRatio(overkill, commanderStats.hp);
+                scheduleCommanderRespawn(1.0f, 0.0f, ratio);
+            }
+            hitSomething = true;
+        }
+
+        if (!yunas.empty())
+        {
+            std::vector<Unit> survivors;
+            survivors.reserve(yunas.size());
+            for (Unit &yuna : yunas)
+            {
+                if (lengthSq(yuna.pos - bossEnemy.pos) <= radiusSq)
+                {
+                    Vec2 push = normalize(yuna.pos - bossEnemy.pos) * 40.0f;
+                    if (lengthSq(push) > 0.0f)
+                    {
+                        yuna.pos += push;
+                    }
+                    const float hpBefore = yuna.hp;
+                    yuna.hp -= boss.mechanic.damage;
+                    if (yuna.hp <= 0.0f)
+                    {
+                        const float overkill = std::max(0.0f, boss.mechanic.damage - std::max(hpBefore, 0.0f));
+                        const float ratio = clampOverkillRatio(overkill, yunaStats.hp);
+                        enqueueYunaRespawn(ratio);
+                        hitSomething = true;
+                        continue;
+                    }
+                    hitSomething = true;
+                }
+                survivors.push_back(yuna);
+            }
+            yunas.swap(survivors);
+        }
+
+        if (hitSomething)
+        {
+            pushTelemetry("Boss Slam!");
+        }
+    }
+
+    void spawnMissionElite(const MissionSurvivalElite &elite)
+    {
+        if (disabledGates.find(elite.gate) != disabledGates.end())
+        {
+            return;
+        }
+        Vec2 gateTile{};
+        bool foundGate = false;
+        if (auto scriptGate = spawnScript.gate_tiles.find(elite.gate); scriptGate != spawnScript.gate_tiles.end())
+        {
+            gateTile = scriptGate->second;
+            foundGate = true;
+        }
+        else if (auto mapGate = mapDefs.gate_tiles.find(elite.gate); mapGate != mapDefs.gate_tiles.end())
+        {
+            gateTile = mapGate->second;
+            foundGate = true;
+        }
+        if (!foundGate)
+        {
+            return;
+        }
+        Vec2 world = tileToWorld(gateTile, mapDefs.tile_size);
+        spawnOneEnemy(world, elite.type);
+    }
+
+    void updateBossMechanics(float dt)
+    {
+        if (!boss.active)
+        {
+            return;
+        }
+        EnemyUnit *bossEnemy = nullptr;
+        for (EnemyUnit &enemy : enemies)
+        {
+            if (enemy.type == EnemyArchetype::Boss)
+            {
+                bossEnemy = &enemy;
+                break;
+            }
+        }
+        if (!bossEnemy)
+        {
+            boss.active = false;
+            if (missionVictoryCountdown < 0.0f)
+            {
+                missionVictoryCountdown = std::max(config.victory_grace, 5.0f);
+                pushTelemetry("Boss defeated!");
+            }
+            return;
+        }
+        boss.hp = bossEnemy->hp;
+        bossEnemy->speedPx = boss.speedPx;
+        if (boss.mechanic.period > 0.0f)
+        {
+            boss.cycleTimer -= dt;
+            if (!boss.inWindup && boss.mechanic.windup > 0.0f && boss.cycleTimer <= boss.mechanic.windup)
+            {
+                boss.inWindup = true;
+                boss.windupTimer = boss.mechanic.windup;
+            }
+            if (boss.inWindup)
+            {
+                boss.windupTimer -= dt;
+                if (boss.windupTimer <= 0.0f)
+                {
+                    performBossSlam(*bossEnemy);
+                    boss.inWindup = false;
+                    boss.cycleTimer = boss.mechanic.period;
+                }
+            }
+            else if (boss.mechanic.windup <= 0.0f && boss.cycleTimer <= 0.0f)
+            {
+                performBossSlam(*bossEnemy);
+                boss.cycleTimer = boss.mechanic.period;
+            }
+            else if (boss.cycleTimer <= 0.0f)
+            {
+                boss.cycleTimer = boss.mechanic.period;
+            }
+        }
+    }
+
+    void updateCaptureMission(float dt)
+    {
+        for (CaptureRuntime &zone : captureZones)
+        {
+            if (zone.captured)
+            {
+                continue;
+            }
+            const float radiusSq = zone.config.radius_px * zone.config.radius_px;
+            int allies = 0;
+            for (const Unit &yuna : yunas)
+            {
+                if (lengthSq(yuna.pos - zone.worldPos) <= radiusSq)
+                {
+                    ++allies;
+                }
+            }
+            if (commander.alive && lengthSq(commander.pos - zone.worldPos) <= radiusSq)
+            {
+                ++allies;
+            }
+            int foes = 0;
+            for (const EnemyUnit &enemy : enemies)
+            {
+                if (lengthSq(enemy.pos - zone.worldPos) <= radiusSq)
+                {
+                    ++foes;
+                }
+            }
+            if (foes == 0 && allies > 0)
+            {
+                if (zone.config.capture_s > 0.0f)
+                {
+                    zone.progress += dt / zone.config.capture_s;
+                }
+                else
+                {
+                    zone.progress = 1.0f;
+                }
+            }
+            else if (zone.config.decay_s > 0.0f)
+            {
+                zone.progress -= dt / zone.config.decay_s;
+            }
+            zone.progress = std::clamp(zone.progress, 0.0f, 1.0f);
+            if (!zone.captured && zone.progress >= 1.0f)
+            {
+                zone.captured = true;
+                ++capturedZones;
+                if (!zone.config.onCapture.disableGate.empty())
+                {
+                    disableGate(zone.config.onCapture.disableGate);
+                }
+                if (!zone.config.onCapture.telemetry.empty())
+                {
+                    pushTelemetry(zone.config.onCapture.telemetry);
+                }
+            }
+        }
+        if (captureGoal > 0 && capturedZones >= captureGoal && missionVictoryCountdown < 0.0f)
+        {
+            missionVictoryCountdown = config.victory_grace;
+            pushTelemetry("Zones secured");
+        }
+    }
+
+    void updateSurvivalMission(float dt)
+    {
+        survival.elapsed += dt;
+        if (missionConfig.survival.pacingStep > 0.0f && missionConfig.survival.pacingMultiplier > 0.0f)
+        {
+            survival.pacingTimer -= dt;
+            if (survival.pacingTimer <= 0.0f)
+            {
+                survival.spawnMultiplier *= missionConfig.survival.pacingMultiplier;
+                survival.pacingTimer += missionConfig.survival.pacingStep;
+            }
+        }
+        while (survival.nextElite < survival.elites.size() && survival.elapsed >= survival.elites[survival.nextElite].time)
+        {
+            spawnMissionElite(survival.elites[survival.nextElite]);
+            ++survival.nextElite;
+        }
+        if (survival.duration > 0.0f && survival.elapsed >= survival.duration && missionVictoryCountdown < 0.0f)
+        {
+            missionVictoryCountdown = 0.0f;
+        }
+    }
+
+    void updateMission(float dt)
+    {
+        if (missionMode == MissionMode::None)
+        {
+            return;
+        }
+        missionTimer += dt;
+        switch (missionMode)
+        {
+        case MissionMode::Boss:
+            updateBossMechanics(dt);
+            break;
+        case MissionMode::Capture:
+            updateCaptureMission(dt);
+            break;
+        case MissionMode::Survival:
+            updateSurvivalMission(dt);
+            break;
+        case MissionMode::None:
+            break;
+        }
+        if (missionVictoryCountdown >= 0.0f)
+        {
+            missionVictoryCountdown = std::max(0.0f, missionVictoryCountdown - dt);
+            if (missionVictoryCountdown <= 0.0f)
+            {
+                setResult(GameResult::Victory, "Victory");
+            }
+        }
     }
 
     void scheduleCommanderRespawn(float penaltyMultiplier, float bonusSeconds, float overkillRatio)
@@ -2139,22 +2788,6 @@ struct Simulation
         restartCooldown = config.restart_delay;
     }
 
-    float enemySpeed(const EnemyUnit &enemy) const
-    {
-        const float speed = enemy.type == EnemyArchetype::Wallbreaker ? wallbreakerStats.speed_u_s : slimeStats.speed_u_s;
-        return speed * config.pixels_per_unit;
-    }
-
-    float enemyDpsAgainstUnits(const EnemyUnit &enemy) const
-    {
-        return enemy.type == EnemyArchetype::Wallbreaker ? wallbreakerStats.dps_unit : slimeStats.dps;
-    }
-
-    float enemyDpsAgainstBase(const EnemyUnit &enemy) const
-    {
-        return enemy.type == EnemyArchetype::Wallbreaker ? wallbreakerStats.dps_base : slimeStats.dps;
-    }
-
     void update(float dt, const Vec2 &commanderMoveInput)
     {
         simTime += dt;
@@ -2184,6 +2817,7 @@ struct Simulation
         updateCommander(dt, commanderMoveInput);
         updateWalls(dt);
         updateUnits(dt);
+        updateMission(dt);
         evaluateResult();
     }
 
@@ -2213,6 +2847,10 @@ struct Simulation
             const Wave &wave = spawnScript.waves[nextWave];
             for (const SpawnSet &set : wave.sets)
             {
+                if (disabledGates.find(set.gate) != disabledGates.end())
+                {
+                    continue;
+                }
                 Vec2 gateTile{};
                 bool foundGate = false;
                 if (auto scriptGate = spawnScript.gate_tiles.find(set.gate); scriptGate != spawnScript.gate_tiles.end())
@@ -2235,6 +2873,7 @@ struct Simulation
                 active.interval = set.interval;
                 active.timer = 0.0f;
                 active.type = set.type;
+                active.gateId = set.gate;
                 activeSpawns.push_back(active);
             }
             if (!wave.telemetry.empty())
@@ -2261,7 +2900,13 @@ struct Simulation
             if (spawn.timer <= 0.0f)
             {
                 spawnOneEnemy(spawn.position, spawn.type);
-                spawn.timer += spawn.interval;
+                float spawnInterval = spawn.interval;
+                if (missionMode == MissionMode::Survival && survival.spawnMultiplier > 0.0f)
+                {
+                    const float mult = std::max(survival.spawnMultiplier, 0.1f);
+                    spawnInterval = spawn.interval / mult;
+                }
+                spawn.timer += spawnInterval;
                 --spawn.remaining;
                 if (spawn.remaining <= 0)
                 {
@@ -2282,11 +2927,30 @@ struct Simulation
         {
             enemy.hp = wallbreakerStats.hp;
             enemy.radius = wallbreakerStats.radius;
+            enemy.speedPx = wallbreakerStats.speed_u_s * config.pixels_per_unit;
+            enemy.dpsUnit = wallbreakerStats.dps_unit;
+            enemy.dpsBase = wallbreakerStats.dps_base;
+            enemy.dpsWall = wallbreakerStats.dps_wall;
+            enemy.noOverlap = wallbreakerStats.ignoreKnockback;
+        }
+        else if (type == EnemyArchetype::Boss)
+        {
+            enemy.hp = missionConfig.boss.hp > 0.0f ? missionConfig.boss.hp : 500.0f;
+            enemy.radius = missionConfig.boss.radius_px > 0.0f ? missionConfig.boss.radius_px : 32.0f;
+            enemy.speedPx = missionConfig.boss.speed_u_s * config.pixels_per_unit;
+            enemy.dpsUnit = slimeStats.dps;
+            enemy.dpsBase = slimeStats.dps;
+            enemy.dpsWall = slimeStats.dps;
+            enemy.noOverlap = missionConfig.boss.noOverlap;
         }
         else
         {
             enemy.hp = slimeStats.hp;
             enemy.radius = slimeStats.radius;
+            enemy.speedPx = slimeStats.speed_u_s * config.pixels_per_unit;
+            enemy.dpsUnit = slimeStats.dps;
+            enemy.dpsBase = slimeStats.dps;
+            enemy.dpsWall = slimeStats.dps;
         }
         enemies.push_back(enemy);
         timeSinceLastEnemySpawn = 0.0f;
@@ -2554,7 +3218,12 @@ struct Simulation
             }
 
             Vec2 dir = normalize(target - enemy.pos);
-            const float speedPx = enemySpeed(enemy);
+            float speedPx = enemy.speedPx;
+            if (speedPx <= 0.0f)
+            {
+                const float speedUnits = enemy.type == EnemyArchetype::Wallbreaker ? wallbreakerStats.speed_u_s : slimeStats.speed_u_s;
+                speedPx = speedUnits * config.pixels_per_unit;
+            }
             enemy.pos += dir * (speedPx * dt);
         }
 
@@ -2570,8 +3239,7 @@ struct Simulation
                     Vec2 normal = dist > 0.0f ? (enemy.pos - wall.pos) / dist : Vec2{1.0f, 0.0f};
                     const float overlap = combined - dist;
                     enemy.pos += normal * overlap;
-                    const float dps = enemy.type == EnemyArchetype::Wallbreaker ? wallbreakerStats.dps_wall : slimeStats.dps;
-                    wall.hp -= dps * dt;
+                    wall.hp -= enemy.dpsWall * dt;
                 }
             }
         }
@@ -2589,7 +3257,7 @@ struct Simulation
                     enemy.hp -= commanderStats.dps * dt;
                     if (commanderInvulnTimer <= 0.0f)
                     {
-                        commanderDamage += enemyDpsAgainstUnits(enemy) * dt;
+                        commanderDamage += enemy.dpsUnit * dt;
                     }
                 }
             }
@@ -2604,7 +3272,7 @@ struct Simulation
                 if (lengthSq(yuna.pos - enemy.pos) <= combined * combined)
                 {
                     enemy.hp -= yunaStats.dps * dt;
-                    yunaDamage[i] += enemyDpsAgainstUnits(enemy) * dt;
+                    yunaDamage[i] += enemy.dpsUnit * dt;
                 }
             }
         }
@@ -2658,11 +3326,14 @@ struct Simulation
             const float combined = baseRadius + enemy.radius;
             if (lengthSq(enemy.pos - basePos) <= combined * combined)
             {
-                baseHp -= enemyDpsAgainstBase(enemy) * dt;
+                baseHp -= enemy.dpsBase * dt;
                 if (baseHp <= 0.0f)
                 {
                     baseHp = 0.0f;
-                    setResult(GameResult::Defeat, "Defeat");
+                    if (!hasMission || missionFail.baseHpZero)
+                    {
+                        setResult(GameResult::Defeat, "Defeat");
+                    }
                     break;
                 }
             }
@@ -2674,6 +3345,10 @@ struct Simulation
     void evaluateResult()
     {
         if (result != GameResult::Playing)
+        {
+            return;
+        }
+        if (missionMode != MissionMode::None)
         {
             return;
         }
@@ -2780,6 +3455,11 @@ void renderScene(SDL_Renderer *renderer, const Simulation &sim, const Camera &ca
                  const Atlas &atlas, int screenW, int screenH, FramePerf &perf, bool showDebugHud)
 {
     RenderStats stats;
+    static int lodFrameCounter = 0;
+    ++lodFrameCounter;
+    const bool lodActive = sim.config.lod_threshold_entities > 0 && perf.entities >= sim.config.lod_threshold_entities;
+    const bool skipActors = lodActive && sim.config.lod_skip_draw_every > 1 &&
+                            (lodFrameCounter % sim.config.lod_skip_draw_every != 0);
     SDL_SetRenderDrawColor(renderer, 26, 32, 38, 255);
     countedRenderClear(renderer, stats);
 
@@ -2818,6 +3498,26 @@ void renderScene(SDL_Renderer *renderer, const Simulation &sim, const Camera &ca
         SDL_FRect baseRect{baseScreen.x - sim.config.base_aabb.x * 0.5f, baseScreen.y - sim.config.base_aabb.y * 0.5f, sim.config.base_aabb.x, sim.config.base_aabb.y};
         SDL_SetRenderDrawColor(renderer, 130, 90, 50, 255);
         countedRenderFillRectF(renderer, &baseRect, stats);
+    }
+
+    if (sim.missionMode == MissionMode::Capture)
+    {
+        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+        for (const auto &zone : sim.captureZones)
+        {
+            Vec2 screenPos = worldToScreen(zone.worldPos, camera);
+            const int radius = static_cast<int>(zone.config.radius_px);
+            SDL_Rect outline{static_cast<int>(screenPos.x) - radius, static_cast<int>(screenPos.y) - radius,
+                             radius * 2, radius * 2};
+            SDL_SetRenderDrawColor(renderer, 40, 160, 255, 90);
+            countedRenderDrawRect(renderer, &outline, stats);
+            SDL_Rect fill = outline;
+            fill.h = static_cast<int>(outline.h * zone.progress);
+            fill.y = outline.y + (outline.h - fill.h);
+            SDL_SetRenderDrawColor(renderer, 80, 210, 255, 100);
+            countedRenderFillRect(renderer, &fill, stats);
+        }
+        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
     }
 
     const SDL_Rect *commanderFrame = nullptr;
@@ -2891,6 +3591,10 @@ void renderScene(SDL_Renderer *renderer, const Simulation &sim, const Camera &ca
     {
         for (const FriendlySprite &sprite : friendSprites)
         {
+            if (skipActors && !sprite.commander)
+            {
+                continue;
+            }
             if (sprite.commander)
             {
                 Vec2 commanderScreen = worldToScreen(sim.commander.pos, camera);
@@ -2944,6 +3648,10 @@ void renderScene(SDL_Renderer *renderer, const Simulation &sim, const Camera &ca
             }
             else
             {
+                if (skipActors)
+                {
+                    continue;
+                }
                 SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
                 SDL_SetRenderDrawColor(renderer, 240, 190, 60, yunaAlpha[sprite.index]);
                 drawFilledCircle(renderer, screenPos, yuna.radius, stats);
@@ -2957,11 +3665,19 @@ void renderScene(SDL_Renderer *renderer, const Simulation &sim, const Camera &ca
         SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
         for (const FriendlySprite &sprite : friendSprites)
         {
+            if (skipActors && !sprite.commander)
+            {
+                continue;
+            }
             if (sprite.commander)
             {
                 Vec2 commanderScreen = worldToScreen(sim.commander.pos, camera);
                 SDL_SetRenderDrawColor(renderer, 200, 220, 255, 255);
                 drawFilledCircle(renderer, commanderScreen, sim.commander.radius, stats);
+                continue;
+            }
+            if (skipActors)
+            {
                 continue;
             }
             const Unit &yuna = sim.yunas[sprite.index];
@@ -2975,6 +3691,10 @@ void renderScene(SDL_Renderer *renderer, const Simulation &sim, const Camera &ca
     SDL_SetRenderDrawColor(renderer, 120, 150, 200, 255);
     for (const WallSegment &wall : sim.walls)
     {
+        if (skipActors)
+        {
+            continue;
+        }
         Vec2 screenPos = worldToScreen(wall.pos, camera);
         drawFilledCircle(renderer, screenPos, wall.radius, stats);
     }
@@ -2990,6 +3710,10 @@ void renderScene(SDL_Renderer *renderer, const Simulation &sim, const Camera &ca
         for (std::size_t idx : enemyOrder)
         {
             const EnemyUnit &enemy = sim.enemies[idx];
+            if (skipActors && enemy.type != EnemyArchetype::Boss)
+            {
+                continue;
+            }
             const SDL_Rect *frame = enemy.type == EnemyArchetype::Wallbreaker ? wallbreakerFrame : enemyFrame;
             Vec2 screenPos = worldToScreen(enemy.pos, camera);
             if (frame)
@@ -3024,6 +3748,10 @@ void renderScene(SDL_Renderer *renderer, const Simulation &sim, const Camera &ca
         for (std::size_t idx : enemyOrder)
         {
             const EnemyUnit &enemy = sim.enemies[idx];
+            if (skipActors && enemy.type != EnemyArchetype::Boss)
+            {
+                continue;
+            }
             SDL_SetRenderDrawColor(renderer, enemy.type == EnemyArchetype::Wallbreaker ? 200 : 80,
                                    enemy.type == EnemyArchetype::Wallbreaker ? 80 : 160,
                                    enemy.type == EnemyArchetype::Wallbreaker ? 80 : 220, 255);
@@ -3051,7 +3779,48 @@ void renderScene(SDL_Renderer *renderer, const Simulation &sim, const Camera &ca
         const int approxWidth = std::max(approxHeight / 2, 8);
         return static_cast<int>(text.size()) * approxWidth;
     };
+    auto formatTimer = [](float seconds) {
+        seconds = std::max(seconds, 0.0f);
+        int total = static_cast<int>(seconds + 0.5f);
+        int minutes = total / 60;
+        int secs = total % 60;
+        std::ostringstream oss;
+        oss << std::setfill('0') << std::setw(2) << minutes << ':' << std::setw(2) << secs;
+        return oss.str();
+    };
     int topUiAnchor = 20;
+    if (sim.missionMode != MissionMode::None && sim.missionUI.showGoalText && !sim.missionUI.goalText.empty())
+    {
+        const int padX = 18;
+        const int padY = 8;
+        const int textWidth = measureWithFallback(font, sim.missionUI.goalText, lineHeight);
+        SDL_Rect goalRect{screenW / 2 - (textWidth + padX * 2) / 2, topUiAnchor, textWidth + padX * 2, lineHeight + padY * 2};
+        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+        SDL_SetRenderDrawColor(renderer, 0, 0, 0, 180);
+        countedRenderFillRect(renderer, &goalRect, stats);
+        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
+        font.drawText(renderer, sim.missionUI.goalText, goalRect.x + padX, goalRect.y + padY, &stats,
+                      SDL_Color{230, 240, 255, 255});
+        topUiAnchor = goalRect.y + goalRect.h + 10;
+    }
+    if (sim.missionMode != MissionMode::None && sim.missionUI.showTimer)
+    {
+        float timerValue = sim.missionMode == MissionMode::Survival && sim.survival.duration > 0.0f
+                               ? std::max(sim.survival.duration - sim.survival.elapsed, 0.0f)
+                               : sim.missionTimer;
+        const std::string timerText = std::string("Time ") + formatTimer(timerValue);
+        const int padX = 14;
+        const int padY = 6;
+        const int textWidth = measureWithFallback(font, timerText, lineHeight);
+        SDL_Rect timerRect{screenW / 2 - (textWidth + padX * 2) / 2, topUiAnchor, textWidth + padX * 2,
+                           lineHeight + padY * 2};
+        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+        SDL_SetRenderDrawColor(renderer, 0, 0, 0, 160);
+        countedRenderFillRect(renderer, &timerRect, stats);
+        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
+        font.drawText(renderer, timerText, timerRect.x + padX, timerRect.y + padY, &stats);
+        topUiAnchor = timerRect.y + timerRect.h + 10;
+    }
     if (sim.isOrderActive())
     {
         std::ostringstream orderBanner;
@@ -3085,6 +3854,24 @@ void renderScene(SDL_Renderer *renderer, const Simulation &sim, const Camera &ca
     font.drawText(renderer, "Base HP", barBg.x, barBg.y - lineHeight, &stats);
     font.drawText(renderer, std::to_string(baseHpInt), barBg.x + barBg.w + 12, barBg.y - 2, &stats);
 
+    int infoPanelAnchor = barBg.y + barBg.h + 20;
+    if (sim.missionMode == MissionMode::Boss && sim.missionUI.showBossHpBar && sim.boss.maxHp > 0.0f)
+    {
+        const float ratio = std::clamp(sim.boss.maxHp > 0.0f ? sim.boss.hp / sim.boss.maxHp : 0.0f, 0.0f, 1.0f);
+        SDL_Rect bossBg{screenW / 2 - 200, barBg.y + barBg.h + 12, 400, 18};
+        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+        SDL_SetRenderDrawColor(renderer, 30, 10, 60, 200);
+        countedRenderFillRect(renderer, &bossBg, stats);
+        SDL_Rect bossFill{bossBg.x + 4, bossBg.y + 4, static_cast<int>((bossBg.w - 8) * ratio), bossBg.h - 8};
+        SDL_SetRenderDrawColor(renderer, 180, 70, 200, 230);
+        countedRenderFillRect(renderer, &bossFill, stats);
+        SDL_SetRenderDrawColor(renderer, 110, 60, 150, 230);
+        countedRenderDrawRect(renderer, &bossBg, stats);
+        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
+        font.drawText(renderer, "Boss HP", bossBg.x, bossBg.y - lineHeight, &stats);
+        infoPanelAnchor = bossBg.y + bossBg.h + 20;
+    }
+
     const int commanderHpInt = static_cast<int>(std::round(std::max(sim.commander.hp, 0.0f)));
     std::vector<std::string> infoLines;
     infoLines.push_back("Allies: " + std::to_string(static_cast<int>(sim.yunas.size())));
@@ -3097,6 +3884,26 @@ void renderScene(SDL_Renderer *renderer, const Simulation &sim, const Camera &ca
         infoLines.push_back("Commander: Down");
     }
     infoLines.push_back("Enemies: " + std::to_string(static_cast<int>(sim.enemies.size())));
+    if (sim.missionMode == MissionMode::Boss && sim.boss.maxHp > 0.0f)
+    {
+        std::ostringstream bossLine;
+        bossLine << "Boss HP: " << static_cast<int>(std::round(std::max(sim.boss.hp, 0.0f))) << " / "
+                 << static_cast<int>(std::round(sim.boss.maxHp));
+        infoLines.push_back(bossLine.str());
+    }
+    if (sim.missionMode == MissionMode::Capture)
+    {
+        const int goal = sim.captureGoal > 0 ? sim.captureGoal : static_cast<int>(sim.captureZones.size());
+        std::ostringstream captureLine;
+        captureLine << "Capture: " << sim.capturedZones << "/" << goal;
+        infoLines.push_back(captureLine.str());
+    }
+    if (sim.missionMode == MissionMode::Survival)
+    {
+        std::ostringstream survivalLine;
+        survivalLine << std::fixed << std::setprecision(2) << "Pace x" << std::max(sim.survival.spawnMultiplier, 1.0f);
+        infoLines.push_back(survivalLine.str());
+    }
     if (!sim.commander.alive)
     {
         std::ostringstream respawnText;
@@ -3145,7 +3952,7 @@ void renderScene(SDL_Renderer *renderer, const Simulation &sim, const Camera &ca
         }
         const int infoPadding = 8;
         const int infoPanelHeight = static_cast<int>(infoLines.size()) * lineHeight + infoPadding * 2;
-        SDL_Rect infoPanel{12, barBg.y + barBg.h + 20, infoPanelWidth + infoPadding * 2, infoPanelHeight};
+        SDL_Rect infoPanel{12, infoPanelAnchor, infoPanelWidth + infoPadding * 2, infoPanelHeight};
         SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
         SDL_SetRenderDrawColor(renderer, 0, 0, 0, 160);
         countedRenderFillRect(renderer, &infoPanel, stats);
@@ -3279,9 +4086,18 @@ int main(int argc, char **argv)
     auto entityCatalogOpt = parseEntityCatalog("assets/entities.json");
     auto mapDefsOpt = parseMapDefs("assets/map_defs.json");
     std::optional<SpawnScript> spawnScriptOpt;
+    std::optional<MissionConfig> missionOpt;
     if (configOpt)
     {
         spawnScriptOpt = parseSpawnScript(configOpt->enemy_script);
+        if (!configOpt->mission_path.empty())
+        {
+            missionOpt = parseMissionConfig(configOpt->mission_path);
+            if (!missionOpt)
+            {
+                std::cerr << "Failed to load mission: " << configOpt->mission_path << '\n';
+            }
+        }
     }
     auto skillsOpt = parseSkillCatalog("assets/skills.json");
 
@@ -3315,6 +4131,15 @@ int main(int argc, char **argv)
     sim.commanderStats = entityCatalogOpt->commander;
     sim.mapDefs = *mapDefsOpt;
     sim.spawnScript = *spawnScriptOpt;
+    if (missionOpt && missionOpt->mode != MissionMode::None)
+    {
+        sim.hasMission = true;
+        sim.missionConfig = *missionOpt;
+    }
+    else
+    {
+        sim.hasMission = false;
+    }
     std::vector<SkillDef> skillDefs = skillsOpt ? *skillsOpt : buildDefaultSkills();
     sim.configureSkills(skillDefs);
     sim.reset();

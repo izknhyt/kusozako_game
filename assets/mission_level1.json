@@ -1,0 +1,17 @@
+{
+  "mode": "boss",
+  "boss": {
+    "id": "crystal_golem",
+    "tile": [10, 22],
+    "hp": 900,
+    "speed_u_s": 0.7,
+    "radius_px": 32,
+    "traits": { "no_overlap": true },
+    "mechanics": {
+      "slam": { "period_s": 8, "windup_s": 0.5, "radius_px": 96, "damage": 15 }
+    }
+  },
+  "ui": { "show_goal_text": "ボスを倒せ！", "show_timer": true, "boss_hp_bar": true },
+  "fail": { "base_hp_zero": true },
+  "win": { "boss_down": true }
+}
