@@ -29,6 +29,11 @@ struct Vec2
     float y = 0.0f;
 };
 
+struct RenderStats
+{
+    int drawCalls = 0;
+};
+
 static Vec2 operator+(const Vec2 &a, const Vec2 &b) { return {a.x + b.x, a.y + b.y}; }
 static Vec2 operator-(const Vec2 &a, const Vec2 &b) { return {a.x - b.x, a.y - b.y}; }
 static Vec2 operator*(const Vec2 &a, float s) { return {a.x * s, a.y * s}; }
@@ -1243,7 +1248,7 @@ class BitmapFont
         texture = tex;
     }
 
-    void drawText(SDL_Renderer *renderer, const std::string &text, int x, int y) const
+    void drawText(SDL_Renderer *renderer, const std::string &text, int x, int y, RenderStats *stats = nullptr) const
     {
         if (!texture)
         {
@@ -1261,6 +1266,10 @@ class BitmapFont
             }
             const Glyph &g = it->second;
             SDL_Rect dst{penX + g.xoffset, penY + g.yoffset, g.src.w, g.src.h};
+            if (stats)
+            {
+                ++stats->drawCalls;
+            }
             SDL_RenderCopy(renderer, texture, &g.src, &dst);
             penX += g.xadvance;
         }
@@ -1385,6 +1394,37 @@ struct Atlas
         return it == frames.end() ? nullptr : &it->second;
     }
 };
+
+inline void countedRenderClear(SDL_Renderer *renderer, RenderStats &stats)
+{
+    ++stats.drawCalls;
+    SDL_RenderClear(renderer);
+}
+
+inline void countedRenderCopy(SDL_Renderer *renderer, SDL_Texture *texture, const SDL_Rect *src, const SDL_Rect *dst,
+                              RenderStats &stats)
+{
+    ++stats.drawCalls;
+    SDL_RenderCopy(renderer, texture, src, dst);
+}
+
+inline void countedRenderFillRect(SDL_Renderer *renderer, const SDL_Rect *rect, RenderStats &stats)
+{
+    ++stats.drawCalls;
+    SDL_RenderFillRect(renderer, rect);
+}
+
+inline void countedRenderFillRectF(SDL_Renderer *renderer, const SDL_FRect *rect, RenderStats &stats)
+{
+    ++stats.drawCalls;
+    SDL_RenderFillRectF(renderer, rect);
+}
+
+inline void countedRenderDrawRect(SDL_Renderer *renderer, const SDL_Rect *rect, RenderStats &stats)
+{
+    ++stats.drawCalls;
+    SDL_RenderDrawRect(renderer, rect);
+}
 
 std::string parentDirectory(const std::string &path)
 {
@@ -2660,6 +2700,15 @@ struct Camera
     float speed = 320.0f;
 };
 
+struct FramePerf
+{
+    float fps = 0.0f;
+    float msUpdate = 0.0f;
+    float msRender = 0.0f;
+    int drawCalls = 0;
+    int entities = 0;
+};
+
 Vec2 worldToScreen(const Vec2 &world, const Camera &camera)
 {
     return {world.x - camera.position.x, world.y - camera.position.y};
@@ -2670,8 +2719,9 @@ Vec2 screenToWorld(int screenX, int screenY, const Camera &camera)
     return {static_cast<float>(screenX) + camera.position.x, static_cast<float>(screenY) + camera.position.y};
 }
 
-void drawFilledCircle(SDL_Renderer *renderer, const Vec2 &pos, float radius)
+void drawFilledCircle(SDL_Renderer *renderer, const Vec2 &pos, float radius, RenderStats &stats)
 {
+    ++stats.drawCalls;
     const int r = static_cast<int>(radius);
     const int cx = static_cast<int>(pos.x);
     const int cy = static_cast<int>(pos.y);
@@ -2687,7 +2737,8 @@ void drawFilledCircle(SDL_Renderer *renderer, const Vec2 &pos, float radius)
     }
 }
 
-void drawTileLayer(SDL_Renderer *renderer, const TileMap &map, const std::vector<int> &tiles, const Camera &camera, int screenW, int screenH)
+void drawTileLayer(SDL_Renderer *renderer, const TileMap &map, const std::vector<int> &tiles, const Camera &camera, int screenW,
+                   int screenH, RenderStats &stats)
 {
     if (!map.tileset)
     {
@@ -2725,24 +2776,26 @@ void drawTileLayer(SDL_Renderer *renderer, const TileMap &map, const std::vector
             {
                 continue;
             }
-            SDL_RenderCopy(renderer, map.tileset, &src, &dst);
+            countedRenderCopy(renderer, map.tileset, &src, &dst, stats);
         }
     }
 }
 
-void renderScene(SDL_Renderer *renderer, const Simulation &sim, const Camera &camera, const BitmapFont &font, const TileMap &map, const Atlas &atlas, int screenW, int screenH, float fps)
+void renderScene(SDL_Renderer *renderer, const Simulation &sim, const Camera &camera, const BitmapFont &font, const TileMap &map,
+                 const Atlas &atlas, int screenW, int screenH, FramePerf &perf)
 {
+    RenderStats stats;
     SDL_SetRenderDrawColor(renderer, 26, 32, 38, 255);
-    SDL_RenderClear(renderer);
+    countedRenderClear(renderer, stats);
 
-    drawTileLayer(renderer, map, map.floor, camera, screenW, screenH);
+    drawTileLayer(renderer, map, map.floor, camera, screenW, screenH, stats);
     if (map.tileset)
     {
         SDL_SetTextureColorMod(map.tileset, 190, 190, 200);
-        drawTileLayer(renderer, map, map.block, camera, screenW, screenH);
+        drawTileLayer(renderer, map, map.block, camera, screenW, screenH, stats);
         SDL_SetTextureColorMod(map.tileset, 255, 255, 255);
     }
-    drawTileLayer(renderer, map, map.deco, camera, screenW, screenH);
+    drawTileLayer(renderer, map, map.deco, camera, screenW, screenH, stats);
 
     // Draw base
     const Vec2 baseScreen = worldToScreen(sim.basePos, camera);
@@ -2756,20 +2809,20 @@ void renderScene(SDL_Renderer *renderer, const Simulation &sim, const Camera &ca
                 static_cast<int>(baseScreen.y - baseFrame->h * 0.5f),
                 baseFrame->w,
                 baseFrame->h};
-            SDL_RenderCopy(renderer, atlas.texture, baseFrame, &dest);
+            countedRenderCopy(renderer, atlas.texture, baseFrame, &dest, stats);
         }
         else
         {
             SDL_FRect baseRect{baseScreen.x - sim.config.base_aabb.x * 0.5f, baseScreen.y - sim.config.base_aabb.y * 0.5f, sim.config.base_aabb.x, sim.config.base_aabb.y};
             SDL_SetRenderDrawColor(renderer, 130, 90, 50, 255);
-            SDL_RenderFillRectF(renderer, &baseRect);
+            countedRenderFillRectF(renderer, &baseRect, stats);
         }
     }
     else
     {
         SDL_FRect baseRect{baseScreen.x - sim.config.base_aabb.x * 0.5f, baseScreen.y - sim.config.base_aabb.y * 0.5f, sim.config.base_aabb.x, sim.config.base_aabb.y};
         SDL_SetRenderDrawColor(renderer, 130, 90, 50, 255);
-        SDL_RenderFillRectF(renderer, &baseRect);
+        countedRenderFillRectF(renderer, &baseRect, stats);
     }
 
     const SDL_Rect *commanderFrame = nullptr;
@@ -2853,7 +2906,7 @@ void renderScene(SDL_Renderer *renderer, const Simulation &sim, const Camera &ca
                         static_cast<int>(commanderScreen.y - commanderFrame->h * 0.5f),
                         commanderFrame->w,
                         commanderFrame->h};
-                    SDL_RenderCopy(renderer, atlas.texture, commanderFrame, &dest);
+                    countedRenderCopy(renderer, atlas.texture, commanderFrame, &dest, stats);
                     if (friendRing)
                     {
                         SDL_Rect ringDest{
@@ -2861,13 +2914,13 @@ void renderScene(SDL_Renderer *renderer, const Simulation &sim, const Camera &ca
                             dest.y + dest.h - friendRing->h,
                             friendRing->w,
                             friendRing->h};
-                        SDL_RenderCopy(renderer, atlas.texture, friendRing, &ringDest);
+                        countedRenderCopy(renderer, atlas.texture, friendRing, &ringDest, stats);
                     }
                 }
                 else
                 {
                     SDL_SetRenderDrawColor(renderer, 200, 220, 255, 255);
-                    drawFilledCircle(renderer, commanderScreen, sim.commander.radius);
+                    drawFilledCircle(renderer, commanderScreen, sim.commander.radius, stats);
                 }
                 continue;
             }
@@ -2882,7 +2935,7 @@ void renderScene(SDL_Renderer *renderer, const Simulation &sim, const Camera &ca
                     static_cast<int>(screenPos.y - yunaFrame->h * 0.5f),
                     yunaFrame->w,
                     yunaFrame->h};
-                SDL_RenderCopy(renderer, atlas.texture, yunaFrame, &dest);
+                countedRenderCopy(renderer, atlas.texture, yunaFrame, &dest, stats);
                 SDL_SetTextureAlphaMod(atlas.texture, 255);
                 if (friendRing)
                 {
@@ -2891,14 +2944,14 @@ void renderScene(SDL_Renderer *renderer, const Simulation &sim, const Camera &ca
                         dest.y + dest.h - friendRing->h,
                         friendRing->w,
                         friendRing->h};
-                    SDL_RenderCopy(renderer, atlas.texture, friendRing, &ringDest);
+                    countedRenderCopy(renderer, atlas.texture, friendRing, &ringDest, stats);
                 }
             }
             else
             {
                 SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
                 SDL_SetRenderDrawColor(renderer, 240, 190, 60, yunaAlpha[sprite.index]);
-                drawFilledCircle(renderer, screenPos, yuna.radius);
+                drawFilledCircle(renderer, screenPos, yuna.radius, stats);
                 SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
             }
         }
@@ -2913,13 +2966,13 @@ void renderScene(SDL_Renderer *renderer, const Simulation &sim, const Camera &ca
             {
                 Vec2 commanderScreen = worldToScreen(sim.commander.pos, camera);
                 SDL_SetRenderDrawColor(renderer, 200, 220, 255, 255);
-                drawFilledCircle(renderer, commanderScreen, sim.commander.radius);
+                drawFilledCircle(renderer, commanderScreen, sim.commander.radius, stats);
                 continue;
             }
             const Unit &yuna = sim.yunas[sprite.index];
             Vec2 screenPos = worldToScreen(yuna.pos, camera);
             SDL_SetRenderDrawColor(renderer, 240, 190, 60, yunaAlpha[sprite.index]);
-            drawFilledCircle(renderer, screenPos, yuna.radius);
+            drawFilledCircle(renderer, screenPos, yuna.radius, stats);
         }
         SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
     }
@@ -2928,7 +2981,7 @@ void renderScene(SDL_Renderer *renderer, const Simulation &sim, const Camera &ca
     for (const WallSegment &wall : sim.walls)
     {
         Vec2 screenPos = worldToScreen(wall.pos, camera);
-        drawFilledCircle(renderer, screenPos, wall.radius);
+        drawFilledCircle(renderer, screenPos, wall.radius, stats);
     }
 
     std::vector<std::size_t> enemyOrder(sim.enemies.size());
@@ -2951,7 +3004,7 @@ void renderScene(SDL_Renderer *renderer, const Simulation &sim, const Camera &ca
                     static_cast<int>(screenPos.y - frame->h * 0.5f),
                     frame->w,
                     frame->h};
-                SDL_RenderCopy(renderer, atlas.texture, frame, &dest);
+                countedRenderCopy(renderer, atlas.texture, frame, &dest, stats);
                 if (enemyRing)
                 {
                     SDL_Rect ringDest{
@@ -2959,7 +3012,7 @@ void renderScene(SDL_Renderer *renderer, const Simulation &sim, const Camera &ca
                         dest.y + dest.h - enemyRing->h,
                         enemyRing->w,
                         enemyRing->h};
-                    SDL_RenderCopy(renderer, atlas.texture, enemyRing, &ringDest);
+                    countedRenderCopy(renderer, atlas.texture, enemyRing, &ringDest, stats);
                 }
             }
             else
@@ -2967,7 +3020,7 @@ void renderScene(SDL_Renderer *renderer, const Simulation &sim, const Camera &ca
                 SDL_SetRenderDrawColor(renderer, enemy.type == EnemyArchetype::Wallbreaker ? 200 : 80,
                                        enemy.type == EnemyArchetype::Wallbreaker ? 80 : 160,
                                        enemy.type == EnemyArchetype::Wallbreaker ? 80 : 220, 255);
-                drawFilledCircle(renderer, screenPos, enemy.radius);
+                drawFilledCircle(renderer, screenPos, enemy.radius, stats);
             }
         }
     }
@@ -2980,7 +3033,7 @@ void renderScene(SDL_Renderer *renderer, const Simulation &sim, const Camera &ca
                                    enemy.type == EnemyArchetype::Wallbreaker ? 80 : 160,
                                    enemy.type == EnemyArchetype::Wallbreaker ? 80 : 220, 255);
             Vec2 screenPos = worldToScreen(enemy.pos, camera);
-            drawFilledCircle(renderer, screenPos, enemy.radius);
+            drawFilledCircle(renderer, screenPos, enemy.radius, stats);
         }
     }
 
@@ -2988,57 +3041,78 @@ void renderScene(SDL_Renderer *renderer, const Simulation &sim, const Camera &ca
     SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
     SDL_SetRenderDrawColor(renderer, 12, 8, 24, 140);
     SDL_Rect overlay{0, 0, screenW, screenH};
-    SDL_RenderFillRect(renderer, &overlay);
+    countedRenderFillRect(renderer, &overlay, stats);
     SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
 
     // HUD text
+    const int perfRight = screenW - 12;
+    int perfY = 16;
+    {
+        std::ostringstream line1;
+        line1 << std::fixed << std::setprecision(1) << "FPS " << perf.fps << "  Ents " << perf.entities;
+        const std::string line1Str = line1.str();
+        font.drawText(renderer, line1Str, perfRight - font.measureText(line1Str), perfY, &stats);
+        perfY += font.getLineHeight();
+
+        std::ostringstream line2;
+        line2 << std::fixed << std::setprecision(2) << "Upd " << perf.msUpdate << "ms  Ren " << perf.msRender << "ms";
+        const std::string line2Str = line2.str();
+        font.drawText(renderer, line2Str, perfRight - font.measureText(line2Str), perfY, &stats);
+        perfY += font.getLineHeight();
+
+        std::ostringstream line3;
+        line3 << "Draw " << perf.drawCalls;
+        const std::string line3Str = line3.str();
+        font.drawText(renderer, line3Str, perfRight - font.measureText(line3Str), perfY, &stats);
+    }
+
     int y = 16;
     const int baseHpInt = static_cast<int>(std::round(std::max(sim.baseHp, 0.0f)));
     const float hpRatio = sim.config.base_hp > 0 ? std::clamp(baseHpInt / static_cast<float>(sim.config.base_hp), 0.0f, 1.0f) : 0.0f;
     SDL_Rect barBg{screenW / 2 - 160, 20, 320, 20};
     SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
     SDL_SetRenderDrawColor(renderer, 28, 22, 40, 200);
-    SDL_RenderFillRect(renderer, &barBg);
+    countedRenderFillRect(renderer, &barBg, stats);
     SDL_Rect barFill{barBg.x + 4, barBg.y + 4, static_cast<int>((barBg.w - 8) * hpRatio), barBg.h - 8};
     SDL_SetRenderDrawColor(renderer, 255, 166, 64, 230);
-    SDL_RenderFillRect(renderer, &barFill);
+    countedRenderFillRect(renderer, &barFill, stats);
     SDL_SetRenderDrawColor(renderer, 90, 70, 120, 230);
-    SDL_RenderDrawRect(renderer, &barBg);
+    countedRenderDrawRect(renderer, &barBg, stats);
     SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
-    font.drawText(renderer, "Base HP", barBg.x, barBg.y - font.getLineHeight());
-    font.drawText(renderer, std::to_string(baseHpInt), barBg.x + barBg.w + 12, barBg.y - 2);
+    font.drawText(renderer, "Base HP", barBg.x, barBg.y - font.getLineHeight(), &stats);
+    font.drawText(renderer, std::to_string(baseHpInt), barBg.x + barBg.w + 12, barBg.y - 2, &stats);
 
     y = barBg.y + barBg.h + 16;
     const int commanderHpInt = static_cast<int>(std::round(std::max(sim.commander.hp, 0.0f)));
-    font.drawText(renderer, "Allies: " + std::to_string(static_cast<int>(sim.yunas.size())), 20, y);
+    font.drawText(renderer, "Allies: " + std::to_string(static_cast<int>(sim.yunas.size())), 20, y, &stats);
     y += font.getLineHeight();
     if (sim.commander.alive)
     {
-        font.drawText(renderer, "Commander HP: " + std::to_string(commanderHpInt), 20, y);
+        font.drawText(renderer, "Commander HP: " + std::to_string(commanderHpInt), 20, y, &stats);
     }
     else
     {
-        font.drawText(renderer, "Commander: Down", 20, y);
+        font.drawText(renderer, "Commander: Down", 20, y, &stats);
     }
     y += font.getLineHeight();
-    font.drawText(renderer, "Enemies: " + std::to_string(static_cast<int>(sim.enemies.size())), 20, y);
+    font.drawText(renderer, "Enemies: " + std::to_string(static_cast<int>(sim.enemies.size())), 20, y, &stats);
     y += font.getLineHeight();
     std::ostringstream fpsText;
-    fpsText << "FPS: " << static_cast<int>(fps);
-    font.drawText(renderer, fpsText.str(), 12, y);
+    fpsText << "FPS: " << static_cast<int>(std::round(perf.fps));
+    font.drawText(renderer, fpsText.str(), 12, y, &stats);
     y += font.getLineHeight();
-    font.drawText(renderer, std::string("Stance (F1-F4): ") + stanceLabel(sim.stance), 20, y);
+    font.drawText(renderer, std::string("Stance (F1-F4): ") + stanceLabel(sim.stance), 20, y, &stats);
     y += font.getLineHeight();
-    font.drawText(renderer, std::string("Formation (Z/X): ") + formationLabel(sim.formation), 20, y);
+    font.drawText(renderer, std::string("Formation (Z/X): ") + formationLabel(sim.formation), 20, y, &stats);
     y += font.getLineHeight();
     if (!sim.commander.alive)
     {
         std::ostringstream respawnText;
         respawnText << "Commander respawn in " << std::fixed << std::setprecision(1) << sim.commanderRespawnTimer << "s";
-        font.drawText(renderer, respawnText.str(), 20, y);
+        font.drawText(renderer, respawnText.str(), 20, y, &stats);
         y += font.getLineHeight();
     }
-    font.drawText(renderer, "Skills (Right Click):", 20, y);
+    font.drawText(renderer, "Skills (Right Click):", 20, y, &stats);
     y += font.getLineHeight();
     for (std::size_t i = 0; i < sim.skills.size(); ++i)
     {
@@ -3054,21 +3128,22 @@ void renderScene(SDL_Renderer *renderer, const Simulation &sim, const Camera &ca
         {
             skillLabel << " (active " << std::fixed << std::setprecision(1) << skill.activeTimer << "s)";
         }
-        font.drawText(renderer, skillLabel.str(), 20, y);
+        font.drawText(renderer, skillLabel.str(), 20, y, &stats);
         y += font.getLineHeight();
     }
 
     if (!sim.hud.telemetryText.empty() && sim.hud.telemetryTimer > 0.0f)
     {
         const int textWidth = font.measureText(sim.hud.telemetryText);
-        font.drawText(renderer, sim.hud.telemetryText, screenW - textWidth - 12, 12);
+        font.drawText(renderer, sim.hud.telemetryText, screenW - textWidth - 12, 12, &stats);
     }
     if (!sim.hud.resultText.empty() && sim.hud.resultTimer > 0.0f)
     {
         const int textWidth = font.measureText(sim.hud.resultText);
-        font.drawText(renderer, sim.hud.resultText, screenW / 2 - textWidth / 2, screenH / 2 - font.getLineHeight());
+        font.drawText(renderer, sim.hud.resultText, screenW / 2 - textWidth / 2, screenH / 2 - font.getLineHeight(), &stats);
     }
 
+    perf.drawCalls = stats.drawCalls;
     SDL_RenderPresent(renderer);
 }
 
@@ -3186,6 +3261,13 @@ int main(int argc, char **argv)
     double fpsTimer = 0.0;
     int frames = 0;
     float currentFps = 60.0f;
+    FramePerf framePerf;
+    framePerf.fps = currentFps;
+    double perfLogTimer = 0.0;
+    double updateAccum = 0.0;
+    double renderAccum = 0.0;
+    double entityAccum = 0.0;
+    int perfLogFrames = 0;
 
     while (running)
     {
@@ -3278,6 +3360,7 @@ int main(int argc, char **argv)
 
         const Uint8 *keys = SDL_GetKeyboardState(nullptr);
         const float dt = sim.config.fixed_dt;
+        const Uint64 updateStart = SDL_GetPerformanceCounter();
         while (accumulator >= dt)
         {
             Vec2 commanderInput{0.0f, 0.0f};
@@ -3292,6 +3375,9 @@ int main(int argc, char **argv)
             sim.update(dt, commanderInput);
             accumulator -= dt;
         }
+        const Uint64 updateEnd = SDL_GetPerformanceCounter();
+        const double updateMs = (updateEnd - updateStart) * 1000.0 / frequency;
+        framePerf.msUpdate = static_cast<float>(updateMs);
 
         const float frameSeconds = static_cast<float>(frameTime);
         if (introActive)
@@ -3316,7 +3402,41 @@ int main(int argc, char **argv)
         const Vec2 cameraOffset = camera.position;
         Camera renderCamera = camera;
         renderCamera.position = cameraOffset;
-        renderScene(renderer, sim, renderCamera, font, tileMap, atlas, screenWidth, screenHeight, currentFps);
+        framePerf.fps = currentFps;
+        framePerf.entities = static_cast<int>(sim.yunas.size() + sim.enemies.size() + (sim.commander.alive ? 1 : 0));
+        const Uint64 renderStart = SDL_GetPerformanceCounter();
+        renderScene(renderer, sim, renderCamera, font, tileMap, atlas, screenWidth, screenHeight, framePerf);
+        const Uint64 renderEnd = SDL_GetPerformanceCounter();
+        const double renderMs = (renderEnd - renderStart) * 1000.0 / frequency;
+        framePerf.msRender = static_cast<float>(renderMs);
+
+        perfLogTimer += frameTime;
+        updateAccum += updateMs;
+        renderAccum += renderMs;
+        entityAccum += static_cast<double>(framePerf.entities);
+        ++perfLogFrames;
+        if (perfLogTimer >= 1.0 && perfLogFrames > 0)
+        {
+            const double avgFps = static_cast<double>(perfLogFrames) / perfLogTimer;
+            const double avgUpdate = updateAccum / perfLogFrames;
+            const double avgRender = renderAccum / perfLogFrames;
+            const double avgEntities = entityAccum / perfLogFrames;
+            const bool spike = (avgUpdate + avgRender) > 9.0;
+            std::ostringstream logLine;
+            logLine << std::fixed << std::setprecision(1) << "fps=" << avgFps << " ents="
+                    << static_cast<int>(std::round(avgEntities));
+            if (spike)
+            {
+                logLine << " ★";
+            }
+            std::cout << logLine.str() << '\n';
+            std::cout.flush();
+            perfLogTimer = 0.0;
+            updateAccum = 0.0;
+            renderAccum = 0.0;
+            entityAccum = 0.0;
+            perfLogFrames = 0;
+        }
     }
 
     if (fontTex)
