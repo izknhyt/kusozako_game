@@ -26,11 +26,12 @@
 ### 3.1 GameApplication / SceneStack
 - `AppConfig` 読込 → SDL 初期化 → SceneStack push の順で開始。Scene は `onEnter/onExit` フックを持ち、後続のタイトル／チュートリアル追加時にも再利用可能にする。
 - `ServiceLocator` は MVP ではスタブ（サウンドなし）だが、ログ・テレメトリ・オーディオなどクロスカッティングなサービスの差し替えポイントを明示する。
+- `AssetManager` は参照カウント付きリソースプールを実装し、Scene `onEnter` 時にプリロード、`onExit` 時にデクリメントする。ロード粒度は「テクスチャ単位」「フォント単位」「JSON 単位」とし、アトラスや派生テクスチャは依存関係を登録しておく。非同期ロードは未実装だが、API を `requestLoad()` / `acquire()` / `release()` に分割し、将来的に I/O スレッドを差し込めるようにする。ロード失敗時はダミーアセット（`assets/fallback.png`, `assets/ui/fallback.ttf`）にフォールバックし、`TelemetrySink` にエラーを記録する。
 
 ### 3.2 BattleScene モジュール
 - 初期化時にマップ (`level1.tmx`)、アセット JSON (`game.json`, `entities.json`, `skills.json`, `spawn_level1.json`, `atlas.json`) をロードし、ゲームワールドを構築する。
 - サブシステム構成:
-  - `WorldState`: エンティティリスト、タイムステップ管理、乱数ユーティリティ。EntityID 発番と破棄も一元管理する。
+  - `WorldState`: エンティティリスト、タイムステップ管理、乱数ユーティリティ。EntityID 発番と破棄も一元管理する。内部構造は SoA ストレージ + フリーリストで、`EntityHandle` に世代カウンタを含めダングリング参照を防ぐ。コンポーネントプールはキャッシュライン 64B に揃え、`PerformanceBudget` の CPU 12ms 以内を守れるよう、エンティティ 320 体時の更新コストを 35k component ops 以下に抑える指標を設ける。
   - `Spawner`: 味方ちびの生成キュー制御（職業加重／ピティ含む）。`SpawnPolicy` を差し替え可能にし、将来的なイベント生成へ拡張する。
   - `WaveController`: 敵ウェーブ進行、勝敗判定。ウェーブ中断やボス戦の導線を作るため、状態遷移を `WaveState` に集約する。
   - `CommandSystem`: 全軍号令の入力受付と行動上書き。InputMapper と連動し、入力デバイス差に依存しないイベント駆動とする。
@@ -38,7 +39,7 @@
   - `CombatSystem`: 衝突検出と DPS 計算。ヒット結果をバッファリングし、1 フレーム中の複数判定を確定順で適用する。
   - `FormationSystem`: 陣形切替の整列ペナルティ制御。FSM（`Idle`/`Aligning`/`Locked`）で経過時間を管理し、HUD へ進捗を公開する。
   - `JobAbilitySystem`: ちびの職業別スキル制御。`AbilityContext` を介して共通クールダウン・パーティクル生成を扱う。
-  - `RenderingSystem`: Y ソート描画、ビネット演出、LOD スキップ描画。描画キューを `WorldState` とは独立に保持し、ビジビリティ判定の差し替えに備える。
+  - `RenderingSystem`: Y ソート描画、ビネット演出、LOD スキップ描画。描画キューを `WorldState` とは独立に保持し、ビジビリティ判定の差し替えに備える。レンダリングキューはレンジベースイテレータで `WorldState` の世代付きハンドルを参照し、破棄済みエンティティの描画をスキップする。
 - 更新順序は ECS スタイルで決め打ちする（入力 → 指揮系 → AI → 移動 → 衝突 → 状態更新 → スポーン → レンダリング情報構築）。
 
 ### 3.3 UIOverlay モジュール
@@ -93,6 +94,12 @@ while (app.isRunning()) {
 
 コンポーネントはシリアライズ可能な POD に抑え、JSON/バイナリの切替を容易にする。
 
+#### 5.2.1 ストレージ実装
+- `ComponentPool<T>` は SoA で `std::vector<T>` と世代配列、フリーリストを保持。追加・破棄とも O(1)。
+- 更新頻度が高い `Transform` / `Kinematics` は AoSoA（4 件まとめ）に格納して SIMD 最適化の余地を残す。
+- `WorldState` は `FrameAllocator` を併設し、一時バッファ（衝突ペア等）をリセットコスト一定で確保。1 フレームあたり 256KB を上限とする。
+- プロファイル指標: 300 体時の `WorldState::step()` が L1D ミス率 5% 未満であること、`CommandSystem` / `CombatSystem` の単体計測で 4ms を超えた場合はコンポーネント配置を見直す。
+
 ### 5.3 状態遷移図
 - **CommandState**: `Default` → (`CommandIssued`) → `CommandActive` → `CommandCooldown` → `Default`。途中で士気喪失が発生した場合は `Panicked` へ遷移し、号令効果を一時停止する。
 - **MoraleState**: `Stable` → (`LeaderDown`) → `Panic` / `Mesomeso` → `Recovering` → `Stable`。Comfort Zone に入ると `Shielded` へ遷移し、負の効果を受けない。
@@ -133,10 +140,17 @@ while (app.isRunning()) {
 ### 6.8 Telemetry / Debug
 - デバッグオーバーレイ、スポーンログ、士気イベントを `TelemetrySink` に集約。MVP では標準出力へ JSON 行として流し、後続の可視化ツール導入に備える。
 - `FrameCapture` フラグを立てると、次の 5 フレーム分のエンティティスナップショットを `build/debug_dumps/` へ吐き出す。バランス調整時のリグレッション再現が容易になる。
+- JSON ログは 1 ファイル 10MB 上限でローテートし、最新 8 ファイルのみ保持。ファイル命名は `telemetry_YYYYMMDD_HHMMSS_N.jsonl` とし、ローテーション時に古いファイルを削除する。テスト用に `TelemetrySink::setOutputDirectory()` を用意し、CI では `/tmp` に退避させる。
+
+### 6.9 EventBus
+- `EventBus` は購読解除漏れ防止のため弱参照ベースの `SubscriptionToken` を返す。Scene `onExit` でトークンを破棄すると自動解除される。
+- イベントは 2 フレーム有効とし、未処理イベントがキューに残った場合はデバッグ HUD に `unconsumed_events` カウンタを表示。閾値 10 を超えたら警告ログを出力する。
+- `EventBus::dispatch()` は例外安全を担保するため try/catch でハンドラごとにエラーを封じ込め、失敗時は `TelemetrySink` へ `event_failure` を記録。ハンドラが 0 件だったイベントは `TelemetrySink` で `no_listener` として計測し、デザイン抜けを検知する。
 
 ## 7. 入力と操作
 - キーボード／ゲームパッド抽象化を `InputMapper` で吸収。キーボードでは WASD 移動、マウス近接攻撃、F1〜F4 号令、R リスタート。後続のモバイル対応を見越し、アクション ID ベースでバインドする。
-- 入力は `ActionBuffer` に 2 フレーム保持し、瞬間的な押下を見逃さない。ゲームパッドはデッドゾーンとスティック加速度カーブを JSON で調整可能とする。
+- 入力は `ActionBuffer` に保持し、保持フレーム数は `AppConfig.input.buffer_frames` として設定値化。デフォルト 4 フレーム（約 66ms）で、`fixedDelta` を 30FPS（33.3ms）に変更した場合でも入力取りこぼしが発生しないようにする。`InputMapper` は更新毎にデバイス時刻と `buffer_expiry_ms` を比較し、遅延入力を破棄する。
+- ゲームパッドはデッドゾーンとスティック加速度カーブを JSON で調整可能とし、`input_profiles` に設定を保存。QA 用に `InputDiagnostics` HUD を用意し、バッファ長／アクティブ入力を可視化する。
 
 ## 8. HUD / UI
 - 上部ステータスバーに号令／整列／士気テロップを表示。フォントは 24px、影付き。士気アイコンは Sprite アニメーションにより明滅させる。描画順: 背景バー → テキスト → アイコン。
@@ -162,6 +176,10 @@ while (app.isRunning()) {
 5. Victory / Defeat 判定後、R キーで正しくリスタートできることを確認。
 6. デバッグダンプ（`FrameCapture`）が出力され、スポーン履歴 TSV が仕様通りに生成されることを確認。
 7. LOD が発動する条件下（エンティティ 320 体以上）でフレームタイムが 18ms 以下に維持されることを確認。
+8. JSON ファイル破損時（キー欠落、`schema_version` 不一致）に AssetManager がダミーアセットでフォールバックし、ゲームが致命的エラーで停止しないことを確認。
+9. `SpawnBudget` を超えるスポーン要求が発生した際、遅延キューに繰り越され、警告ログが出力されることを確認。
+10. `EventBus` の未購読イベントが 10 件を超えた場合に HUD 上で警告が表示され、テレメトリに `no_listener` が記録されることを確認。
+11. `ActionBuffer` の `buffer_frames` を 1 に変更して QA し、入力取りこぼしが再現することをもってテストケースの感度を担保する。
 
 ## 12. 拡張余地
 - **モバイル対応**: 入力マッピングをアクション ID 化しているため、仮想スティック／ボタン UI を追加するだけで基本操作を再利用できる。レンダラーに内部解像度スケーリングフックを用意し、低スペック端末でも 30FPS を維持する計画。
@@ -179,6 +197,6 @@ while (app.isRunning()) {
 | FPS 固定依存 | モバイル移植時に破綻 | `fixedDelta` を `AppConfig` で調整可能にし、テスト時に 30/60/120 FPS を検証。 |
 
 ## 14. 未確定事項
-- 効果音は MVP 範囲外だが、将来的に必要なイベントを `AudioEvent` としてどのタイミングで発行するかは要検討。
-- UI で利用するアイコン数とアニメーションフレーム長の最終決定。アトラスレイアウト確定前に HUD 実装着手しない。
-- マップ `level1.tmx` のパスファインディングデータ生成方法（手動配置か自動焼き込みか）を α テスト時に評価する。
+- 効果音は MVP 範囲外だが、将来的に必要なイベントを `AudioEvent` としてどのタイミングで発行するかは要検討。**優先度: 中**。HUD 実装完了前（スプリント3終了まで）に決定し、EventBus に予約イベントを追加する。
+- UI で利用するアイコン数とアニメーションフレーム長の最終決定。アトラスレイアウト確定前に HUD 実装着手しない。**優先度: 高**。HUD 実装キックオフ（スプリント2開始）までにアート側と確定する。
+- マップ `level1.tmx` のパスファインディングデータ生成方法（手動配置か自動焼き込みか）を α テスト時に評価する。**優先度: 低**。α テスト準備（スプリント4）までにプロトタイプを比較し意思決定する。
