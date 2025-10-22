@@ -15,6 +15,7 @@
 |  - AppConfig (JSON 読込)                                      |
 |  - AssetManager (テクスチャ / フォント / JSON)               |
 |  - SceneStack                                                 |
+|  - ServiceLocator (Audio Stub / EventBus / Telemetry Sink)    |
 +---------------------------------------------------------------+
            |                               |
            v                               v
@@ -22,21 +23,27 @@
    (ゲームループ本体)               (HUD / テロップ)
 ```
 
-### 3.1 BattleScene モジュール
+### 3.1 GameApplication / SceneStack
+- `AppConfig` 読込 → SDL 初期化 → SceneStack push の順で開始。Scene は `onEnter/onExit` フックを持ち、後続のタイトル／チュートリアル追加時にも再利用可能にする。
+- `ServiceLocator` は MVP ではスタブ（サウンドなし）だが、ログ・テレメトリ・オーディオなどクロスカッティングなサービスの差し替えポイントを明示する。
+
+### 3.2 BattleScene モジュール
 - 初期化時にマップ (`level1.tmx`)、アセット JSON (`game.json`, `entities.json`, `skills.json`, `spawn_level1.json`, `atlas.json`) をロードし、ゲームワールドを構築する。
 - サブシステム構成:
-  - `WorldState`: エンティティリスト、タイムステップ管理、乱数ユーティリティ。
-  - `Spawner`: 味方ちびの生成キュー制御（職業加重／ピティ含む）。
-  - `WaveController`: 敵ウェーブ進行、勝敗判定。
-  - `CommandSystem`: 全軍号令の入力受付と行動上書き。
-  - `MoraleSystem`: リーダーダウン時の士気状態管理。
-  - `CombatSystem`: 衝突検出と DPS 計算。
-  - `FormationSystem`: 陣形切替の整列ペナルティ制御。
-  - `JobAbilitySystem`: ちびの職業別スキル制御。
-  - `RenderingSystem`: Y ソート描画、ビネット演出、LOD スキップ描画。
+  - `WorldState`: エンティティリスト、タイムステップ管理、乱数ユーティリティ。EntityID 発番と破棄も一元管理する。
+  - `Spawner`: 味方ちびの生成キュー制御（職業加重／ピティ含む）。`SpawnPolicy` を差し替え可能にし、将来的なイベント生成へ拡張する。
+  - `WaveController`: 敵ウェーブ進行、勝敗判定。ウェーブ中断やボス戦の導線を作るため、状態遷移を `WaveState` に集約する。
+  - `CommandSystem`: 全軍号令の入力受付と行動上書き。InputMapper と連動し、入力デバイス差に依存しないイベント駆動とする。
+  - `MoraleSystem`: リーダーダウン時の士気状態管理。士気変動はイベントキューを介して UI と共有する。
+  - `CombatSystem`: 衝突検出と DPS 計算。ヒット結果をバッファリングし、1 フレーム中の複数判定を確定順で適用する。
+  - `FormationSystem`: 陣形切替の整列ペナルティ制御。FSM（`Idle`/`Aligning`/`Locked`）で経過時間を管理し、HUD へ進捗を公開する。
+  - `JobAbilitySystem`: ちびの職業別スキル制御。`AbilityContext` を介して共通クールダウン・パーティクル生成を扱う。
+  - `RenderingSystem`: Y ソート描画、ビネット演出、LOD スキップ描画。描画キューを `WorldState` とは独立に保持し、ビジビリティ判定の差し替えに備える。
+- 更新順序は ECS スタイルで決め打ちする（入力 → 指揮系 → AI → 移動 → 衝突 → 状態更新 → スポーン → レンダリング情報構築）。
 
-### 3.2 UIOverlay モジュール
+### 3.3 UIOverlay モジュール
 - SDL_ttf で HUD テキストを描画し、号令／整列／士気などのタイマー表示を司る。フォントキャッシュを行い GC を回避する。アニメーションやアイコンは SpriteSheet (`atlas.json`) を参照して描画する。
+- HUD ロジックは `UiPresenter` と `UiView` に分割し、描画以外の状態計算をテストしやすくする。Presenter は EventBus から `MoraleEvent` / `CommandEvent` を購読する。
 
 ## 4. ゲームループ詳細
 1. **初期化**: SDL サブシステム、フォント、アセットをロード後、BattleScene をスタックに push する。
@@ -45,6 +52,23 @@
 4. **勝敗判定**: WaveController が Victory / Defeat を通知し、結果表示後に `R` キーで再初期化する。
 
 固定更新と描画を分離することで、後続の可変フレームレート対応や演出強化にも対応しやすくする。
+
+### 4.1 メインループ擬似コード
+```cpp
+while (app.isRunning()) {
+    profiler.frameBegin();
+    input.poll();
+    accumulator += clock.tick();
+    while (accumulator >= fixedDelta) {
+        sceneStack.update(fixedDelta);
+        accumulator -= fixedDelta;
+    }
+    sceneStack.render(interpolation(alpha));
+    profiler.frameEnd();
+}
+```
+- `profiler` は MVP では簡易ログのみだが、後続で GPU 時間計測を差し込む余地を残す。
+- `interpolation(alpha)` により固定ロジックとレンダリングの補間を行い、アニメーションの滑らかさを維持する。
 
 ## 5. データレイアウト
 ### 5.1 JSON ファイル
@@ -69,43 +93,66 @@
 
 コンポーネントはシリアライズ可能な POD に抑え、JSON/バイナリの切替を容易にする。
 
+### 5.3 状態遷移図
+- **CommandState**: `Default` → (`CommandIssued`) → `CommandActive` → `CommandCooldown` → `Default`。途中で士気喪失が発生した場合は `Panicked` へ遷移し、号令効果を一時停止する。
+- **MoraleState**: `Stable` → (`LeaderDown`) → `Panic` / `Mesomeso` → `Recovering` → `Stable`。Comfort Zone に入ると `Shielded` へ遷移し、負の効果を受けない。
+- **AIBehaviour**: `SeekTarget` ↔ `Attack` ↔ `Reposition`。職業固有スキルが起動した際は `AbilityResolve` を経由し、完了後に元状態へ戻る。
+
+状態遷移は `enum class StateId` と `TransitionTable` に定義し、JSON からしきい値を上書きできるようにする。
+
 ## 6. 主要システム設計
 ### 6.1 CombatSystem
 - 円 vs 円衝突（拠点のみ AABB）を Spatial Grid で高速化。毎フレーム接触判定を行い、接触中は DPS をデルタタイムで積分してダメージを加算する。
 - ノックバックやステータス変化は MVP では最小限とし、後続の拡張に備えて `StatusEffect` コンテナのみ用意。
+- ライフスティールや DoT のような持続効果は `EffectHandle` で管理し、積み重ねの上限／解除条件をデータ駆動で制御する。
 
 ### 6.2 FormationSystem
 - 陣形切替 API を通じて `align_time_s` と `align_def_mul` を適用。整列状態中は移動ベクトルを目標へ lerp し、被ダメージ計算で倍率を掛ける。HUD に残り時間を表示するため、`FormationHUDState` を発行。
+- 陣形種別は MVP では 2 種だが、`FormationRegistry` を導入し JSON 定義のみで追加できるようにする。
 
 ### 6.3 CommandSystem
 - F1〜F4 の入力を 10 秒間の `CommandOverride` として保持。対象ユニットの `CommandState` を更新し、経過後に `PersonalityBehaviour` へ戻す。HUD に現在の号令と残秒数を表示。
+- 号令入力は `InputAction` → `CommandEvent` → `CommandQueue` の順で処理し、UI と戦闘ロジックの依存を逆転させる。
 
 ### 6.4 MoraleSystem
 - コマンダーがダウンすると `LeaderDownEvent` を発行し、味方ユニットへ `MoraleState` を付与。Comfort Zone 半径内は免疫。復活時に `MoraleBarrier` を付与して解除。UIOverlay へ頭上アイコン描画要求を出す。
+- 士気効果は `MoraleModifier` スタックで管理し、効果時間の延長や縮退を安全に扱う。
 
 ### 6.5 JobAbilitySystem
 - `JobTag` ごとにクールダウンタイマーを持ち、発動条件を満たしたときに専用スキルをトリガー。戦士は命中率補正、弓兵は次弾クリティカル、守衛は局所挑発を実行する。スキル共通設定（不発率、終わり隙、飛び道具速度レンジ）は `jobsCommon` を参照。
+- `AbilityScript` を C++ 側で std::function として登録し、データ駆動とコード実装の両立を図る。
 
 ### 6.6 Spawner
 - 定期スポーン（0.75s 間隔、最大 200 体）を管理。`jobWeights` を正規化して抽選し、同職 3 連続後は未出職の重みを 2 倍にブーストする。スポーン位置には ±16px の乱数を適用。
+- `SpawnBudget` を導入し、フレーム当たりの生成上限を制御。低スペック環境でも GC スパイクを回避する。
 
 ### 6.7 WaveController
 - 敵ゲート A/B/C のスポーンテーブルを読み込み、ウェーブ完了後の Victory 待機 5s、拠点 HP=0 の Defeat を処理。リザルト後の `R` キー入力で再初期化。
+- `WaveTimeline` に `EventMarker` を配置し、中ボス演出やセリフ挿入に備える。
+
+### 6.8 Telemetry / Debug
+- デバッグオーバーレイ、スポーンログ、士気イベントを `TelemetrySink` に集約。MVP では標準出力へ JSON 行として流し、後続の可視化ツール導入に備える。
+- `FrameCapture` フラグを立てると、次の 5 フレーム分のエンティティスナップショットを `build/debug_dumps/` へ吐き出す。バランス調整時のリグレッション再現が容易になる。
 
 ## 7. 入力と操作
 - キーボード／ゲームパッド抽象化を `InputMapper` で吸収。キーボードでは WASD 移動、マウス近接攻撃、F1〜F4 号令、R リスタート。後続のモバイル対応を見越し、アクション ID ベースでバインドする。
+- 入力は `ActionBuffer` に 2 フレーム保持し、瞬間的な押下を見逃さない。ゲームパッドはデッドゾーンとスティック加速度カーブを JSON で調整可能とする。
 
 ## 8. HUD / UI
 - 上部ステータスバーに号令／整列／士気テロップを表示。フォントは 24px、影付き。士気アイコンは Sprite アニメーションにより明滅させる。描画順: 背景バー → テキスト → アイコン。
 - Victory / Defeat 表示は中央にフェードインし、一定時間後に再挑戦の案内（`R` キー）を表示。
+- リザルト表示は `UiPresenter` のステートマシンで制御し、今後の報酬画面追加時に遷移を拡張できるようにする。
 
 ## 9. パフォーマンスと LOD
 - 総エンティティ数が 300 を超えた際は `skip_draw_every=2` を適用し、描画負荷を軽減する。描画スキップはレンダラーでハンドリングし、ゲームロジックは常に毎フレーム更新する。
 - Collision と描画リストを Spatial Grid / Y ソートに分け、O(N log N) を維持する。
+- `PerformanceBudget`: CPU 12ms / GPU 4ms / 入力処理 0.5ms / UI 0.5ms を目標とし、Frame Capture 時に逸脱を検知したらログに警告を出す。
+- 低メモリ環境向けにテクスチャロード済みサイズを計測し、150MB を超えた場合は警告を表示する。
 
 ## 10. デバッグ機能
 - F9 でデバッグオーバーレイをトグルし、FPS・エンティティ数・現在号令・士気状態を表示。
 - F10 で JSON 再読込（開発時のみ）。ホットリロードに失敗した場合は警告ダイアログを出す。
+- `Shift+F10` で最後の 3 ウェーブのスポーン履歴をダンプし、デザイナーが Excel で確認できる TSV を生成する。
 
 ## 11. テスト項目（MVP 受け入れ）
 1. 陣形切替で 1 秒の整列状態が発生し、被ダメージが増えていることを確認。
@@ -113,9 +160,25 @@
 3. 3 職の味方ユニットが固有スキルを使い、視覚的にも差別化されていることを確認。
 4. 同一職が 3 連続した後、未出職の出現率が上昇することをスポーンログで確認。
 5. Victory / Defeat 判定後、R キーで正しくリスタートできることを確認。
+6. デバッグダンプ（`FrameCapture`）が出力され、スポーン履歴 TSV が仕様通りに生成されることを確認。
+7. LOD が発動する条件下（エンティティ 320 体以上）でフレームタイムが 18ms 以下に維持されることを確認。
 
 ## 12. 拡張余地
 - **モバイル対応**: 入力マッピングをアクション ID 化しているため、仮想スティック／ボタン UI を追加するだけで基本操作を再利用できる。レンダラーに内部解像度スケーリングフックを用意し、低スペック端末でも 30FPS を維持する計画。
 - **職業追加**: JobAbilitySystem に登録型ファクトリを用意し、新職業を JSON 定義のみで注入可能にする。
 - **士気拡張**: MoraleSystem をタグベースで設計しているため、追加ステート（例: 士気バリア強化）をデータ駆動で追加可能。
+- **オンライン協力**: サービスロケータでネットワークスタックを差し込み、シーン遷移とイベント配信を `EventBus` ベースで扱うことで遅延耐性を確保する。
+- **ビジュアル拡張**: RenderingSystem のキューを分離しているため、ポストエフェクトチェーン（ブルーム／SSAO）やモーションブラーを追加してもロジックと独立に実装できる。
 
+## 13. リスクと対応策
+| リスク | 影響 | 対応策 |
+| --- | --- | --- |
+| スポーン過多による CPU スパイク | ロジックフレーム落ち込み、ゲーム体験悪化 | `SpawnBudget` と `PerformanceBudget` を運用し、デバッグオーバーレイで観測。必要に応じてスポーンウェーブを調整。 |
+| JSON 依存の型崩れ | 実行時クラッシュ | `schema_version` を各ファイルに追加し、ロード時に検証。CI で JSON スキーマテストを実施。 |
+| シーン遷移追加時のリソース管理漏れ | メモリリーク | Scene の `onExit` でリソース破棄、`AssetManager` に参照カウントを実装。 |
+| FPS 固定依存 | モバイル移植時に破綻 | `fixedDelta` を `AppConfig` で調整可能にし、テスト時に 30/60/120 FPS を検証。 |
+
+## 14. 未確定事項
+- 効果音は MVP 範囲外だが、将来的に必要なイベントを `AudioEvent` としてどのタイミングで発行するかは要検討。
+- UI で利用するアイコン数とアニメーションフレーム長の最終決定。アトラスレイアウト確定前に HUD 実装着手しない。
+- マップ `level1.tmx` のパスファインディングデータ生成方法（手動配置か自動焼き込みか）を α テスト時に評価する。
