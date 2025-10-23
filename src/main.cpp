@@ -9,6 +9,9 @@
 #include "json/JsonUtils.h"
 #include "scenes/Scene.h"
 #include "scenes/SceneStack.h"
+#include "events/EventBus.h"
+#include "services/ServiceLocator.h"
+#include "telemetry/TelemetrySink.h"
 
 #include <algorithm>
 #include <array>
@@ -31,6 +34,7 @@
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
+#include <utility>
 #include <vector>
 
 namespace
@@ -3851,6 +3855,9 @@ class BattleScene : public Scene
     double m_lastUpdateMs = 0.0;
     int m_screenWidth = 0;
     int m_screenHeight = 0;
+    std::shared_ptr<TelemetrySink> m_telemetry;
+    std::shared_ptr<EventBus> m_eventBus;
+    std::shared_ptr<AssetManager> m_assetService;
 };
 
 void BattleScene::onEnter(GameApplication &app, SceneStack &stack)
@@ -3864,25 +3871,53 @@ void BattleScene::onEnter(GameApplication &app, SceneStack &stack)
     m_screenWidth = app.windowWidth();
     m_screenHeight = app.windowHeight();
     SDL_Renderer *renderer = app.renderer();
-    AssetManager &assets = app.assetManager();
+    ServiceLocator &locator = ServiceLocator::instance();
+    m_telemetry = locator.getService<TelemetrySink>();
+    m_eventBus = locator.getService<EventBus>();
+    m_assetService = locator.getService<AssetManager>();
+
+    auto telemetryNotify = [this](std::string reason, std::string detail = {}) {
+        if (!m_telemetry)
+        {
+            return;
+        }
+        TelemetrySink::Payload payload{{"scene", "BattleScene"}, {"reason", std::move(reason)}};
+        if (!detail.empty())
+        {
+            payload.emplace("detail", std::move(detail));
+        }
+        m_telemetry->recordEvent("scene.warning", payload);
+    };
+
+    if (!m_assetService)
+    {
+        std::cerr << "AssetManager service not available.\n";
+        telemetryNotify("asset_manager_missing");
+        return;
+    }
+
+    AssetManager &assets = *m_assetService;
 
     const AppConfig &appConfig = app.appConfig();
     const AppConfigLoadResult &configResult = app.appConfigResult();
     if (!configResult.success)
     {
         std::cerr << "AppConfig loaded with errors, running with fallback values.\n";
+        telemetryNotify("app_config_errors", std::to_string(configResult.errors.size()));
     }
 
     m_tileMap = {};
     if (!loadTileMap(assets, appConfig.game.map_path, m_tileMap))
     {
         std::cerr << "Continuing without tilemap visuals.\n";
+        telemetryNotify("tilemap_missing", appConfig.game.map_path);
     }
 
     m_atlas = {};
     if (!loadAtlas(assets, appConfig.atlasPath, m_atlas))
     {
         std::cerr << "Continuing without atlas visuals.\n";
+        telemetryNotify("atlas_missing", appConfig.atlasPath);
     }
 
     m_sim = {};
@@ -3921,10 +3956,12 @@ void BattleScene::onEnter(GameApplication &app, SceneStack &stack)
     if (!m_hudFont.load(assets, "assets/ui/NotoSansJP-Regular.ttf", 22))
     {
         std::cerr << "Failed to load HUD font (NotoSansJP-Regular.ttf).\n";
+        telemetryNotify("hud_font_missing", "NotoSansJP-Regular.ttf");
     }
     if (!m_debugFont.load(assets, "assets/ui/NotoSansJP-Regular.ttf", 18))
     {
         std::cerr << "Failed to load debug font fallback, using HUD font size.\n";
+        telemetryNotify("debug_font_missing", "NotoSansJP-Regular.ttf");
     }
 
     m_camera = {};
@@ -3952,6 +3989,13 @@ void BattleScene::onEnter(GameApplication &app, SceneStack &stack)
     m_lastUpdateMs = 0.0;
 
     m_initialized = true;
+
+    if (m_eventBus)
+    {
+        EventContext context;
+        context.payload = std::string("battle_scene_initialized");
+        m_eventBus->dispatch("battle.scene.entered", context);
+    }
 }
 
 void BattleScene::onExit(GameApplication &app, SceneStack &stack)
@@ -3964,6 +4008,15 @@ void BattleScene::onExit(GameApplication &app, SceneStack &stack)
     m_hudFont.unload();
     m_debugFont.unload();
     m_initialized = false;
+    if (m_eventBus)
+    {
+        EventContext context;
+        context.payload = std::string("battle_scene_exited");
+        m_eventBus->dispatch("battle.scene.exited", context);
+    }
+    m_assetService.reset();
+    m_eventBus.reset();
+    m_telemetry.reset();
 }
 
 void BattleScene::handleEvent(const SDL_Event &event, GameApplication &app, SceneStack &stack)
@@ -4146,15 +4199,22 @@ void BattleScene::render(SDL_Renderer *renderer, GameApplication &app)
         const double avgRender = m_renderAccum / m_perfLogFrames;
         const double avgEntities = m_entityAccum / m_perfLogFrames;
         const bool spike = (avgUpdate + avgRender) > 9.0;
-        std::ostringstream logLine;
-        logLine << std::fixed << std::setprecision(1) << "fps=" << avgFps << " ents="
-                << static_cast<int>(std::round(avgEntities));
-        if (spike)
+        if (m_telemetry)
         {
-            logLine << " ★";
+            auto formatDouble = [](double value, int precision) {
+                std::ostringstream oss;
+                oss << std::fixed << std::setprecision(precision) << value;
+                return oss.str();
+            };
+
+            TelemetrySink::Payload payload;
+            payload.emplace("fps", formatDouble(avgFps, 1));
+            payload.emplace("update_ms", formatDouble(avgUpdate, 2));
+            payload.emplace("render_ms", formatDouble(avgRender, 2));
+            payload.emplace("entities", std::to_string(static_cast<int>(std::round(avgEntities))));
+            payload.emplace("spike", spike ? "true" : "false");
+            m_telemetry->recordEvent("battle.performance", payload);
         }
-        std::cout << logLine.str() << '\n';
-        std::cout.flush();
         m_perfLogTimer = 0.0;
         m_updateAccum = 0.0;
         m_renderAccum = 0.0;

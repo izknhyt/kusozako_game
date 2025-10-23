@@ -9,6 +9,9 @@
 #include "config/AppConfigLoader.h"
 #include "scenes/SceneStack.h"
 
+class EventBus;
+class TelemetrySink;
+
 class GameApplication
 {
   public:
@@ -37,6 +40,8 @@ class GameApplication
   private:
     bool initialize();
     void shutdown();
+    void registerCoreServices();
+    void unregisterCoreServices();
 
     SDL_Window *m_window = nullptr;
     SDL_Renderer *m_renderer = nullptr;
@@ -53,5 +58,8 @@ class GameApplication
     AssetManager m_assetManager;
     std::shared_ptr<AppConfigLoader> m_configLoader;
     AppConfigLoadResult m_appConfigResult;
+    std::shared_ptr<TelemetrySink> m_telemetrySink;
+    std::shared_ptr<EventBus> m_eventBus;
+    std::shared_ptr<AssetManager> m_assetManagerHandle;
 };
 

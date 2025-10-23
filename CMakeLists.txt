@@ -15,9 +15,12 @@ add_executable(kusozako
   src/main.cpp
   src/app/GameApplication.cpp
   src/assets/AssetManager.cpp
+  src/events/EventBus.cpp
   src/config/AppConfig.cpp
   src/config/AppConfigLoader.cpp
+  src/services/ServiceLocator.cpp
   src/scenes/SceneStack.cpp
+  src/telemetry/ConsoleTelemetrySink.cpp
 )
 
 target_include_directories(kusozako PRIVATE
