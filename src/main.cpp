@@ -3,6 +3,8 @@
 #include <SDL_ttf.h>
 
 #include "app/GameApplication.h"
+#include "assets/AssetManager.h"
+#include "json/JsonUtils.h"
 #include "scenes/Scene.h"
 #include "scenes/SceneStack.h"
 
@@ -66,435 +68,26 @@ static Vec2 normalize(const Vec2 &v)
     return len > 0.0001f ? v / len : Vec2{0.0f, 0.0f};
 }
 
-struct JsonValue
+using namespace json;
+
+std::optional<JsonValue> loadJsonDocument(AssetManager &assets, const std::string &path,
+                                          AssetManager::AssetLoadStatus *outStatus = nullptr)
 {
-    enum class Type
+    auto document = assets.acquireJson(path);
+    AssetManager::AssetLoadStatus status = document.status();
+    if (outStatus)
     {
-        Null,
-        Number,
-        String,
-        Object,
-        Array,
-        Bool
-    };
-
-    Type type = Type::Null;
-    double number = 0.0;
-    bool boolean = false;
-    std::string string;
-    std::unordered_map<std::string, JsonValue> object;
-    std::vector<JsonValue> array;
-};
-
-class JsonParser
-{
-  public:
-    explicit JsonParser(const std::string &src) : text(src) {}
-
-    std::optional<JsonValue> parse()
-    {
-        skipWhitespace();
-        auto value = parseValue();
-        if (!value.has_value())
-        {
-            return std::nullopt;
-        }
-        skipWhitespace();
-        if (pos != text.size())
-        {
-            return std::nullopt;
-        }
-        return value;
+        *outStatus = status;
     }
-
-  private:
-    const std::string &text;
-    std::size_t pos = 0;
-
-    void skipWhitespace()
+    if (!document.get())
     {
-        while (pos < text.size())
-        {
-            const char c = text[pos];
-            if (c == ' ' || c == '\n' || c == '\r' || c == '\t')
-            {
-                ++pos;
-            }
-            else
-            {
-                break;
-            }
-        }
-    }
-
-    std::optional<JsonValue> parseValue()
-    {
-        if (pos >= text.size())
-        {
-            return std::nullopt;
-        }
-        const char c = text[pos];
-        if (c == 'n')
-        {
-            return parseNull();
-        }
-        if (c == 't' || c == 'f')
-        {
-            return parseBool();
-        }
-        if (c == '"')
-        {
-            return parseString();
-        }
-        if (c == '{')
-        {
-            return parseObject();
-        }
-        if (c == '[')
-        {
-            return parseArray();
-        }
-        if (c == '-' || (c >= '0' && c <= '9'))
-        {
-            return parseNumber();
-        }
         return std::nullopt;
     }
-
-    std::optional<JsonValue> parseNull()
-    {
-        if (text.compare(pos, 4, "null") == 0)
-        {
-            pos += 4;
-            JsonValue v;
-            v.type = JsonValue::Type::Null;
-            return v;
-        }
-        return std::nullopt;
-    }
-
-    std::optional<JsonValue> parseBool()
-    {
-        if (text.compare(pos, 4, "true") == 0)
-        {
-            pos += 4;
-            JsonValue v;
-            v.type = JsonValue::Type::Bool;
-            v.boolean = true;
-            return v;
-        }
-        if (text.compare(pos, 5, "false") == 0)
-        {
-            pos += 5;
-            JsonValue v;
-            v.type = JsonValue::Type::Bool;
-            v.boolean = false;
-            return v;
-        }
-        return std::nullopt;
-    }
-
-    std::optional<JsonValue> parseNumber()
-    {
-        std::size_t start = pos;
-        if (text[pos] == '-')
-        {
-            ++pos;
-        }
-        while (pos < text.size() && std::isdigit(static_cast<unsigned char>(text[pos])))
-        {
-            ++pos;
-        }
-        if (pos < text.size() && text[pos] == '.')
-        {
-            ++pos;
-            while (pos < text.size() && std::isdigit(static_cast<unsigned char>(text[pos])))
-            {
-                ++pos;
-            }
-        }
-        if (pos < text.size() && (text[pos] == 'e' || text[pos] == 'E'))
-        {
-            ++pos;
-            if (pos < text.size() && (text[pos] == '+' || text[pos] == '-'))
-            {
-                ++pos;
-            }
-            while (pos < text.size() && std::isdigit(static_cast<unsigned char>(text[pos])))
-            {
-                ++pos;
-            }
-        }
-        const std::string_view numStr(&text[start], pos - start);
-        char *endPtr = nullptr;
-        const double value = std::strtod(numStr.data(), &endPtr);
-        if (endPtr == numStr.data())
-        {
-            return std::nullopt;
-        }
-        JsonValue v;
-        v.type = JsonValue::Type::Number;
-        v.number = value;
-        return v;
-    }
-
-    std::optional<JsonValue> parseString()
-    {
-        if (text[pos] != '"')
-        {
-            return std::nullopt;
-        }
-        ++pos;
-        std::string result;
-        while (pos < text.size())
-        {
-            const char c = text[pos++];
-            if (c == '"')
-            {
-                JsonValue v;
-                v.type = JsonValue::Type::String;
-                v.string = std::move(result);
-                return v;
-            }
-            if (c == '\\')
-            {
-                if (pos >= text.size())
-                {
-                    return std::nullopt;
-                }
-                const char esc = text[pos++];
-                switch (esc)
-                {
-                case '"': result.push_back('"'); break;
-                case '\\': result.push_back('\\'); break;
-                case '/': result.push_back('/'); break;
-                case 'b': result.push_back('\b'); break;
-                case 'f': result.push_back('\f'); break;
-                case 'n': result.push_back('\n'); break;
-                case 'r': result.push_back('\r'); break;
-                case 't': result.push_back('\t'); break;
-                case 'u':
-                    // Minimal MVP: skip \u handling (no such sequences in our assets).
-                    return std::nullopt;
-                default:
-                    return std::nullopt;
-                }
-            }
-            else
-            {
-                result.push_back(c);
-            }
-        }
-        return std::nullopt;
-    }
-
-    std::optional<JsonValue> parseArray()
-    {
-        if (text[pos] != '[')
-        {
-            return std::nullopt;
-        }
-        ++pos;
-        JsonValue v;
-        v.type = JsonValue::Type::Array;
-        skipWhitespace();
-        if (pos < text.size() && text[pos] == ']')
-        {
-            ++pos;
-            return v;
-        }
-        while (true)
-        {
-            skipWhitespace();
-            auto elem = parseValue();
-            if (!elem.has_value())
-            {
-                return std::nullopt;
-            }
-            v.array.push_back(std::move(*elem));
-            skipWhitespace();
-            if (pos < text.size() && text[pos] == ',')
-            {
-                ++pos;
-                continue;
-            }
-            if (pos < text.size() && text[pos] == ']')
-            {
-                ++pos;
-                break;
-            }
-            return std::nullopt;
-        }
-        return v;
-    }
-
-    std::optional<JsonValue> parseObject()
-    {
-        if (text[pos] != '{')
-        {
-            return std::nullopt;
-        }
-        ++pos;
-        JsonValue v;
-        v.type = JsonValue::Type::Object;
-        skipWhitespace();
-        if (pos < text.size() && text[pos] == '}')
-        {
-            ++pos;
-            return v;
-        }
-        while (true)
-        {
-            skipWhitespace();
-            auto key = parseString();
-            if (!key.has_value())
-            {
-                return std::nullopt;
-            }
-            skipWhitespace();
-            if (pos >= text.size() || text[pos] != ':')
-            {
-                return std::nullopt;
-            }
-            ++pos;
-            skipWhitespace();
-            auto value = parseValue();
-            if (!value.has_value())
-            {
-                return std::nullopt;
-            }
-            v.object.emplace(std::move(key->string), std::move(*value));
-            skipWhitespace();
-            if (pos < text.size() && text[pos] == ',')
-            {
-                ++pos;
-                continue;
-            }
-            if (pos < text.size() && text[pos] == '}')
-            {
-                ++pos;
-                break;
-            }
-            return std::nullopt;
-        }
-        return v;
-    }
-};
-
-std::optional<JsonValue> loadJsonFile(const std::string &path)
-{
-    std::ifstream file(path);
-    if (!file.is_open())
-    {
-        std::cerr << "Failed to open JSON: " << path << '\n';
-        return std::nullopt;
-    }
-    std::stringstream buffer;
-    buffer << file.rdbuf();
-    const std::string text = buffer.str();
-    JsonParser parser(text);
-    return parser.parse();
+    JsonValue value = *document.get();
+    return value;
 }
 
-const JsonValue *getObjectField(const JsonValue &obj, const std::string &key)
-{
-    if (obj.type != JsonValue::Type::Object)
-    {
-        return nullptr;
-    }
-    auto it = obj.object.find(key);
-    return it == obj.object.end() ? nullptr : &it->second;
-}
 
-float getNumber(const JsonValue &obj, const std::string &key, float fallback)
-{
-    if (const JsonValue *value = getObjectField(obj, key))
-    {
-        if (value->type == JsonValue::Type::Number)
-        {
-            return static_cast<float>(value->number);
-        }
-    }
-    return fallback;
-}
-
-int getInt(const JsonValue &obj, const std::string &key, int fallback)
-{
-    if (const JsonValue *value = getObjectField(obj, key))
-    {
-        if (value->type == JsonValue::Type::Number)
-        {
-            return static_cast<int>(value->number);
-        }
-    }
-    return fallback;
-}
-
-bool getBool(const JsonValue &obj, const std::string &key, bool fallback)
-{
-    if (const JsonValue *value = getObjectField(obj, key))
-    {
-        if (value->type == JsonValue::Type::Bool)
-        {
-            return value->boolean;
-        }
-    }
-    return fallback;
-}
-
-std::string getString(const JsonValue &obj, const std::string &key, std::string fallback)
-{
-    if (const JsonValue *value = getObjectField(obj, key))
-    {
-        if (value->type == JsonValue::Type::String)
-        {
-            return value->string;
-        }
-    }
-    return fallback;
-}
-
-std::vector<float> getNumberArray(const JsonValue &obj, const std::string &key)
-{
-    std::vector<float> result;
-    if (const JsonValue *value = getObjectField(obj, key))
-    {
-        if (value->type == JsonValue::Type::Array)
-        {
-            for (const JsonValue &elem : value->array)
-            {
-                if (elem.type == JsonValue::Type::Number)
-                {
-                    result.push_back(static_cast<float>(elem.number));
-                }
-            }
-        }
-    }
-    return result;
-}
-
-std::vector<std::string> getStringArray(const JsonValue &obj, const std::string &key)
-{
-    std::vector<std::string> result;
-    if (const JsonValue *value = getObjectField(obj, key))
-    {
-        if (value->type == JsonValue::Type::Array)
-        {
-            for (const JsonValue &elem : value->array)
-            {
-                if (elem.type == JsonValue::Type::String)
-                {
-                    result.push_back(elem.string);
-                }
-            }
-        }
-        else if (value->type == JsonValue::Type::String)
-        {
-            result.push_back(value->string);
-        }
-    }
-    return result;
-}
 
 enum class TemperamentBehavior
 {
@@ -912,12 +505,25 @@ struct MissionConfig
     } win;
 };
 
-std::optional<GameConfig> parseGameConfig(const std::string &path)
+std::optional<GameConfig> parseGameConfig(AssetManager &assets, const std::string &path)
 {
-    auto json = loadJsonFile(path);
+    AssetManager::AssetLoadStatus status;
+    auto json = loadJsonDocument(assets, path, &status);
     if (!json.has_value())
     {
+        if (!status.message.empty())
+        {
+            std::cerr << status.message << '\n';
+        }
+        else
+        {
+            std::cerr << "Failed to load game config: " << path << '\n';
+        }
         return std::nullopt;
+    }
+    if (!status.ok && !status.message.empty())
+    {
+        std::cerr << status.message << '\n';
     }
     GameConfig cfg;
     cfg.fixed_dt = getNumber(*json, "fixed_dt", cfg.fixed_dt);
@@ -990,12 +596,25 @@ std::optional<GameConfig> parseGameConfig(const std::string &path)
     return cfg;
 }
 
-std::optional<EntityCatalog> parseEntityCatalog(const std::string &path)
+std::optional<EntityCatalog> parseEntityCatalog(AssetManager &assets, const std::string &path)
 {
-    auto json = loadJsonFile(path);
+    AssetManager::AssetLoadStatus status;
+    auto json = loadJsonDocument(assets, path, &status);
     if (!json.has_value())
     {
+        if (!status.message.empty())
+        {
+            std::cerr << status.message << '\n';
+        }
+        else
+        {
+            std::cerr << "Failed to load entity catalog: " << path << '\n';
+        }
         return std::nullopt;
+    }
+    if (!status.ok && !status.message.empty())
+    {
+        std::cerr << status.message << '\n';
     }
 
     EntityCatalog catalog;
@@ -1057,12 +676,25 @@ std::optional<EntityCatalog> parseEntityCatalog(const std::string &path)
     return catalog;
 }
 
-std::optional<MapDefs> parseMapDefs(const std::string &path)
+std::optional<MapDefs> parseMapDefs(AssetManager &assets, const std::string &path)
 {
-    auto json = loadJsonFile(path);
+    AssetManager::AssetLoadStatus status;
+    auto json = loadJsonDocument(assets, path, &status);
     if (!json.has_value())
     {
+        if (!status.message.empty())
+        {
+            std::cerr << status.message << '\n';
+        }
+        else
+        {
+            std::cerr << "Failed to load map defs: " << path << '\n';
+        }
         return std::nullopt;
+    }
+    if (!status.ok && !status.message.empty())
+    {
+        std::cerr << status.message << '\n';
     }
     MapDefs defs;
     defs.tile_size = getInt(*json, "tile_size_px", defs.tile_size);
@@ -1091,12 +723,25 @@ std::optional<MapDefs> parseMapDefs(const std::string &path)
     return defs;
 }
 
-std::optional<SpawnScript> parseSpawnScript(const std::string &path)
+std::optional<SpawnScript> parseSpawnScript(AssetManager &assets, const std::string &path)
 {
-    auto json = loadJsonFile(path);
+    AssetManager::AssetLoadStatus status;
+    auto json = loadJsonDocument(assets, path, &status);
     if (!json.has_value())
     {
+        if (!status.message.empty())
+        {
+            std::cerr << status.message << '\n';
+        }
+        else
+        {
+            std::cerr << "Failed to load spawn script: " << path << '\n';
+        }
         return std::nullopt;
+    }
+    if (!status.ok && !status.message.empty())
+    {
+        std::cerr << status.message << '\n';
     }
     SpawnScript script;
     script.y_jitter = getNumber(*json, "y_jitter_px", 0.0f);
@@ -1182,17 +827,29 @@ MissionMode missionModeFromString(const std::string &mode)
     return MissionMode::None;
 }
 
-std::optional<MissionConfig> parseMissionConfig(const std::string &path)
+std::optional<MissionConfig> parseMissionConfig(AssetManager &assets, const std::string &path)
 {
     if (path.empty())
     {
         return std::nullopt;
     }
-    auto json = loadJsonFile(path);
+    AssetManager::AssetLoadStatus status;
+    auto json = loadJsonDocument(assets, path, &status);
     if (!json)
     {
-        std::cerr << "Failed to load mission json: " << path << '\n';
+        if (!status.message.empty())
+        {
+            std::cerr << status.message << '\n';
+        }
+        else
+        {
+            std::cerr << "Failed to load mission json: " << path << '\n';
+        }
         return std::nullopt;
+    }
+    if (!status.ok && !status.message.empty())
+    {
+        std::cerr << status.message << '\n';
     }
     MissionConfig config;
     const std::string modeStr = getString(*json, "mode", "");
@@ -1355,12 +1012,25 @@ std::string prettifySkillName(const std::string &id)
     return result;
 }
 
-std::optional<std::vector<SkillDef>> parseSkillCatalog(const std::string &path)
+std::optional<std::vector<SkillDef>> parseSkillCatalog(AssetManager &assets, const std::string &path)
 {
-    auto json = loadJsonFile(path);
+    AssetManager::AssetLoadStatus status;
+    auto json = loadJsonDocument(assets, path, &status);
     if (!json.has_value())
     {
+        if (!status.message.empty())
+        {
+            std::cerr << status.message << '\n';
+        }
+        else
+        {
+            std::cerr << "Failed to load skill catalog: " << path << '\n';
+        }
         return std::nullopt;
+    }
+    if (!status.ok && !status.message.empty())
+    {
+        std::cerr << status.message << '\n';
     }
     if (json->type != JsonValue::Type::Object)
     {
@@ -1437,12 +1107,25 @@ std::optional<std::vector<SkillDef>> parseSkillCatalog(const std::string &path)
     return defs;
 }
 
-std::optional<TemperamentConfig> parseTemperamentConfig(const std::string &path)
+std::optional<TemperamentConfig> parseTemperamentConfig(AssetManager &assets, const std::string &path)
 {
-    auto json = loadJsonFile(path);
+    AssetManager::AssetLoadStatus status;
+    auto json = loadJsonDocument(assets, path, &status);
     if (!json.has_value())
     {
+        if (!status.message.empty())
+        {
+            std::cerr << status.message << '\n';
+        }
+        else
+        {
+            std::cerr << "Failed to load temperament config: " << path << '\n';
+        }
         return std::nullopt;
+    }
+    if (!status.ok && !status.message.empty())
+    {
+        std::cerr << status.message << '\n';
     }
     if (json->type != JsonValue::Type::Object)
     {
@@ -1794,39 +1477,39 @@ class TextRenderer
     TextRenderer() = default;
     ~TextRenderer() { unload(); }
 
-    bool load(const std::string &fontPath, int pointSize)
+    bool load(AssetManager &assets, const std::string &fontPath, int pointSize)
     {
         unload();
-        font = TTF_OpenFont(fontPath.c_str(), pointSize);
-        if (!font)
+        auto fontRef = assets.acquireFont(fontPath, pointSize);
+        if (!fontRef.get())
         {
-            std::cerr << "Failed to load font: " << fontPath << " -> " << TTF_GetError() << '\n';
+            if (!fontRef.status().message.empty())
+            {
+                std::cerr << fontRef.status().message << '\n';
+            }
             return false;
         }
-        lineHeight = TTF_FontLineSkip(font);
-        return true;
+        lineHeight = TTF_FontLineSkip(fontRef.getRaw());
+        font = std::move(fontRef);
+        return lineHeight > 0;
     }
 
     void unload()
     {
-        if (font)
-        {
-            TTF_CloseFont(font);
-            font = nullptr;
-            lineHeight = 0;
-        }
+        font.reset();
+        lineHeight = 0;
     }
 
     int getLineHeight() const { return lineHeight; }
 
     int measureText(const std::string &text) const
     {
-        if (!font)
+        if (!font.get())
         {
             return 0;
         }
         int width = 0;
-        if (TTF_SizeUTF8(font, text.c_str(), &width, nullptr) != 0)
+        if (TTF_SizeUTF8(font.getRaw(), text.c_str(), &width, nullptr) != 0)
         {
             return 0;
         }
@@ -1836,11 +1519,11 @@ class TextRenderer
     void drawText(SDL_Renderer *renderer, const std::string &text, int x, int y, RenderStats *stats = nullptr,
                   SDL_Color color = {255, 255, 255, 255}) const
     {
-        if (!font || text.empty())
+        if (!font.get() || text.empty())
         {
             return;
         }
-        SDL_Surface *surface = TTF_RenderUTF8_Blended(font, text.c_str(), color);
+        SDL_Surface *surface = TTF_RenderUTF8_Blended(font.getRaw(), text.c_str(), color);
         if (!surface)
         {
             std::cerr << "TTF_RenderUTF8_Blended failed: " << TTF_GetError() << '\n';
@@ -1865,10 +1548,10 @@ class TextRenderer
         SDL_FreeSurface(surface);
     }
 
-    bool isLoaded() const { return font != nullptr; }
+    bool isLoaded() const { return static_cast<bool>(font.get()); }
 
   private:
-    TTF_Font *font = nullptr;
+    AssetManager::FontReference font;
     int lineHeight = 0;
 };
 
@@ -1879,7 +1562,7 @@ struct TileMap
     int tileWidth = 16;
     int tileHeight = 16;
     int tilesetColumns = 1;
-    SDL_Texture *tileset = nullptr;
+    AssetManager::TextureReference tileset;
     std::vector<int> floor;
     std::vector<int> block;
     std::vector<int> deco;
@@ -1887,7 +1570,7 @@ struct TileMap
 
 struct Atlas
 {
-    SDL_Texture *texture = nullptr;
+    AssetManager::TextureReference texture;
     std::unordered_map<std::string, SDL_Rect> frames;
 
     const SDL_Rect *getFrame(const std::string &name) const
@@ -2023,12 +1706,13 @@ bool extractLayer(const std::string &xml, const std::string &layerName, std::vec
     }
 }
 
-bool loadTileMap(const std::string &tmxPath, SDL_Renderer *renderer, TileMap &outMap)
+bool loadTileMap(AssetManager &assets, const std::string &tmxPath, TileMap &outMap)
 {
-    std::ifstream file(tmxPath);
+    const std::string resolvedPath = assets.resolvePath(tmxPath);
+    std::ifstream file(resolvedPath);
     if (!file.is_open())
     {
-        std::cerr << "Failed to open TMX: " << tmxPath << '\n';
+        std::cerr << "Failed to open TMX: " << resolvedPath << '\n';
         return false;
     }
     std::stringstream buffer;
@@ -2086,20 +1770,27 @@ bool loadTileMap(const std::string &tmxPath, SDL_Renderer *renderer, TileMap &ou
         return false;
     }
 
-    if (outMap.tileset)
-    {
-        SDL_DestroyTexture(outMap.tileset);
-        outMap.tileset = nullptr;
-    }
-
-    std::string baseDir = parentDirectory(tmxPath);
+    std::string baseDir = parentDirectory(resolvedPath);
     std::string imagePath = baseDir.empty() ? *sourceAttr : baseDir + "/" + *sourceAttr;
-    outMap.tileset = IMG_LoadTexture(renderer, imagePath.c_str());
-    if (!outMap.tileset)
+    auto tilesetTexture = assets.acquireTexture(imagePath);
+    AssetManager::AssetLoadStatus textureStatus = tilesetTexture.status();
+    if (!tilesetTexture.get())
     {
-        std::cerr << "Failed to load tileset texture: " << imagePath << " -> " << IMG_GetError() << '\n';
+        if (!textureStatus.message.empty())
+        {
+            std::cerr << textureStatus.message << '\n';
+        }
+        else
+        {
+            std::cerr << "Failed to load tileset texture: " << imagePath << '\n';
+        }
         return false;
     }
+    if (!textureStatus.ok && !textureStatus.message.empty())
+    {
+        std::cerr << textureStatus.message << '\n';
+    }
+    outMap.tileset = std::move(tilesetTexture);
 
     if (!extractLayer(xml, "Floor", outMap.floor))
     {
@@ -2114,23 +1805,30 @@ bool loadTileMap(const std::string &tmxPath, SDL_Renderer *renderer, TileMap &ou
     {
         outMap.deco.assign(outMap.width * outMap.height, 0);
     }
-    return true;
+    return textureStatus.ok;
 }
 
-bool loadAtlas(const std::string &atlasPath, SDL_Renderer *renderer, Atlas &atlas)
+bool loadAtlas(AssetManager &assets, const std::string &atlasPath, Atlas &atlas)
 {
-    auto json = loadJsonFile(atlasPath);
+    AssetManager::AssetLoadStatus jsonStatus;
+    auto json = loadJsonDocument(assets, atlasPath, &jsonStatus);
     if (!json)
     {
-        std::cerr << "Failed to load atlas json: " << atlasPath << '\n';
+        if (!jsonStatus.message.empty())
+        {
+            std::cerr << jsonStatus.message << '\n';
+        }
+        else
+        {
+            std::cerr << "Failed to load atlas json: " << atlasPath << '\n';
+        }
         return false;
     }
-    atlas.frames.clear();
-    if (atlas.texture)
+    if (!jsonStatus.ok && !jsonStatus.message.empty())
     {
-        SDL_DestroyTexture(atlas.texture);
-        atlas.texture = nullptr;
+        std::cerr << jsonStatus.message << '\n';
     }
+    atlas.frames.clear();
 
     const JsonValue *meta = getObjectField(*json, "meta");
     std::string imageName = "atlas.png";
@@ -2138,14 +1836,28 @@ bool loadAtlas(const std::string &atlasPath, SDL_Renderer *renderer, Atlas &atla
     {
         imageName = getString(*meta, "image", imageName);
     }
-    std::string baseDir = parentDirectory(atlasPath);
+    const std::string resolvedAtlas = assets.resolvePath(atlasPath);
+    std::string baseDir = parentDirectory(resolvedAtlas);
     std::string imagePath = baseDir.empty() ? imageName : baseDir + "/" + imageName;
-    atlas.texture = IMG_LoadTexture(renderer, imagePath.c_str());
-    if (!atlas.texture)
+    auto textureRef = assets.acquireTexture(imagePath);
+    AssetManager::AssetLoadStatus textureStatus = textureRef.status();
+    if (!textureRef.get())
     {
-        std::cerr << "Failed to load atlas texture: " << imagePath << " -> " << IMG_GetError() << '\n';
+        if (!textureStatus.message.empty())
+        {
+            std::cerr << textureStatus.message << '\n';
+        }
+        else
+        {
+            std::cerr << "Failed to load atlas texture: " << imagePath << '\n';
+        }
         return false;
     }
+    if (!textureStatus.ok && !textureStatus.message.empty())
+    {
+        std::cerr << textureStatus.message << '\n';
+    }
+    atlas.texture = std::move(textureRef);
 
     const JsonValue *frames = getObjectField(*json, "frames");
     if (!frames || frames->type != JsonValue::Type::Object)
@@ -2169,7 +1881,7 @@ bool loadAtlas(const std::string &atlasPath, SDL_Renderer *renderer, Atlas &atla
         rect.h = static_cast<int>(xywh->array[3].number);
         atlas.frames[kv.first] = rect;
     }
-    return true;
+    return textureStatus.ok;
 }
 
 struct HUDState
@@ -4446,7 +4158,7 @@ void drawFilledCircle(SDL_Renderer *renderer, const Vec2 &pos, float radius, Ren
 void drawTileLayer(SDL_Renderer *renderer, const TileMap &map, const std::vector<int> &tiles, const Camera &camera, int screenW,
                    int screenH, RenderStats &stats)
 {
-    if (!map.tileset)
+    if (!map.tileset.get())
     {
         return;
     }
@@ -4482,7 +4194,7 @@ void drawTileLayer(SDL_Renderer *renderer, const TileMap &map, const std::vector
             {
                 continue;
             }
-            countedRenderCopy(renderer, map.tileset, &src, &dst, stats);
+            countedRenderCopy(renderer, map.tileset.getRaw(), &src, &dst, stats);
         }
     }
 }
@@ -4562,18 +4274,18 @@ void renderScene(SDL_Renderer *renderer, const Simulation &sim, const Camera &ca
     countedRenderClear(renderer, stats);
 
     drawTileLayer(renderer, map, map.floor, camera, screenW, screenH, stats);
-    if (map.tileset)
+    if (map.tileset.get())
     {
-        SDL_SetTextureColorMod(map.tileset, 190, 190, 200);
+        SDL_SetTextureColorMod(map.tileset.getRaw(), 190, 190, 200);
         drawTileLayer(renderer, map, map.block, camera, screenW, screenH, stats);
-        SDL_SetTextureColorMod(map.tileset, 255, 255, 255);
+        SDL_SetTextureColorMod(map.tileset.getRaw(), 255, 255, 255);
     }
     drawTileLayer(renderer, map, map.deco, camera, screenW, screenH, stats);
 
     // Draw base
     const Vec2 baseScreen = worldToScreen(sim.basePos, camera);
 
-    if (atlas.texture)
+    if (atlas.texture.get())
     {
         if (const SDL_Rect *baseFrame = atlas.getFrame("base_box"))
         {
@@ -4582,7 +4294,7 @@ void renderScene(SDL_Renderer *renderer, const Simulation &sim, const Camera &ca
                 static_cast<int>(baseScreen.y - baseFrame->h * 0.5f),
                 baseFrame->w,
                 baseFrame->h};
-            countedRenderCopy(renderer, atlas.texture, baseFrame, &dest, stats);
+            countedRenderCopy(renderer, atlas.texture.getRaw(), baseFrame, &dest, stats);
         }
         else
         {
@@ -4732,7 +4444,7 @@ void renderScene(SDL_Renderer *renderer, const Simulation &sim, const Camera &ca
         return a.y < b.y;
     });
 
-    if (atlas.texture)
+    if (atlas.texture.get())
     {
         for (const FriendlySprite &sprite : friendSprites)
         {
@@ -4750,7 +4462,7 @@ void renderScene(SDL_Renderer *renderer, const Simulation &sim, const Camera &ca
                         static_cast<int>(commanderScreen.y - commanderFrame->h * 0.5f),
                         commanderFrame->w,
                         commanderFrame->h};
-                    countedRenderCopy(renderer, atlas.texture, commanderFrame, &dest, stats);
+                    countedRenderCopy(renderer, atlas.texture.getRaw(), commanderFrame, &dest, stats);
                     if (friendRing)
                     {
                         SDL_Rect ringDest{
@@ -4758,7 +4470,7 @@ void renderScene(SDL_Renderer *renderer, const Simulation &sim, const Camera &ca
                             dest.y + dest.h - friendRing->h,
                             friendRing->w,
                             friendRing->h};
-                        countedRenderCopy(renderer, atlas.texture, friendRing, &ringDest, stats);
+                        countedRenderCopy(renderer, atlas.texture.getRaw(), friendRing, &ringDest, stats);
                     }
                 }
                 else
@@ -4773,14 +4485,14 @@ void renderScene(SDL_Renderer *renderer, const Simulation &sim, const Camera &ca
             Vec2 screenPos = worldToScreen(yuna.pos, camera);
             if (yunaFrame)
             {
-                SDL_SetTextureAlphaMod(atlas.texture, yunaAlpha[sprite.index]);
+                SDL_SetTextureAlphaMod(atlas.texture.getRaw(), yunaAlpha[sprite.index]);
                 SDL_Rect dest{
                     static_cast<int>(screenPos.x - yunaFrame->w * 0.5f),
                     static_cast<int>(screenPos.y - yunaFrame->h * 0.5f),
                     yunaFrame->w,
                     yunaFrame->h};
-                countedRenderCopy(renderer, atlas.texture, yunaFrame, &dest, stats);
-                SDL_SetTextureAlphaMod(atlas.texture, 255);
+                countedRenderCopy(renderer, atlas.texture.getRaw(), yunaFrame, &dest, stats);
+                SDL_SetTextureAlphaMod(atlas.texture.getRaw(), 255);
                 if (friendRing)
                 {
                     SDL_Rect ringDest{
@@ -4788,7 +4500,7 @@ void renderScene(SDL_Renderer *renderer, const Simulation &sim, const Camera &ca
                         dest.y + dest.h - friendRing->h,
                         friendRing->w,
                         friendRing->h};
-                    countedRenderCopy(renderer, atlas.texture, friendRing, &ringDest, stats);
+                    countedRenderCopy(renderer, atlas.texture.getRaw(), friendRing, &ringDest, stats);
                 }
                 drawTemperamentLabel(yuna, static_cast<float>(dest.y), static_cast<float>(dest.x + dest.w * 0.5f));
             }
@@ -4805,7 +4517,7 @@ void renderScene(SDL_Renderer *renderer, const Simulation &sim, const Camera &ca
                 drawTemperamentLabel(yuna, screenPos.y - yuna.radius, screenPos.x);
             }
         }
-        SDL_SetTextureAlphaMod(atlas.texture, 255);
+        SDL_SetTextureAlphaMod(atlas.texture.getRaw(), 255);
     }
     else
     {
@@ -4853,7 +4565,7 @@ void renderScene(SDL_Renderer *renderer, const Simulation &sim, const Camera &ca
         return sim.enemies[a].pos.y < sim.enemies[b].pos.y;
     });
 
-    if (atlas.texture)
+    if (atlas.texture.get())
     {
         for (std::size_t idx : enemyOrder)
         {
@@ -4881,7 +4593,7 @@ void renderScene(SDL_Renderer *renderer, const Simulation &sim, const Camera &ca
                     static_cast<int>(screenPos.y - frame->h * 0.5f),
                     frame->w,
                     frame->h};
-                countedRenderCopy(renderer, atlas.texture, frame, &dest, stats);
+                countedRenderCopy(renderer, atlas.texture.getRaw(), frame, &dest, stats);
                 if (enemyRing)
                 {
                     SDL_Rect ringDest{
@@ -4889,7 +4601,7 @@ void renderScene(SDL_Renderer *renderer, const Simulation &sim, const Camera &ca
                         dest.y + dest.h - enemyRing->h,
                         enemyRing->w,
                         enemyRing->h};
-                    countedRenderCopy(renderer, atlas.texture, enemyRing, &ringDest, stats);
+                    countedRenderCopy(renderer, atlas.texture.getRaw(), enemyRing, &ringDest, stats);
                 }
                 spriteRect = dest;
                 hasSpriteRect = true;
@@ -5296,26 +5008,27 @@ void BattleScene::onEnter(GameApplication &app, SceneStack &stack)
     m_screenWidth = app.windowWidth();
     m_screenHeight = app.windowHeight();
     SDL_Renderer *renderer = app.renderer();
+    AssetManager &assets = app.assetManager();
 
-    auto configOpt = parseGameConfig("assets/game.json");
-    auto entityCatalogOpt = parseEntityCatalog("assets/entities.json");
-    auto mapDefsOpt = parseMapDefs("assets/map_defs.json");
-    auto temperamentOpt = parseTemperamentConfig("assets/ai_temperaments.json");
+    auto configOpt = parseGameConfig(assets, "assets/game.json");
+    auto entityCatalogOpt = parseEntityCatalog(assets, "assets/entities.json");
+    auto mapDefsOpt = parseMapDefs(assets, "assets/map_defs.json");
+    auto temperamentOpt = parseTemperamentConfig(assets, "assets/ai_temperaments.json");
     std::optional<SpawnScript> spawnScriptOpt;
     std::optional<MissionConfig> missionOpt;
     if (configOpt)
     {
-        spawnScriptOpt = parseSpawnScript(configOpt->enemy_script);
+        spawnScriptOpt = parseSpawnScript(assets, configOpt->enemy_script);
         if (!configOpt->mission_path.empty())
         {
-            missionOpt = parseMissionConfig(configOpt->mission_path);
+            missionOpt = parseMissionConfig(assets, configOpt->mission_path);
             if (!missionOpt)
             {
                 std::cerr << "Failed to load mission: " << configOpt->mission_path << '\n';
             }
         }
     }
-    auto skillsOpt = parseSkillCatalog("assets/skills.json");
+    auto skillsOpt = parseSkillCatalog(assets, "assets/skills.json");
 
     if (!configOpt || !entityCatalogOpt || !mapDefsOpt || !spawnScriptOpt || !temperamentOpt)
     {
@@ -5325,13 +5038,13 @@ void BattleScene::onEnter(GameApplication &app, SceneStack &stack)
     }
 
     m_tileMap = {};
-    if (!loadTileMap(configOpt->map_path, renderer, m_tileMap))
+    if (!loadTileMap(assets, configOpt->map_path, m_tileMap))
     {
         std::cerr << "Continuing without tilemap visuals.\n";
     }
 
     m_atlas = {};
-    if (!loadAtlas("assets/atlas.json", renderer, m_atlas))
+    if (!loadAtlas(assets, "assets/atlas.json", m_atlas))
     {
         std::cerr << "Continuing without atlas visuals.\n";
     }
@@ -5369,11 +5082,11 @@ void BattleScene::onEnter(GameApplication &app, SceneStack &stack)
     m_sim.configureSkills(skillDefs);
     m_sim.reset();
 
-    if (!m_hudFont.load("assets/ui/NotoSansJP-Regular.ttf", 22))
+    if (!m_hudFont.load(assets, "assets/ui/NotoSansJP-Regular.ttf", 22))
     {
         std::cerr << "Failed to load HUD font (NotoSansJP-Regular.ttf).\n";
     }
-    if (!m_debugFont.load("assets/ui/NotoSansJP-Regular.ttf", 18))
+    if (!m_debugFont.load(assets, "assets/ui/NotoSansJP-Regular.ttf", 18))
     {
         std::cerr << "Failed to load debug font fallback, using HUD font size.\n";
     }
@@ -5410,16 +5123,8 @@ void BattleScene::onExit(GameApplication &app, SceneStack &stack)
     (void)app;
     (void)stack;
 
-    if (m_atlas.texture)
-    {
-        SDL_DestroyTexture(m_atlas.texture);
-        m_atlas.texture = nullptr;
-    }
-    if (m_tileMap.tileset)
-    {
-        SDL_DestroyTexture(m_tileMap.tileset);
-        m_tileMap.tileset = nullptr;
-    }
+    m_atlas.texture.reset();
+    m_tileMap.tileset.reset();
     m_hudFont.unload();
     m_debugFont.unload();
     m_initialized = false;

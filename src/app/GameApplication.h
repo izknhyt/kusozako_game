@@ -5,6 +5,7 @@
 
 #include <SDL.h>
 
+#include "assets/AssetManager.h"
 #include "scenes/SceneStack.h"
 
 class GameApplication
@@ -16,6 +17,8 @@ class GameApplication
     int run();
 
     SceneStack &sceneStack();
+    AssetManager &assetManager();
+    const AssetManager &assetManager() const;
 
     SDL_Window *window() const;
     SDL_Renderer *renderer() const;
@@ -43,5 +46,6 @@ class GameApplication
     std::string m_windowTitle = "Kusozako MVP";
 
     SceneStack m_sceneStack;
+    AssetManager m_assetManager;
 };
 
