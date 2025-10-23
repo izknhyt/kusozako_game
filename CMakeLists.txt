@@ -14,6 +14,7 @@ endif()
 add_executable(kusozako
   src/main.cpp
   src/app/GameApplication.cpp
+  src/assets/AssetManager.cpp
   src/scenes/SceneStack.cpp
 )
 

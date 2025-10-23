@@ -3,7 +3,11 @@
 #include <SDL_image.h>
 #include <SDL_ttf.h>
 
+#include <filesystem>
 #include <iostream>
+#include <memory>
+
+#include "json/JsonUtils.h"
 
 GameApplication::GameApplication() : m_sceneStack(*this) {}
 
@@ -15,6 +19,16 @@ GameApplication::~GameApplication()
 SceneStack &GameApplication::sceneStack()
 {
     return m_sceneStack;
+}
+
+AssetManager &GameApplication::assetManager()
+{
+    return m_assetManager;
+}
+
+const AssetManager &GameApplication::assetManager() const
+{
+    return m_assetManager;
 }
 
 SDL_Window *GameApplication::window() const
@@ -150,6 +164,44 @@ bool GameApplication::initialize()
         return false;
     }
 
+    m_assetManager.setRenderer(m_renderer);
+    const std::filesystem::path rootPath = std::filesystem::absolute("assets");
+    m_assetManager.setAssetRoot(rootPath.string());
+
+    SDL_Texture *fallbackTexture = SDL_CreateTexture(m_renderer, SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_STATIC, 1, 1);
+    if (fallbackTexture)
+    {
+        const Uint32 transparent = 0u;
+        SDL_UpdateTexture(fallbackTexture, nullptr, &transparent, sizeof(transparent));
+        SDL_SetTextureBlendMode(fallbackTexture, SDL_BLENDMODE_BLEND);
+        m_assetManager.setFallbackTexture(AssetManager::TexturePtr(fallbackTexture, [](SDL_Texture *tex) {
+            if (tex) SDL_DestroyTexture(tex);
+        }));
+    }
+    else
+    {
+        std::cerr << "Failed to create fallback texture: " << SDL_GetError() << '\n';
+        m_assetManager.setFallbackTexture(nullptr);
+    }
+
+    const std::string fallbackFontPath = m_assetManager.resolvePath("ui/NotoSansJP-Regular.ttf");
+    TTF_Font *fallbackFont = TTF_OpenFont(fallbackFontPath.c_str(), 20);
+    if (fallbackFont)
+    {
+        m_assetManager.setFallbackFont(AssetManager::FontPtr(fallbackFont, [](TTF_Font *font) {
+            if (font) TTF_CloseFont(font);
+        }));
+    }
+    else
+    {
+        std::cerr << "Failed to load fallback font: " << fallbackFontPath << " -> " << TTF_GetError() << '\n';
+        m_assetManager.setFallbackFont(nullptr);
+    }
+
+    auto fallbackJson = std::make_shared<json::JsonValue>();
+    fallbackJson->type = json::JsonValue::Type::Object;
+    m_assetManager.setFallbackJson(std::move(fallbackJson));
+
     m_running = true;
     m_quitRequested = false;
     m_initialized = true;
@@ -167,6 +219,7 @@ void GameApplication::shutdown()
     }
 
     m_sceneStack.clear();
+    m_assetManager.clear();
 
     if (m_renderer)
     {
