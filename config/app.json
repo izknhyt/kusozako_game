@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "assets": {
+    "game": "assets/game.json",
+    "entities": "assets/entities.json",
+    "map_defs": "assets/map_defs.json",
+    "temperaments": "assets/ai_temperaments.json",
+    "skills": "assets/skills.json",
+    "atlas": "assets/atlas.json"
+  }
+}

@@ -6,12 +6,13 @@
 #include <SDL.h>
 
 #include "assets/AssetManager.h"
+#include "config/AppConfigLoader.h"
 #include "scenes/SceneStack.h"
 
 class GameApplication
 {
   public:
-    GameApplication();
+    explicit GameApplication(std::shared_ptr<AppConfigLoader> configLoader);
     ~GameApplication();
 
     int run();
@@ -19,6 +20,9 @@ class GameApplication
     SceneStack &sceneStack();
     AssetManager &assetManager();
     const AssetManager &assetManager() const;
+
+    const AppConfig &appConfig() const;
+    const AppConfigLoadResult &appConfigResult() const;
 
     SDL_Window *window() const;
     SDL_Renderer *renderer() const;
@@ -47,5 +51,7 @@ class GameApplication
 
     SceneStack m_sceneStack;
     AssetManager m_assetManager;
+    std::shared_ptr<AppConfigLoader> m_configLoader;
+    AppConfigLoadResult m_appConfigResult;
 };
 

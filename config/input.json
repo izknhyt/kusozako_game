@@ -1,4 +1,5 @@
 {
+  "schema_version": 1,
   "FocusBase": "Space",
   "Overview": "Tab",
   "CameraMove": { "W": "up", "A": "left", "S": "down", "D": "right" },

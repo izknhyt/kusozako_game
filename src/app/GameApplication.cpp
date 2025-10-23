@@ -9,7 +9,10 @@
 
 #include "json/JsonUtils.h"
 
-GameApplication::GameApplication() : m_sceneStack(*this) {}
+GameApplication::GameApplication(std::shared_ptr<AppConfigLoader> configLoader)
+    : m_sceneStack(*this), m_configLoader(std::move(configLoader))
+{
+}
 
 GameApplication::~GameApplication()
 {
@@ -29,6 +32,16 @@ AssetManager &GameApplication::assetManager()
 const AssetManager &GameApplication::assetManager() const
 {
     return m_assetManager;
+}
+
+const AppConfig &GameApplication::appConfig() const
+{
+    return m_appConfigResult.config;
+}
+
+const AppConfigLoadResult &GameApplication::appConfigResult() const
+{
+    return m_appConfigResult;
 }
 
 SDL_Window *GameApplication::window() const
@@ -201,6 +214,22 @@ bool GameApplication::initialize()
     auto fallbackJson = std::make_shared<json::JsonValue>();
     fallbackJson->type = json::JsonValue::Type::Object;
     m_assetManager.setFallbackJson(std::move(fallbackJson));
+
+    if (m_configLoader)
+    {
+        m_appConfigResult = m_configLoader->load(m_assetManager);
+        for (const auto &error : m_appConfigResult.errors)
+        {
+            std::cerr << "[config] " << error.file << ": " << error.message << '\n';
+        }
+    }
+    else
+    {
+        m_appConfigResult = {};
+        m_appConfigResult.config = AppConfig{};
+        m_appConfigResult.config.skills = buildDefaultSkills();
+        m_appConfigResult.success = false;
+    }
 
     m_running = true;
     m_quitRequested = false;
