@@ -12,6 +12,8 @@
 #include "events/EventBus.h"
 #include "services/ServiceLocator.h"
 #include "telemetry/TelemetrySink.h"
+#include "world/ComponentPool.h"
+#include "world/WorldState.h"
 
 #include <algorithm>
 #include <array>
@@ -793,7 +795,7 @@ std::string normalizeTelemetry(const std::string &text)
     return "Wave incoming!";
 }
 
-struct Simulation
+struct LegacySimulation
 {
     GameConfig config;
     TemperamentConfig temperamentConfig;
@@ -2972,6 +2974,194 @@ struct Simulation
     bool canRestart() const { return restartCooldown <= 0.0f; }
 };
 
+namespace world
+{
+
+WorldState::WorldState()
+    : m_sim(std::make_unique<LegacySimulation>()),
+      m_allies(std::make_unique<ComponentPool<Unit>>()),
+      m_enemies(std::make_unique<ComponentPool<EnemyUnit>>()),
+      m_walls(std::make_unique<ComponentPool<WallSegment>>()),
+      m_captureZones(std::make_unique<ComponentPool<CaptureRuntime>>())
+{
+}
+
+WorldState::WorldState(WorldState &&other) noexcept = default;
+
+WorldState &WorldState::operator=(WorldState &&other) noexcept = default;
+
+WorldState::~WorldState() = default;
+
+LegacySimulation &WorldState::legacy()
+{
+    return *m_sim;
+}
+
+const LegacySimulation &WorldState::legacy() const
+{
+    return *m_sim;
+}
+
+void WorldState::setWorldBounds(float width, float height)
+{
+    m_sim->setWorldBounds(width, height);
+    markComponentsDirty();
+}
+
+void WorldState::configureSkills(const std::vector<SkillDef> &defs)
+{
+    m_sim->configureSkills(defs);
+    markComponentsDirty();
+}
+
+void WorldState::reset()
+{
+    m_sim->reset();
+    markComponentsDirty();
+}
+
+void WorldState::step(float dt, const Vec2 &commanderInput)
+{
+    m_sim->update(dt, commanderInput);
+    markComponentsDirty();
+}
+
+void WorldState::issueOrder(ArmyStance stance)
+{
+    m_sim->issueOrder(stance);
+    markComponentsDirty();
+}
+
+void WorldState::cycleFormation(int direction)
+{
+    m_sim->cycleFormation(direction);
+    markComponentsDirty();
+}
+
+void WorldState::selectSkillByHotkey(int hotkey)
+{
+    m_sim->selectSkillByHotkey(hotkey);
+    markComponentsDirty();
+}
+
+void WorldState::activateSelectedSkill(const Vec2 &worldPos)
+{
+    m_sim->activateSelectedSkill(worldPos);
+    markComponentsDirty();
+}
+
+bool WorldState::canRestart() const
+{
+    return m_sim->canRestart();
+}
+
+ComponentPool<Unit> &WorldState::allies()
+{
+    syncComponents();
+    return *m_allies;
+}
+
+const ComponentPool<Unit> &WorldState::allies() const
+{
+    return const_cast<WorldState *>(this)->allies();
+}
+
+ComponentPool<EnemyUnit> &WorldState::enemies()
+{
+    syncComponents();
+    return *m_enemies;
+}
+
+const ComponentPool<EnemyUnit> &WorldState::enemies() const
+{
+    return const_cast<WorldState *>(this)->enemies();
+}
+
+ComponentPool<WallSegment> &WorldState::walls()
+{
+    syncComponents();
+    return *m_walls;
+}
+
+const ComponentPool<WallSegment> &WorldState::walls() const
+{
+    return const_cast<WorldState *>(this)->walls();
+}
+
+ComponentPool<CaptureRuntime> &WorldState::missionZones()
+{
+    syncComponents();
+    return *m_captureZones;
+}
+
+const ComponentPool<CaptureRuntime> &WorldState::missionZones() const
+{
+    return const_cast<WorldState *>(this)->missionZones();
+}
+
+void WorldState::markComponentsDirty()
+{
+    m_componentsDirty = true;
+}
+
+void WorldState::rebuildMissionComponents() const
+{
+    m_captureZones->clear(m_registry);
+    for (const CaptureRuntime &zone : m_sim->captureZones)
+    {
+        m_captureZones->create(m_registry, zone);
+    }
+}
+
+void WorldState::syncComponents() const
+{
+    if (!m_componentsDirty)
+    {
+        return;
+    }
+
+    if (!m_allies)
+    {
+        m_allies = std::make_unique<ComponentPool<Unit>>();
+    }
+    if (!m_enemies)
+    {
+        m_enemies = std::make_unique<ComponentPool<EnemyUnit>>();
+    }
+    if (!m_walls)
+    {
+        m_walls = std::make_unique<ComponentPool<WallSegment>>();
+    }
+    if (!m_captureZones)
+    {
+        m_captureZones = std::make_unique<ComponentPool<CaptureRuntime>>();
+    }
+
+    m_allies->clear(m_registry);
+    for (const Unit &unit : m_sim->yunas)
+    {
+        m_allies->create(m_registry, unit);
+    }
+
+    m_enemies->clear(m_registry);
+    for (const EnemyUnit &enemy : m_sim->enemies)
+    {
+        m_enemies->create(m_registry, enemy);
+    }
+
+    m_walls->clear(m_registry);
+    for (const WallSegment &wall : m_sim->walls)
+    {
+        m_walls->create(m_registry, wall);
+    }
+
+    rebuildMissionComponents();
+
+    m_componentsDirty = false;
+}
+
+} // namespace world
+
 struct Camera
 {
     Vec2 position{0.0f, 0.0f};
@@ -3059,7 +3249,7 @@ void drawTileLayer(SDL_Renderer *renderer, const TileMap &map, const std::vector
     }
 }
 
-void renderScene(SDL_Renderer *renderer, const Simulation &sim, const Camera &camera, const TextRenderer &font,
+void renderScene(SDL_Renderer *renderer, const LegacySimulation &sim, const Camera &camera, const TextRenderer &font,
                  const TextRenderer &debugFont, const TileMap &map,
                  const Atlas &atlas, int screenW, int screenH, FramePerf &perf, bool showDebugHud)
 {
@@ -3827,7 +4017,7 @@ class BattleScene : public Scene
 
   private:
     bool m_initialized = false;
-    Simulation m_sim;
+    world::WorldState m_world;
     TileMap m_tileMap;
     Atlas m_atlas;
     TextRenderer m_hudFont;
@@ -3920,38 +4110,39 @@ void BattleScene::onEnter(GameApplication &app, SceneStack &stack)
         telemetryNotify("atlas_missing", appConfig.atlasPath);
     }
 
-    m_sim = {};
-    m_sim.config = appConfig.game;
-    m_sim.temperamentConfig = appConfig.temperament;
-    m_sim.yunaStats = appConfig.entityCatalog.yuna;
-    m_sim.slimeStats = appConfig.entityCatalog.slime;
-    m_sim.wallbreakerStats = appConfig.entityCatalog.wallbreaker;
-    m_sim.commanderStats = appConfig.entityCatalog.commander;
-    m_sim.mapDefs = appConfig.mapDefs;
-    m_sim.spawnScript = appConfig.spawnScript;
+    LegacySimulation &sim = m_world.legacy();
+    sim = {};
+    sim.config = appConfig.game;
+    sim.temperamentConfig = appConfig.temperament;
+    sim.yunaStats = appConfig.entityCatalog.yuna;
+    sim.slimeStats = appConfig.entityCatalog.slime;
+    sim.wallbreakerStats = appConfig.entityCatalog.wallbreaker;
+    sim.commanderStats = appConfig.entityCatalog.commander;
+    sim.mapDefs = appConfig.mapDefs;
+    sim.spawnScript = appConfig.spawnScript;
     if (appConfig.mission && appConfig.mission->mode != MissionMode::None)
     {
-        m_sim.hasMission = true;
-        m_sim.missionConfig = *appConfig.mission;
+        sim.hasMission = true;
+        sim.missionConfig = *appConfig.mission;
     }
     else
     {
-        m_sim.hasMission = false;
+        sim.hasMission = false;
     }
 
     if (m_tileMap.width > 0 && m_tileMap.height > 0)
     {
-        m_sim.setWorldBounds(static_cast<float>(m_tileMap.width * m_tileMap.tileWidth),
-                             static_cast<float>(m_tileMap.height * m_tileMap.tileHeight));
+        m_world.setWorldBounds(static_cast<float>(m_tileMap.width * m_tileMap.tileWidth),
+                               static_cast<float>(m_tileMap.height * m_tileMap.tileHeight));
     }
     else
     {
-        m_sim.setWorldBounds(static_cast<float>(m_screenWidth), static_cast<float>(m_screenHeight));
+        m_world.setWorldBounds(static_cast<float>(m_screenWidth), static_cast<float>(m_screenHeight));
     }
 
     std::vector<SkillDef> skillDefs = appConfig.skills.empty() ? buildDefaultSkills() : appConfig.skills;
-    m_sim.configureSkills(skillDefs);
-    m_sim.reset();
+    m_world.configureSkills(skillDefs);
+    m_world.reset();
 
     if (!m_hudFont.load(assets, "assets/ui/NotoSansJP-Regular.ttf", 22))
     {
@@ -3965,8 +4156,8 @@ void BattleScene::onEnter(GameApplication &app, SceneStack &stack)
     }
 
     m_camera = {};
-    m_baseCameraTarget = {m_sim.basePos.x - m_screenWidth * 0.5f, m_sim.basePos.y - m_screenHeight * 0.5f};
-    m_introFocus = leftmostGateWorld(m_sim.mapDefs);
+    m_baseCameraTarget = {sim.basePos.x - m_screenWidth * 0.5f, sim.basePos.y - m_screenHeight * 0.5f};
+    m_introFocus = leftmostGateWorld(sim.mapDefs);
     m_introCameraTarget = {m_introFocus.x - m_screenWidth * 0.5f, m_introFocus.y - m_screenHeight * 0.5f};
     m_camera.position = m_introCameraTarget;
     m_introTimer = m_introDuration;
@@ -4027,6 +4218,8 @@ void BattleScene::handleEvent(const SDL_Event &event, GameApplication &app, Scen
         return;
     }
 
+    LegacySimulation &sim = m_world.legacy();
+
     if (event.type == SDL_KEYDOWN && event.key.repeat == 0)
     {
         switch (event.key.keysym.scancode)
@@ -4035,45 +4228,45 @@ void BattleScene::handleEvent(const SDL_Event &event, GameApplication &app, Scen
             app.requestQuit();
             break;
         case SDL_SCANCODE_F1:
-            m_sim.issueOrder(ArmyStance::RushNearest);
+            m_world.issueOrder(ArmyStance::RushNearest);
             break;
         case SDL_SCANCODE_F2:
-            m_sim.issueOrder(ArmyStance::PushForward);
+            m_world.issueOrder(ArmyStance::PushForward);
             break;
         case SDL_SCANCODE_F3:
-            m_sim.issueOrder(ArmyStance::FollowLeader);
+            m_world.issueOrder(ArmyStance::FollowLeader);
             break;
         case SDL_SCANCODE_F4:
-            m_sim.issueOrder(ArmyStance::DefendBase);
+            m_world.issueOrder(ArmyStance::DefendBase);
             break;
         case SDL_SCANCODE_F10:
             m_showDebugHud = !m_showDebugHud;
             break;
         case SDL_SCANCODE_SPACE:
-            m_camera.position = {m_sim.commander.pos.x - m_screenWidth * 0.5f,
-                                 m_sim.commander.pos.y - m_screenHeight * 0.5f};
+            m_camera.position = {sim.commander.pos.x - m_screenWidth * 0.5f,
+                                 sim.commander.pos.y - m_screenHeight * 0.5f};
             m_introActive = false;
             m_introTimer = 0.0f;
             break;
         case SDL_SCANCODE_TAB:
-            m_camera.position = {m_sim.basePos.x - m_screenWidth * 0.5f,
-                                 m_sim.basePos.y - m_screenHeight * 0.5f};
+            m_camera.position = {sim.basePos.x - m_screenWidth * 0.5f,
+                                 sim.basePos.y - m_screenHeight * 0.5f};
             m_introActive = false;
             m_introTimer = 0.0f;
             break;
         case SDL_SCANCODE_Z:
-            m_sim.cycleFormation(-1);
+            m_world.cycleFormation(-1);
             break;
         case SDL_SCANCODE_X:
-            m_sim.cycleFormation(1);
+            m_world.cycleFormation(1);
             break;
         case SDL_SCANCODE_R:
-            if (m_sim.result != GameResult::Playing && m_sim.canRestart())
+            if (sim.result != GameResult::Playing && m_world.canRestart())
             {
-                m_sim.reset();
-                m_baseCameraTarget = {m_sim.basePos.x - m_screenWidth * 0.5f,
-                                      m_sim.basePos.y - m_screenHeight * 0.5f};
-                m_introFocus = leftmostGateWorld(m_sim.mapDefs);
+                m_world.reset();
+                m_baseCameraTarget = {sim.basePos.x - m_screenWidth * 0.5f,
+                                      sim.basePos.y - m_screenHeight * 0.5f};
+                m_introFocus = leftmostGateWorld(sim.mapDefs);
                 m_introCameraTarget = {m_introFocus.x - m_screenWidth * 0.5f,
                                        m_introFocus.y - m_screenHeight * 0.5f};
                 m_camera.position = m_introCameraTarget;
@@ -4087,7 +4280,7 @@ void BattleScene::handleEvent(const SDL_Event &event, GameApplication &app, Scen
         case SDL_SCANCODE_4:
         {
             const int hotkey = static_cast<int>(event.key.keysym.scancode - SDL_SCANCODE_1) + 1;
-            m_sim.selectSkillByHotkey(hotkey);
+            m_world.selectSkillByHotkey(hotkey);
             break;
         }
         default:
@@ -4097,7 +4290,7 @@ void BattleScene::handleEvent(const SDL_Event &event, GameApplication &app, Scen
     else if (event.type == SDL_MOUSEBUTTONDOWN && event.button.button == SDL_BUTTON_RIGHT)
     {
         Vec2 worldPos = screenToWorld(event.button.x, event.button.y, m_camera);
-        m_sim.activateSelectedSkill(worldPos);
+        m_world.activateSelectedSkill(worldPos);
     }
 }
 
@@ -4109,6 +4302,8 @@ void BattleScene::update(double deltaSeconds, GameApplication &app, SceneStack &
     {
         return;
     }
+
+    LegacySimulation &sim = m_world.legacy();
 
     m_lastFrameSeconds = deltaSeconds;
     m_accumulator += deltaSeconds;
@@ -4122,7 +4317,7 @@ void BattleScene::update(double deltaSeconds, GameApplication &app, SceneStack &
     }
 
     const Uint8 *keys = SDL_GetKeyboardState(nullptr);
-    const float dt = m_sim.config.fixed_dt;
+    const float dt = sim.config.fixed_dt;
     const Uint64 updateStart = SDL_GetPerformanceCounter();
     while (m_accumulator >= dt)
     {
@@ -4135,7 +4330,7 @@ void BattleScene::update(double deltaSeconds, GameApplication &app, SceneStack &
             if (keys[SDL_SCANCODE_D] || keys[SDL_SCANCODE_RIGHT]) commanderInput.x += 1.0f;
         }
 
-        m_sim.update(dt, commanderInput);
+        m_world.step(dt, commanderInput);
         m_accumulator -= dt;
     }
     const Uint64 updateEnd = SDL_GetPerformanceCounter();
@@ -4158,8 +4353,8 @@ void BattleScene::update(double deltaSeconds, GameApplication &app, SceneStack &
     }
     else
     {
-        Vec2 targetCamera{m_sim.commander.pos.x - m_screenWidth * 0.5f,
-                          m_sim.commander.pos.y - m_screenHeight * 0.5f};
+        Vec2 targetCamera{sim.commander.pos.x - m_screenWidth * 0.5f,
+                          sim.commander.pos.y - m_screenHeight * 0.5f};
         const float followFactor = std::clamp(frameSeconds * 6.0f, 0.0f, 1.0f);
         m_camera.position = lerp(m_camera.position, targetCamera, followFactor);
     }
@@ -4175,13 +4370,16 @@ void BattleScene::render(SDL_Renderer *renderer, GameApplication &app)
         return;
     }
 
+    const LegacySimulation &sim = m_world.legacy();
     const Uint64 renderStart = SDL_GetPerformanceCounter();
 
     const Vec2 cameraOffset = m_camera.position;
     Camera renderCamera = m_camera;
     renderCamera.position = cameraOffset;
-    m_framePerf.entities = static_cast<int>(m_sim.yunas.size() + m_sim.enemies.size() + (m_sim.commander.alive ? 1 : 0));
-    renderScene(renderer, m_sim, renderCamera, m_hudFont, m_debugFont, m_tileMap, m_atlas, m_screenWidth, m_screenHeight,
+    const auto &allyPool = m_world.allies();
+    const auto &enemyPool = m_world.enemies();
+    m_framePerf.entities = static_cast<int>(allyPool.size() + enemyPool.size() + (sim.commander.alive ? 1 : 0));
+    renderScene(renderer, sim, renderCamera, m_hudFont, m_debugFont, m_tileMap, m_atlas, m_screenWidth, m_screenHeight,
                 m_framePerf, m_showDebugHud);
     const Uint64 renderEnd = SDL_GetPerformanceCounter();
     const double renderMs = (renderEnd - renderStart) * 1000.0 / m_frequency;
