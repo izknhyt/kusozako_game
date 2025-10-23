@@ -8,6 +8,9 @@
 #include <memory>
 
 #include "json/JsonUtils.h"
+#include "events/EventBus.h"
+#include "services/ServiceLocator.h"
+#include "telemetry/ConsoleTelemetrySink.h"
 
 GameApplication::GameApplication(std::shared_ptr<AppConfigLoader> configLoader)
     : m_sceneStack(*this), m_configLoader(std::move(configLoader))
@@ -74,6 +77,51 @@ void GameApplication::requestQuit()
     m_quitRequested = true;
 }
 
+void GameApplication::registerCoreServices()
+{
+    auto &locator = ServiceLocator::instance();
+
+    static std::shared_ptr<EventBus> nullEventBus = std::make_shared<NullEventBus>();
+    locator.registerFallback<EventBus>(nullEventBus);
+
+    if (!m_telemetrySink)
+    {
+        m_telemetrySink = std::make_shared<ConsoleTelemetrySink>();
+    }
+    locator.registerService<TelemetrySink>(m_telemetrySink);
+
+    if (!m_assetManagerHandle)
+    {
+        m_assetManagerHandle = std::shared_ptr<AssetManager>(&m_assetManager, [](AssetManager *) {});
+    }
+    locator.registerService<AssetManager>(m_assetManagerHandle);
+
+    if (!m_eventBus)
+    {
+        m_eventBus = std::make_shared<BasicEventBus>(m_telemetrySink);
+    }
+    else if (auto basicBus = std::dynamic_pointer_cast<BasicEventBus>(m_eventBus))
+    {
+        basicBus->setTelemetrySink(m_telemetrySink);
+    }
+    locator.registerService<EventBus>(m_eventBus);
+}
+
+void GameApplication::unregisterCoreServices()
+{
+    auto &locator = ServiceLocator::instance();
+    locator.unregisterService<EventBus>();
+    static std::shared_ptr<EventBus> nullEventBus = std::make_shared<NullEventBus>();
+    locator.registerFallback<EventBus>(nullEventBus);
+    locator.unregisterService<AssetManager>();
+    locator.unregisterService<TelemetrySink>();
+    if (m_telemetrySink)
+    {
+        m_telemetrySink->flush();
+    }
+    m_assetManagerHandle.reset();
+}
+
 int GameApplication::run()
 {
     if (!initialize())
@@ -132,6 +180,8 @@ bool GameApplication::initialize()
     {
         return true;
     }
+
+    registerCoreServices();
 
     if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER) != 0)
     {
@@ -242,6 +292,8 @@ bool GameApplication::initialize()
 
 void GameApplication::shutdown()
 {
+    unregisterCoreServices();
+
     if (!m_initialized)
     {
         return;
