@@ -13,6 +13,7 @@
 #include "services/ServiceLocator.h"
 #include "telemetry/TelemetrySink.h"
 #include "world/ComponentPool.h"
+#include "world/LegacyTypes.h"
 #include "world/WorldState.h"
 #include "world/spawn/Spawner.h"
 #include "world/spawn/WaveController.h"
@@ -741,21 +742,6 @@ bool loadAtlas(AssetManager &assets, const std::string &atlasPath, Atlas &atlas)
     }
     return textureStatus.ok;
 }
-
-struct HUDState
-{
-    std::string telemetryText;
-    float telemetryTimer = 0.0f;
-    std::string resultText;
-    float resultTimer = 0.0f;
-};
-
-enum class GameResult
-{
-    Playing,
-    Victory,
-    Defeat
-};
 
 std::string normalizeTelemetry(const std::string &text)
 {
@@ -1858,23 +1844,6 @@ struct LegacySimulation
         hud.telemetryTimer = config.telemetry_duration;
     }
 
-    void updateOrderTimer(float dt)
-    {
-        if (!orderActive)
-        {
-            return;
-        }
-        if (orderTimer > 0.0f)
-        {
-            orderTimer = std::max(0.0f, orderTimer - dt);
-        }
-        if (orderTimer <= 0.0f)
-        {
-            orderActive = false;
-            stance = defaultStance;
-        }
-    }
-
     void setResult(GameResult r, const std::string &text)
     {
         if (result != GameResult::Playing)
@@ -1891,14 +1860,6 @@ struct LegacySimulation
     void update(float dt, const Vec2 &commanderMoveInput)
     {
         simTime += dt;
-        if (hud.telemetryTimer > 0.0f)
-        {
-            hud.telemetryTimer = std::max(0.0f, hud.telemetryTimer - dt);
-        }
-        if (hud.resultTimer > 0.0f)
-        {
-            hud.resultTimer = std::max(0.0f, hud.resultTimer - dt);
-        }
         if (timeSinceLastEnemySpawn < 10000.0f)
         {
             timeSinceLastEnemySpawn += dt;
@@ -1909,14 +1870,12 @@ struct LegacySimulation
         }
 
         updateSkillTimers(dt);
-        updateOrderTimer(dt);
         updateYunaSpawn(dt);
         updateCommanderRespawn(dt);
         updateCommander(dt, commanderMoveInput);
         updateWalls(dt);
         updateUnits(dt);
         updateMission(dt);
-        evaluateResult();
     }
 
     void updateCommander(float dt, const Vec2 &moveInput)
@@ -2845,24 +2804,6 @@ struct LegacySimulation
         walls.erase(std::remove_if(walls.begin(), walls.end(), [](const WallSegment &wall) { return wall.hp <= 0.0f; }), walls.end());
     }
 
-    void evaluateResult()
-    {
-        if (result != GameResult::Playing)
-        {
-            return;
-        }
-        if (missionMode != MissionMode::None)
-        {
-            return;
-        }
-        const bool wavesFinished = waveScriptComplete && spawnerIdle;
-        const bool noEnemies = enemies.empty();
-        if (wavesFinished && noEnemies && timeSinceLastEnemySpawn >= config.victory_grace)
-        {
-            setResult(GameResult::Victory, "Victory");
-        }
-    }
-
     bool canRestart() const { return restartCooldown <= 0.0f; }
 };
 
@@ -2966,6 +2907,11 @@ void WorldState::step(float dt, const Vec2 &commanderInput)
         m_sim->commander,
         m_sim->hud,
         m_sim->baseHp,
+        m_sim->orderActive,
+        m_sim->orderTimer,
+        m_sim->waveScriptComplete,
+        m_sim->spawnerIdle,
+        m_sim->timeSinceLastEnemySpawn,
         missionContext};
     for (const std::unique_ptr<systems::ISystem> &system : m_systems)
     {
