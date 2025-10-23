@@ -30,6 +30,7 @@ struct MissionContext
 struct SystemContext
 {
     LegacySimulation &simulation;
+    EntityRegistry &registry;
     ComponentPool<Unit> &allies;
     ComponentPool<EnemyUnit> &enemies;
     ComponentPool<WallSegment> &walls;
@@ -43,6 +44,14 @@ struct SystemContext
     bool &waveScriptComplete;
     bool &spawnerIdle;
     float &timeSinceLastEnemySpawn;
+
+    std::vector<Unit> &yunaUnits;
+    std::vector<EnemyUnit> &enemyUnits;
+    std::vector<WallSegment> &wallSegments;
+    std::vector<GateRuntime> &gates;
+    std::vector<float> &yunaRespawnQueue;
+    float &commanderRespawnTimer;
+    float &commanderInvulnTimer;
 
     MissionContext mission;
 };

@@ -320,6 +320,7 @@ void WorldState::step(float dt, const Vec2 &commanderInput)
         m_sim->missionVictoryCountdown};
     systems::SystemContext context{
         *m_sim,
+        m_registry,
         *m_allies,
         *m_enemies,
         *m_walls,
@@ -332,6 +333,13 @@ void WorldState::step(float dt, const Vec2 &commanderInput)
         m_sim->waveScriptComplete,
         m_sim->spawnerIdle,
         m_sim->timeSinceLastEnemySpawn,
+        m_sim->yunas,
+        m_sim->enemies,
+        m_sim->walls,
+        m_sim->gates,
+        m_sim->yunaRespawnTimers,
+        m_sim->commanderRespawnTimer,
+        m_sim->commanderInvulnTimer,
         missionContext};
     for (const std::unique_ptr<systems::ISystem> &system : m_systems)
     {
