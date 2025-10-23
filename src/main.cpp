@@ -14,6 +14,8 @@
 #include "telemetry/TelemetrySink.h"
 #include "world/ComponentPool.h"
 #include "world/WorldState.h"
+#include "world/spawn/Spawner.h"
+#include "world/spawn/WaveController.h"
 
 #include <algorithm>
 #include <array>
@@ -321,16 +323,6 @@ struct GateRuntime
     float hp = 0.0f;
     float maxHp = 0.0f;
     bool destroyed = false;
-};
-
-struct ActiveSpawn
-{
-    Vec2 position;
-    int remaining = 0;
-    float interval = 0.3f;
-    float timer = 0.0f;
-    EnemyArchetype type = EnemyArchetype::Slime;
-    std::string gateId;
 };
 
 class TextRenderer
@@ -808,13 +800,11 @@ struct LegacySimulation
     SpawnScript spawnScript;
     std::vector<Unit> yunas;
     std::vector<EnemyUnit> enemies;
-    std::vector<ActiveSpawn> activeSpawns;
     std::vector<WallSegment> walls;
     std::vector<GateRuntime> gates;
     std::vector<RuntimeSkill> skills;
     Vec2 worldMin{0.0f, 0.0f};
     Vec2 worldMax{1280.0f, 720.0f};
-    std::size_t nextWave = 0;
     float spawnTimer = 0.0f;
     float yunaSpawnTimer = 0.0f;
     float simTime = 0.0f;
@@ -887,6 +877,9 @@ struct LegacySimulation
     float commanderInvulnTimer = 0.0f;
     int reinforcementQueue = 0;
 
+    bool waveScriptComplete = false;
+    bool spawnerIdle = true;
+
     Vec2 basePos;
     Vec2 yunaSpawnPos;
     std::vector<float> yunaRespawnTimers;
@@ -942,9 +935,7 @@ struct LegacySimulation
         yunaSpawnTimer = 0.0f;
         yunas.clear();
         enemies.clear();
-        activeSpawns.clear();
         walls.clear();
-        nextWave = 0;
         spawnEnabled = true;
         result = GameResult::Playing;
         baseHp = static_cast<float>(config.base_hp);
@@ -978,6 +969,8 @@ struct LegacySimulation
             skill.activeTimer = 0.0f;
         }
         yunaRespawnTimers.clear();
+        waveScriptComplete = false;
+        spawnerIdle = true;
         rebuildGates();
         initializeMissionState();
     }
@@ -1208,9 +1201,6 @@ struct LegacySimulation
         gate.destroyed = true;
         gate.hp = 0.0f;
         disabledGates.insert(gate.id);
-        activeSpawns.erase(std::remove_if(activeSpawns.begin(), activeSpawns.end(),
-                                          [&](const ActiveSpawn &spawn) { return spawn.gateId == gate.id; }),
-                          activeSpawns.end());
         if (!silent)
         {
             pushTelemetry(std::string("Gate ") + gate.id + " destroyed!");
@@ -1269,9 +1259,6 @@ struct LegacySimulation
         {
             destroyGate(*runtime, true);
         }
-        activeSpawns.erase(std::remove_if(activeSpawns.begin(), activeSpawns.end(),
-                                          [&](const ActiveSpawn &spawn) { return spawn.gateId == gate; }),
-                          activeSpawns.end());
     }
 
     void initializeMissionState()
@@ -1919,8 +1906,6 @@ struct LegacySimulation
 
         updateSkillTimers(dt);
         updateOrderTimer(dt);
-        updateWaves();
-        updateActiveSpawns(dt);
         updateYunaSpawn(dt);
         updateCommanderRespawn(dt);
         updateCommander(dt, commanderMoveInput);
@@ -1944,103 +1929,6 @@ struct LegacySimulation
         const float speedPx = commanderStats.speed_u_s * config.pixels_per_unit;
         commander.pos += dir * (speedPx * dt);
         clampToWorld(commander.pos, commanderStats.radius);
-    }
-
-    void updateWaves()
-    {
-        if (!spawnEnabled)
-        {
-            return;
-        }
-        while (nextWave < spawnScript.waves.size() && simTime >= spawnScript.waves[nextWave].time)
-        {
-            const Wave &wave = spawnScript.waves[nextWave];
-            for (const SpawnSet &set : wave.sets)
-            {
-                if (disabledGates.find(set.gate) != disabledGates.end())
-                {
-                    continue;
-                }
-                Vec2 gateTile{};
-                bool foundGate = false;
-                if (auto scriptGate = spawnScript.gate_tiles.find(set.gate); scriptGate != spawnScript.gate_tiles.end())
-                {
-                    gateTile = scriptGate->second;
-                    foundGate = true;
-                }
-                else if (auto mapGate = mapDefs.gate_tiles.find(set.gate); mapGate != mapDefs.gate_tiles.end())
-                {
-                    gateTile = mapGate->second;
-                    foundGate = true;
-                }
-                if (!foundGate)
-                {
-                    continue;
-                }
-                ActiveSpawn active;
-                active.position = tileToWorld(gateTile, mapDefs.tile_size);
-                active.remaining = set.count;
-                active.interval = set.interval;
-                active.timer = 0.0f;
-                active.type = set.type;
-                active.gateId = set.gate;
-                activeSpawns.push_back(active);
-            }
-            if (!wave.telemetry.empty())
-            {
-                pushTelemetry(wave.telemetry);
-            }
-            ++nextWave;
-        }
-    }
-
-    void updateActiveSpawns(float dt)
-    {
-        if (!spawnEnabled)
-        {
-            return;
-        }
-        for (ActiveSpawn &spawn : activeSpawns)
-        {
-            if (spawn.remaining <= 0)
-            {
-                continue;
-            }
-            if (!spawn.gateId.empty())
-            {
-                if (const GateRuntime *gate = findGate(spawn.gateId))
-                {
-                    if (gate->destroyed)
-                    {
-                        spawn.remaining = 0;
-                        continue;
-                    }
-                }
-                else if (disabledGates.find(spawn.gateId) != disabledGates.end())
-                {
-                    spawn.remaining = 0;
-                    continue;
-                }
-            }
-            spawn.timer -= dt;
-            if (spawn.timer <= 0.0f)
-            {
-                spawnOneEnemy(spawn.position, spawn.type);
-                float spawnInterval = spawn.interval;
-                if (missionMode == MissionMode::Survival && survival.spawnMultiplier > 0.0f)
-                {
-                    const float mult = std::max(survival.spawnMultiplier, 0.1f);
-                    spawnInterval = spawn.interval / mult;
-                }
-                spawn.timer += spawnInterval;
-                --spawn.remaining;
-                if (spawn.remaining <= 0)
-                {
-                    spawn.timer = 0.0f;
-                }
-            }
-        }
-        activeSpawns.erase(std::remove_if(activeSpawns.begin(), activeSpawns.end(), [](const ActiveSpawn &s) { return s.remaining <= 0; }), activeSpawns.end());
     }
 
     void spawnOneEnemy(Vec2 gatePos, EnemyArchetype type)
@@ -2963,7 +2851,7 @@ struct LegacySimulation
         {
             return;
         }
-        const bool wavesFinished = nextWave >= spawnScript.waves.size() && activeSpawns.empty();
+        const bool wavesFinished = waveScriptComplete && spawnerIdle;
         const bool noEnemies = enemies.empty();
         if (wavesFinished && noEnemies && timeSinceLastEnemySpawn >= config.victory_grace)
         {
@@ -2982,8 +2870,22 @@ WorldState::WorldState()
       m_allies(std::make_unique<ComponentPool<Unit>>()),
       m_enemies(std::make_unique<ComponentPool<EnemyUnit>>()),
       m_walls(std::make_unique<ComponentPool<WallSegment>>()),
-      m_captureZones(std::make_unique<ComponentPool<CaptureRuntime>>())
+      m_captureZones(std::make_unique<ComponentPool<CaptureRuntime>>()),
+      m_waveController(std::make_unique<spawn::WaveController>()),
+      m_spawner(std::make_unique<spawn::Spawner>())
 {
+    m_waveController->setSpawner(m_spawner.get());
+    m_spawner->setGateChecks(
+        [this](const std::string &gate) {
+            return m_sim->disabledGates.find(gate) != m_sim->disabledGates.end();
+        },
+        [this](const std::string &gate) {
+            if (const GateRuntime *runtime = m_sim->findGate(gate))
+            {
+                return runtime->destroyed;
+            }
+            return false;
+        });
 }
 
 WorldState::WorldState(WorldState &&other) noexcept = default;
@@ -3017,12 +2919,70 @@ void WorldState::configureSkills(const std::vector<SkillDef> &defs)
 void WorldState::reset()
 {
     m_sim->reset();
+    if (m_spawner)
+    {
+        m_spawner->clear();
+    }
+    if (m_waveController)
+    {
+        m_waveController->setSpawnScript(m_sim->spawnScript, m_sim->mapDefs);
+    }
+    m_sim->waveScriptComplete = false;
+    m_sim->spawnerIdle = true;
     markComponentsDirty();
 }
 
 void WorldState::step(float dt, const Vec2 &commanderInput)
 {
     m_sim->update(dt, commanderInput);
+
+    if (m_sim->spawnEnabled)
+    {
+        if (m_waveController)
+        {
+            std::vector<std::string> announcements = m_waveController->advance(m_sim->simTime);
+            for (const std::string &text : announcements)
+            {
+                if (!text.empty())
+                {
+                    m_sim->pushTelemetry(text);
+                }
+            }
+        }
+
+        if (m_spawner)
+        {
+            if (m_sim->missionMode == MissionMode::Survival && m_sim->survival.spawnMultiplier > 0.0f)
+            {
+                const float mult = std::max(m_sim->survival.spawnMultiplier, 0.1f);
+                m_spawner->setIntervalModifier([mult](float base) {
+                    if (mult <= 0.0f)
+                    {
+                        return base;
+                    }
+                    return base / mult;
+                });
+            }
+            else
+            {
+                m_spawner->setIntervalModifier({});
+            }
+
+            m_spawner->emit(dt, [this](const spawn::SpawnPayload &payload) {
+                m_sim->spawnOneEnemy(payload.position, payload.type);
+            });
+        }
+    }
+
+    if (m_waveController)
+    {
+        m_sim->waveScriptComplete = m_waveController->isComplete();
+    }
+    if (m_spawner)
+    {
+        m_sim->spawnerIdle = m_spawner->empty();
+    }
+
     markComponentsDirty();
 }
 
@@ -3048,6 +3008,24 @@ void WorldState::activateSelectedSkill(const Vec2 &worldPos)
 {
     m_sim->activateSelectedSkill(worldPos);
     markComponentsDirty();
+}
+
+void WorldState::setEventBus(std::shared_ptr<EventBus> bus)
+{
+    m_eventBus = std::move(bus);
+    if (m_waveController)
+    {
+        m_waveController->setEventBus(m_eventBus);
+    }
+}
+
+void WorldState::setTelemetrySink(std::shared_ptr<TelemetrySink> sink)
+{
+    m_telemetry = std::move(sink);
+    if (m_waveController)
+    {
+        m_waveController->setTelemetrySink(m_telemetry);
+    }
 }
 
 bool WorldState::canRestart() const
@@ -4065,6 +4043,9 @@ void BattleScene::onEnter(GameApplication &app, SceneStack &stack)
     m_telemetry = locator.getService<TelemetrySink>();
     m_eventBus = locator.getService<EventBus>();
     m_assetService = locator.getService<AssetManager>();
+
+    m_world.setTelemetrySink(m_telemetry);
+    m_world.setEventBus(m_eventBus);
 
     auto telemetryNotify = [this](std::string reason, std::string detail = {}) {
         if (!m_telemetry)

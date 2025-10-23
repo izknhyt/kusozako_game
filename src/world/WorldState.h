@@ -31,6 +31,9 @@ struct SpawnScript;
 struct MapDefs;
 enum class ArmyStance;
 
+class EventBus;
+class TelemetrySink;
+
 namespace world
 {
 
@@ -38,6 +41,12 @@ template <typename T>
 class ComponentPool;
 
 struct LegacySimulation;
+
+namespace spawn
+{
+class WaveController;
+class Spawner;
+} // namespace spawn
 
 class WorldState
 {
@@ -62,6 +71,9 @@ class WorldState
     void selectSkillByHotkey(int hotkey);
     void activateSelectedSkill(const Vec2 &worldPos);
 
+    void setEventBus(std::shared_ptr<EventBus> bus);
+    void setTelemetrySink(std::shared_ptr<TelemetrySink> sink);
+
     bool canRestart() const;
 
     ComponentPool<Unit> &allies();
@@ -84,6 +96,11 @@ class WorldState
     mutable std::unique_ptr<ComponentPool<WallSegment>> m_walls;
     mutable std::unique_ptr<ComponentPool<CaptureRuntime>> m_captureZones;
     mutable bool m_componentsDirty = true;
+
+    std::shared_ptr<EventBus> m_eventBus;
+    std::shared_ptr<TelemetrySink> m_telemetry;
+    std::unique_ptr<spawn::WaveController> m_waveController;
+    std::unique_ptr<spawn::Spawner> m_spawner;
 
     void rebuildMissionComponents() const;
 };

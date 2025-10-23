@@ -21,6 +21,8 @@ add_executable(kusozako
   src/services/ServiceLocator.cpp
   src/scenes/SceneStack.cpp
   src/telemetry/ConsoleTelemetrySink.cpp
+  src/world/spawn/Spawner.cpp
+  src/world/spawn/WaveController.cpp
 )
 
 target_include_directories(kusozako PRIVATE
