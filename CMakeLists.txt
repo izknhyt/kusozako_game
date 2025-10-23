@@ -23,6 +23,9 @@ add_executable(kusozako
   src/telemetry/ConsoleTelemetrySink.cpp
   src/world/spawn/Spawner.cpp
   src/world/spawn/WaveController.cpp
+  src/world/systems/CombatSystem.cpp
+  src/world/systems/JobAbilitySystem.cpp
+  src/world/systems/MoraleSystem.cpp
 )
 
 target_include_directories(kusozako PRIVATE

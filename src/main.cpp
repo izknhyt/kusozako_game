@@ -16,6 +16,9 @@
 #include "world/WorldState.h"
 #include "world/spawn/Spawner.h"
 #include "world/spawn/WaveController.h"
+#include "world/systems/CombatSystem.h"
+#include "world/systems/JobAbilitySystem.h"
+#include "world/systems/MoraleSystem.h"
 #include "world/systems/SystemContext.h"
 
 #include <algorithm>
@@ -2887,6 +2890,7 @@ WorldState::WorldState()
             }
             return false;
         });
+    initializeSystems();
 }
 
 WorldState::WorldState(WorldState &&other) noexcept = default;
@@ -2933,9 +2937,43 @@ void WorldState::reset()
     markComponentsDirty();
 }
 
+void WorldState::initializeSystems()
+{
+    m_systems.clear();
+    m_systems.emplace_back(std::make_unique<systems::MoraleSystem>());
+    m_systems.emplace_back(std::make_unique<systems::JobAbilitySystem>());
+    m_systems.emplace_back(std::make_unique<systems::CombatSystem>());
+}
+
 void WorldState::step(float dt, const Vec2 &commanderInput)
 {
     m_sim->update(dt, commanderInput);
+
+    systems::MissionContext missionContext{
+        m_sim->hasMission,
+        m_sim->missionConfig,
+        m_sim->missionMode,
+        m_sim->missionUI,
+        m_sim->missionFail,
+        m_sim->missionTimer,
+        m_sim->missionVictoryCountdown};
+    systems::SystemContext context{
+        *m_sim,
+        *m_allies,
+        *m_enemies,
+        *m_walls,
+        *m_captureZones,
+        m_sim->commander,
+        m_sim->hud,
+        m_sim->baseHp,
+        missionContext};
+    for (const std::unique_ptr<systems::ISystem> &system : m_systems)
+    {
+        if (system)
+        {
+            system->update(dt, context);
+        }
+    }
 
     if (m_sim->spawnEnabled)
     {
