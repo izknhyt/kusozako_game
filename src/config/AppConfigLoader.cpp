@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <fstream>
+#include <optional>
 #include <sstream>
 
 #include "assets/AssetManager.h"
@@ -751,22 +752,45 @@ std::optional<std::vector<SkillDef>> parseSkillCatalog(ParseContext &ctx, const 
         ctx.errors->push_back({path, status.message});
     }
 
-    std::vector<SkillDef> defs;
-    const json::JsonValue &root = *jsonDoc.get();
-    if (root.type != json::JsonValue::Type::Array)
-    {
-        ctx.errors->push_back({path, "Expected skill catalog array"});
-        return std::nullopt;
-    }
-    for (const auto &value : root.array)
-    {
+    auto parseSkill = [](const std::string &idHint, const json::JsonValue &value) -> std::optional<SkillDef> {
         if (value.type != json::JsonValue::Type::Object)
         {
-            continue;
+            return std::nullopt;
         }
+
+        auto getNumberOpt = [](const json::JsonValue &obj, const std::string &key) -> std::optional<float> {
+            if (const json::JsonValue *v = json::getObjectField(obj, key))
+            {
+                if (v->type == json::JsonValue::Type::Number)
+                {
+                    return static_cast<float>(v->number);
+                }
+            }
+            return std::nullopt;
+        };
+        auto getIntOpt = [](const json::JsonValue &obj, const std::string &key) -> std::optional<int> {
+            if (const json::JsonValue *v = json::getObjectField(obj, key))
+            {
+                if (v->type == json::JsonValue::Type::Number)
+                {
+                    return static_cast<int>(v->number);
+                }
+            }
+            return std::nullopt;
+        };
+
         SkillDef def;
-        def.id = json::getString(value, "id", def.id);
-        def.displayName = json::getString(value, "name", def.displayName);
+        def.id = json::getString(value, "id", idHint);
+        if (def.id.empty())
+        {
+            def.id = idHint;
+        }
+        def.displayName = json::getString(value, "name", def.id);
+        if (def.displayName.empty())
+        {
+            def.displayName = def.id;
+        }
+
         std::string type = json::getString(value, "type", "toggle_follow");
         if (type == "make_wall")
         {
@@ -784,22 +808,144 @@ std::optional<std::vector<SkillDef>> parseSkillCatalog(ParseContext &ctx, const 
         {
             def.type = SkillType::ToggleFollow;
         }
-        def.hotkey = json::getInt(value, "hotkey", def.hotkey);
-        def.cooldown = json::getNumber(value, "cooldown_s", def.cooldown);
-        def.mana = json::getNumber(value, "mana", def.mana);
-        def.radius = json::getNumber(value, "radius_px", def.radius);
-        def.duration = json::getNumber(value, "duration_s", def.duration);
-        def.lenTiles = json::getInt(value, "len_tiles", def.lenTiles);
-        def.hpPerSegment = json::getNumber(value, "hp_per_segment", def.hpPerSegment);
-        def.multiplier = json::getNumber(value, "multiplier", def.multiplier);
-        def.damage = json::getNumber(value, "damage", def.damage);
-        def.respawnPenalty = json::getNumber(value, "respawn_penalty", def.respawnPenalty);
-        def.spawnSlowMult = json::getNumber(value, "spawn_slow_multiplier", def.spawnSlowMult);
-        def.spawnSlowDuration = json::getNumber(value, "spawn_slow_duration_s", def.spawnSlowDuration);
-        def.respawnBonusPerHit = json::getNumber(value, "respawn_bonus_per_hit", def.respawnBonusPerHit);
-        def.respawnBonusCap = json::getNumber(value, "respawn_bonus_cap", def.respawnBonusCap);
-        defs.push_back(def);
+
+        if (auto hotkey = getIntOpt(value, "hotkey"))
+        {
+            def.hotkey = *hotkey;
+        }
+        if (auto hotkey = getIntOpt(value, "key"))
+        {
+            def.hotkey = *hotkey;
+        }
+        if (auto cooldown = getNumberOpt(value, "cooldown_s"))
+        {
+            def.cooldown = *cooldown;
+        }
+        if (auto mana = getNumberOpt(value, "mana"))
+        {
+            def.mana = *mana;
+        }
+        if (auto radius = getNumberOpt(value, "radius_px"))
+        {
+            def.radius = *radius;
+        }
+        if (auto duration = getNumberOpt(value, "duration_s"))
+        {
+            def.duration = *duration;
+        }
+        else if (auto duration = getNumberOpt(value, "life_s"))
+        {
+            def.duration = *duration;
+        }
+        if (auto lenTiles = getIntOpt(value, "len_tiles"))
+        {
+            def.lenTiles = *lenTiles;
+        }
+        if (auto hpPerSegment = getNumberOpt(value, "hp_per_segment"))
+        {
+            def.hpPerSegment = *hpPerSegment;
+        }
+        if (auto multiplier = getNumberOpt(value, "multiplier"))
+        {
+            def.multiplier = *multiplier;
+        }
+        else if (auto multiplier = getNumberOpt(value, "mult"))
+        {
+            def.multiplier = *multiplier;
+        }
+        if (auto damage = getNumberOpt(value, "damage"))
+        {
+            def.damage = *damage;
+        }
+        if (auto penalty = getNumberOpt(value, "respawn_penalty"))
+        {
+            def.respawnPenalty = *penalty;
+        }
+        else if (auto penalty = getNumberOpt(value, "respawn_penalty_ratio"))
+        {
+            def.respawnPenalty = *penalty;
+        }
+        if (auto slowMult = getNumberOpt(value, "spawn_slow_multiplier"))
+        {
+            def.spawnSlowMult = *slowMult;
+        }
+        if (auto slowDuration = getNumberOpt(value, "spawn_slow_duration_s"))
+        {
+            def.spawnSlowDuration = *slowDuration;
+        }
+        if (const json::JsonValue *spawnSlow = json::getObjectField(value, "spawn_slow"))
+        {
+            if (auto slowMult = getNumberOpt(*spawnSlow, "multiplier"))
+            {
+                def.spawnSlowMult = *slowMult;
+            }
+            else if (auto slowMult = getNumberOpt(*spawnSlow, "mult"))
+            {
+                def.spawnSlowMult = *slowMult;
+            }
+            if (auto slowDuration = getNumberOpt(*spawnSlow, "duration_s"))
+            {
+                def.spawnSlowDuration = *slowDuration;
+            }
+        }
+        if (auto bonus = getNumberOpt(value, "respawn_bonus_per_hit"))
+        {
+            def.respawnBonusPerHit = *bonus;
+        }
+        else if (auto bonus = getNumberOpt(value, "respawn_bonus_per_hit_s"))
+        {
+            def.respawnBonusPerHit = *bonus;
+        }
+        if (auto bonusCap = getNumberOpt(value, "respawn_bonus_cap"))
+        {
+            def.respawnBonusCap = *bonusCap;
+        }
+        else if (auto bonusCap = getNumberOpt(value, "respawn_bonus_cap_s"))
+        {
+            def.respawnBonusCap = *bonusCap;
+        }
+
+        if (def.id.empty())
+        {
+            return std::nullopt;
+        }
+        return def;
+    };
+
+    std::vector<SkillDef> defs;
+    const json::JsonValue &root = *jsonDoc.get();
+    if (root.type == json::JsonValue::Type::Array)
+    {
+        for (const auto &value : root.array)
+        {
+            if (auto def = parseSkill("", value))
+            {
+                defs.push_back(*def);
+            }
+        }
     }
+    else if (root.type == json::JsonValue::Type::Object)
+    {
+        for (const auto &kv : root.object)
+        {
+            if (auto def = parseSkill(kv.first, kv.second))
+            {
+                defs.push_back(*def);
+            }
+        }
+    }
+    else
+    {
+        ctx.errors->push_back({path, "Expected skill catalog object or array"});
+        return std::nullopt;
+    }
+
+    if (defs.empty())
+    {
+        ctx.errors->push_back({path, "No valid skill definitions"});
+        return std::nullopt;
+    }
+
     return defs;
 }
 
