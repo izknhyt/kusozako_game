@@ -50,6 +50,8 @@ class Spawner;
 
 namespace systems
 {
+struct SystemContext;
+class JobAbilitySystem;
 class ISystem;
 } // namespace systems
 
@@ -106,9 +108,11 @@ class WorldState
     std::shared_ptr<TelemetrySink> m_telemetry;
     std::unique_ptr<spawn::WaveController> m_waveController;
     std::unique_ptr<spawn::Spawner> m_spawner;
+    std::unique_ptr<systems::JobAbilitySystem> m_jobSystem;
     std::vector<std::unique_ptr<systems::ISystem>> m_systems;
 
     void rebuildMissionComponents() const;
+    systems::SystemContext makeSystemContext();
     void initializeSystems();
 };
 

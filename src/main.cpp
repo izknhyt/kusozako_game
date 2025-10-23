@@ -14,6 +14,7 @@
 #include "telemetry/TelemetrySink.h"
 #include "world/ComponentPool.h"
 #include "world/LegacyTypes.h"
+#include "world/SkillRuntime.h"
 #include "world/WorldState.h"
 #include "world/spawn/Spawner.h"
 #include "world/spawn/WaveController.h"
@@ -130,13 +131,6 @@ const char *temperamentBehaviorName(TemperamentBehavior behavior)
     }
     return "Unknown";
 }
-
-struct RuntimeSkill
-{
-    SkillDef def;
-    float cooldownRemaining = 0.0f;
-    float activeTimer = 0.0f;
-};
 
 struct TemperamentState
 {
@@ -995,40 +989,6 @@ struct LegacySimulation
         yunaRespawnTimers.push_back(computeChibiRespawnTime(overkillRatio));
     }
 
-    void updateSkillTimers(float dt)
-    {
-        for (RuntimeSkill &skill : skills)
-        {
-            if (skill.cooldownRemaining > 0.0f)
-            {
-                skill.cooldownRemaining = std::max(0.0f, skill.cooldownRemaining - dt);
-            }
-            if (skill.activeTimer > 0.0f)
-            {
-                skill.activeTimer = std::max(0.0f, skill.activeTimer - dt);
-                if (skill.activeTimer <= 0.0f)
-                {
-                    if (skill.def.type == SkillType::SpawnRate)
-                    {
-                        spawnRateMultiplier = 1.0f;
-                    }
-                }
-            }
-        }
-        if (spawnSlowTimer > 0.0f)
-        {
-            spawnSlowTimer = std::max(0.0f, spawnSlowTimer - dt);
-            if (spawnSlowTimer <= 0.0f)
-            {
-                spawnSlowMultiplier = 1.0f;
-            }
-        }
-        if (commanderInvulnTimer > 0.0f && commander.alive)
-        {
-            commanderInvulnTimer = std::max(0.0f, commanderInvulnTimer - dt);
-        }
-    }
-
     void updateCommanderRespawn(float dt)
     {
         if (commander.alive)
@@ -1045,6 +1005,14 @@ struct LegacySimulation
                 commander.pos = yunaSpawnPos;
                 commanderInvulnTimer = config.commander_respawn.invuln;
             }
+        }
+    }
+
+    void updateCommanderInvulnerability(float dt)
+    {
+        if (commanderInvulnTimer > 0.0f && commander.alive)
+        {
+            commanderInvulnTimer = std::max(0.0f, commanderInvulnTimer - dt);
         }
     }
 
@@ -1621,6 +1589,31 @@ struct LegacySimulation
         hud.resultTimer = config.telemetry_duration;
     }
 
+    void applyRallyState(bool active, const SkillDef &def, const Vec2 &worldTarget)
+    {
+        rallyState = active;
+        if (rallyState)
+        {
+            const float radiusSq = def.radius * def.radius;
+            for (Unit &yuna : yunas)
+            {
+                if (lengthSq(yuna.pos - worldTarget) <= radiusSq)
+                {
+                    yuna.followBySkill = true;
+                }
+            }
+            pushTelemetry("Rally!");
+        }
+        else
+        {
+            for (Unit &yuna : yunas)
+            {
+                yuna.followBySkill = false;
+            }
+            pushTelemetry("Rally dismissed");
+        }
+    }
+
     void spawnWallSegments(const SkillDef &def, const Vec2 &worldTarget)
     {
         if (!commander.alive)
@@ -1736,65 +1729,6 @@ struct LegacySimulation
         pushTelemetry("Self Destruct!");
     }
 
-    void activateSkillAtIndex(int index, const Vec2 &worldTarget)
-    {
-        if (index < 0 || index >= static_cast<int>(skills.size()))
-        {
-            return;
-        }
-        RuntimeSkill &skill = skills[static_cast<std::size_t>(index)];
-        if (skill.cooldownRemaining > 0.0f)
-        {
-            return;
-        }
-        switch (skill.def.type)
-        {
-        case SkillType::ToggleFollow:
-            rallyState = !rallyState;
-            if (rallyState)
-            {
-                const float radiusSq = skill.def.radius * skill.def.radius;
-                for (Unit &yuna : yunas)
-                {
-                    if (lengthSq(yuna.pos - worldTarget) <= radiusSq)
-                    {
-                        yuna.followBySkill = true;
-                    }
-                }
-                pushTelemetry("Rally!");
-            }
-            else
-            {
-                for (Unit &yuna : yunas)
-                {
-                    yuna.followBySkill = false;
-                }
-                pushTelemetry("Rally dismissed");
-            }
-            skill.cooldownRemaining = skill.def.cooldown;
-            break;
-        case SkillType::MakeWall:
-            spawnWallSegments(skill.def, worldTarget);
-            skill.cooldownRemaining = skill.def.cooldown;
-            break;
-        case SkillType::SpawnRate:
-            spawnRateMultiplier = skill.def.multiplier;
-            skill.activeTimer = skill.def.duration;
-            skill.cooldownRemaining = skill.def.cooldown;
-            pushTelemetry("Spawn surge");
-            break;
-        case SkillType::Detonate:
-            detonateCommander(skill.def);
-            skill.cooldownRemaining = skill.def.cooldown;
-            break;
-        }
-    }
-
-    void activateSelectedSkill(const Vec2 &worldTarget)
-    {
-        activateSkillAtIndex(selectedSkill, worldTarget);
-    }
-
     void selectSkillByHotkey(int hotkey)
     {
         for (std::size_t i = 0; i < skills.size(); ++i)
@@ -1869,9 +1803,9 @@ struct LegacySimulation
             restartCooldown = std::max(0.0f, restartCooldown - dt);
         }
 
-        updateSkillTimers(dt);
         updateYunaSpawn(dt);
         updateCommanderRespawn(dt);
+        updateCommanderInvulnerability(dt);
         updateCommander(dt, commanderMoveInput);
         updateWalls(dt);
         updateUnits(dt);
@@ -2878,18 +2812,8 @@ void WorldState::reset()
     markComponentsDirty();
 }
 
-void WorldState::initializeSystems()
+systems::SystemContext WorldState::makeSystemContext()
 {
-    m_systems.clear();
-    m_systems.emplace_back(std::make_unique<systems::MoraleSystem>());
-    m_systems.emplace_back(std::make_unique<systems::JobAbilitySystem>());
-    m_systems.emplace_back(std::make_unique<systems::CombatSystem>());
-}
-
-void WorldState::step(float dt, const Vec2 &commanderInput)
-{
-    m_sim->update(dt, commanderInput);
-
     systems::MissionContext missionContext{
         m_sim->hasMission,
         m_sim->missionConfig,
@@ -2912,7 +2836,34 @@ void WorldState::step(float dt, const Vec2 &commanderInput)
         m_sim->waveScriptComplete,
         m_sim->spawnerIdle,
         m_sim->timeSinceLastEnemySpawn,
+        m_sim->skills,
+        m_sim->selectedSkill,
+        m_sim->rallyState,
+        m_sim->spawnRateMultiplier,
+        m_sim->spawnSlowMultiplier,
+        m_sim->spawnSlowTimer,
         missionContext};
+    return context;
+}
+
+void WorldState::initializeSystems()
+{
+    m_systems.clear();
+    m_jobSystem = std::make_unique<systems::JobAbilitySystem>();
+    m_systems.emplace_back(std::make_unique<systems::MoraleSystem>());
+    m_systems.emplace_back(std::make_unique<systems::CombatSystem>());
+}
+
+void WorldState::step(float dt, const Vec2 &commanderInput)
+{
+    systems::SystemContext context = makeSystemContext();
+    if (m_jobSystem)
+    {
+        m_jobSystem->update(dt, context);
+    }
+
+    m_sim->update(dt, commanderInput);
+
     for (const std::unique_ptr<systems::ISystem> &system : m_systems)
     {
         if (system)
@@ -2991,7 +2942,12 @@ void WorldState::selectSkillByHotkey(int hotkey)
 
 void WorldState::activateSelectedSkill(const Vec2 &worldPos)
 {
-    m_sim->activateSelectedSkill(worldPos);
+    if (m_jobSystem)
+    {
+        systems::SystemContext context = makeSystemContext();
+        systems::SkillCommand command{m_sim->selectedSkill, worldPos};
+        m_jobSystem->triggerSkill(context, command);
+    }
     markComponentsDirty();
 }
 

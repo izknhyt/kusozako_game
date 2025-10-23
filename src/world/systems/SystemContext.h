@@ -2,6 +2,8 @@
 
 #include "world/ComponentPool.h"
 
+#include <vector>
+
 struct Unit;
 struct EnemyUnit;
 struct WallSegment;
@@ -12,6 +14,7 @@ struct MissionConfig;
 struct MissionUIOptions;
 struct MissionFailConditions;
 enum class MissionMode;
+struct RuntimeSkill;
 
 namespace world
 {
@@ -48,6 +51,12 @@ struct SystemContext
     bool &waveScriptComplete;
     bool &spawnerIdle;
     float &timeSinceLastEnemySpawn;
+    std::vector<RuntimeSkill> &skills;
+    int &selectedSkill;
+    bool &rallyState;
+    float &spawnRateMultiplier;
+    float &spawnSlowMultiplier;
+    float &spawnSlowTimer;
 
     MissionContext mission;
 };
