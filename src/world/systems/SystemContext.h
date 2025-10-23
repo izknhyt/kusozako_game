@@ -43,6 +43,11 @@ struct SystemContext
     CommanderUnit &commander;
     HUDState &hud;
     float &baseHp;
+    bool &orderActive;
+    float &orderTimer;
+    bool &waveScriptComplete;
+    bool &spawnerIdle;
+    float &timeSinceLastEnemySpawn;
 
     MissionContext mission;
 };
