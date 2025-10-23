@@ -1,6 +1,7 @@
 #pragma once
 
 #include "world/Entity.h"
+#include "world/LegacySimulation.h"
 
 #include <memory>
 #include <vector>
@@ -15,14 +16,7 @@ struct EntityStats;
 struct WallbreakerStats;
 struct MissionConfig;
 struct MissionUIState;
-struct RuntimeSkill;
-struct GateRuntime;
 struct ActiveSpawn;
-struct WallSegment;
-struct Unit;
-struct EnemyUnit;
-struct CommanderUnit;
-struct CaptureRuntime;
 struct SurvivalState;
 struct BossState;
 struct CaptureState;
@@ -39,8 +33,6 @@ namespace world
 
 template <typename T>
 class ComponentPool;
-
-struct LegacySimulation;
 
 namespace spawn
 {

@@ -1,11 +1,8 @@
 #pragma once
 
 #include "world/ComponentPool.h"
+#include "world/LegacySimulation.h"
 
-struct Unit;
-struct EnemyUnit;
-struct WallSegment;
-struct CaptureRuntime;
 struct CommanderUnit;
 struct HUDState;
 struct MissionConfig;
@@ -15,8 +12,6 @@ enum class MissionMode;
 
 namespace world
 {
-
-struct LegacySimulation;
 
 namespace systems
 {
