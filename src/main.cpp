@@ -777,6 +777,9 @@ std::string normalizeTelemetry(const std::string &text)
     return "Wave incoming!";
 }
 
+namespace world
+{
+
 struct LegacySimulation
 {
     GameConfig config;
@@ -2806,6 +2809,10 @@ struct LegacySimulation
 
     bool canRestart() const { return restartCooldown <= 0.0f; }
 };
+
+} // namespace world
+
+using world::LegacySimulation;
 
 namespace world
 {
