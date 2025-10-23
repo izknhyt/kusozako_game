@@ -48,6 +48,11 @@ class WaveController;
 class Spawner;
 } // namespace spawn
 
+namespace systems
+{
+class ISystem;
+} // namespace systems
+
 class WorldState
 {
   public:
@@ -101,8 +106,10 @@ class WorldState
     std::shared_ptr<TelemetrySink> m_telemetry;
     std::unique_ptr<spawn::WaveController> m_waveController;
     std::unique_ptr<spawn::Spawner> m_spawner;
+    std::vector<std::unique_ptr<systems::ISystem>> m_systems;
 
     void rebuildMissionComponents() const;
+    void initializeSystems();
 };
 
 } // namespace world
