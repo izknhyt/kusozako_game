@@ -1,4 +1,5 @@
 {
+  "schema_version": 1,
   "backend": "auto",
   "srgb": true,
   "allow_hidpi": true,
