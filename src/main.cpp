@@ -16,6 +16,7 @@
 #include "world/WorldState.h"
 #include "world/spawn/Spawner.h"
 #include "world/spawn/WaveController.h"
+#include "world/systems/SystemContext.h"
 
 #include <algorithm>
 #include <array>
