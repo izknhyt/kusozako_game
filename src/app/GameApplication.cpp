@@ -1,0 +1,190 @@
+#include "app/GameApplication.h"
+
+#include <SDL_image.h>
+#include <SDL_ttf.h>
+
+#include <iostream>
+
+GameApplication::GameApplication() : m_sceneStack(*this) {}
+
+GameApplication::~GameApplication()
+{
+    shutdown();
+}
+
+SceneStack &GameApplication::sceneStack()
+{
+    return m_sceneStack;
+}
+
+SDL_Window *GameApplication::window() const
+{
+    return m_window;
+}
+
+SDL_Renderer *GameApplication::renderer() const
+{
+    return m_renderer;
+}
+
+int GameApplication::windowWidth() const
+{
+    return m_windowWidth;
+}
+
+int GameApplication::windowHeight() const
+{
+    return m_windowHeight;
+}
+
+bool GameApplication::isRendererReady() const
+{
+    return m_renderer != nullptr;
+}
+
+void GameApplication::requestQuit()
+{
+    m_quitRequested = true;
+}
+
+int GameApplication::run()
+{
+    if (!initialize())
+    {
+        m_sceneStack.clear();
+        return 1;
+    }
+
+    const double frequency = static_cast<double>(SDL_GetPerformanceFrequency());
+    Uint64 prevCounter = SDL_GetPerformanceCounter();
+
+    while (m_running && !m_quitRequested)
+    {
+        SDL_Event event;
+        while (SDL_PollEvent(&event))
+        {
+            if (event.type == SDL_QUIT)
+            {
+                m_quitRequested = true;
+            }
+            m_sceneStack.handleEvent(event);
+        }
+
+        if (m_quitRequested)
+        {
+            break;
+        }
+
+        const Uint64 nowCounter = SDL_GetPerformanceCounter();
+        const double deltaSeconds = (nowCounter - prevCounter) / frequency;
+        prevCounter = nowCounter;
+
+        m_sceneStack.update(deltaSeconds);
+
+        if (m_quitRequested)
+        {
+            break;
+        }
+
+        m_sceneStack.render(m_renderer);
+        SDL_RenderPresent(m_renderer);
+
+        if (m_sceneStack.empty())
+        {
+            m_quitRequested = true;
+        }
+    }
+
+    shutdown();
+    return 0;
+}
+
+bool GameApplication::initialize()
+{
+    if (m_initialized)
+    {
+        return true;
+    }
+
+    if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER) != 0)
+    {
+        std::cerr << "SDL_Init failed: " << SDL_GetError() << '\n';
+        return false;
+    }
+
+    if ((IMG_Init(IMG_INIT_PNG) & IMG_INIT_PNG) == 0)
+    {
+        std::cerr << "IMG_Init failed: " << IMG_GetError() << '\n';
+        SDL_Quit();
+        return false;
+    }
+
+    if (TTF_Init() != 0)
+    {
+        std::cerr << "TTF_Init failed: " << TTF_GetError() << '\n';
+        IMG_Quit();
+        SDL_Quit();
+        return false;
+    }
+
+    m_window = SDL_CreateWindow(m_windowTitle.c_str(), SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, m_windowWidth,
+                                m_windowHeight, SDL_WINDOW_SHOWN);
+    if (!m_window)
+    {
+        std::cerr << "Failed to create window: " << SDL_GetError() << '\n';
+        TTF_Quit();
+        IMG_Quit();
+        SDL_Quit();
+        return false;
+    }
+
+    m_renderer = SDL_CreateRenderer(m_window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
+    if (!m_renderer)
+    {
+        std::cerr << "Failed to create renderer: " << SDL_GetError() << '\n';
+        SDL_DestroyWindow(m_window);
+        m_window = nullptr;
+        TTF_Quit();
+        IMG_Quit();
+        SDL_Quit();
+        return false;
+    }
+
+    m_running = true;
+    m_quitRequested = false;
+    m_initialized = true;
+
+    m_sceneStack.onRendererReady();
+
+    return true;
+}
+
+void GameApplication::shutdown()
+{
+    if (!m_initialized)
+    {
+        return;
+    }
+
+    m_sceneStack.clear();
+
+    if (m_renderer)
+    {
+        SDL_DestroyRenderer(m_renderer);
+        m_renderer = nullptr;
+    }
+    if (m_window)
+    {
+        SDL_DestroyWindow(m_window);
+        m_window = nullptr;
+    }
+
+    TTF_Quit();
+    IMG_Quit();
+    SDL_Quit();
+
+    m_running = false;
+    m_quitRequested = false;
+    m_initialized = false;
+}
+
