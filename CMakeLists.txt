@@ -13,9 +13,14 @@ endif()
 
 add_executable(kusozako
   src/main.cpp
+  src/app/GameApplication.cpp
+  src/scenes/SceneStack.cpp
 )
 
-target_include_directories(kusozako PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_include_directories(kusozako PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}/include
+  ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
 
 find_package(SDL2 REQUIRED)
 find_package(SDL2_image REQUIRED)

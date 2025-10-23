@@ -2,6 +2,10 @@
 #include <SDL_image.h>
 #include <SDL_ttf.h>
 
+#include "app/GameApplication.h"
+#include "scenes/Scene.h"
+#include "scenes/SceneStack.h"
+
 #include <algorithm>
 #include <array>
 #include <cctype>
@@ -14,6 +18,7 @@
 #include <iterator>
 #include <iostream>
 #include <limits>
+#include <memory>
 #include <numeric>
 #include <optional>
 #include <random>
@@ -5234,50 +5239,63 @@ void renderScene(SDL_Renderer *renderer, const Simulation &sim, const Camera &ca
     }
 
     perf.drawCalls = stats.drawCalls;
-    SDL_RenderPresent(renderer);
 }
 
-} // namespace
 
-int main(int argc, char **argv)
+class BattleScene : public Scene
 {
-    (void)argc;
-    (void)argv;
+  public:
+    BattleScene() = default;
 
-    const int screenWidth = 1280;
-    const int screenHeight = 720;
+    void onEnter(GameApplication &app, SceneStack &stack) override;
+    void onExit(GameApplication &app, SceneStack &stack) override;
+    void handleEvent(const SDL_Event &event, GameApplication &app, SceneStack &stack) override;
+    void update(double deltaSeconds, GameApplication &app, SceneStack &stack) override;
+    void render(SDL_Renderer *renderer, GameApplication &app) override;
 
-    if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER) != 0)
+  private:
+    bool m_initialized = false;
+    Simulation m_sim;
+    TileMap m_tileMap;
+    Atlas m_atlas;
+    TextRenderer m_hudFont;
+    TextRenderer m_debugFont;
+    Camera m_camera;
+    Vec2 m_baseCameraTarget{};
+    Vec2 m_introCameraTarget{};
+    Vec2 m_introFocus{};
+    bool m_introActive = true;
+    float m_introTimer = 0.0f;
+    static constexpr float m_introDuration = 3.0f;
+    bool m_showDebugHud = false;
+    double m_accumulator = 0.0;
+    double m_fpsTimer = 0.0;
+    int m_frames = 0;
+    float m_currentFps = 60.0f;
+    FramePerf m_framePerf{};
+    double m_perfLogTimer = 0.0;
+    double m_updateAccum = 0.0;
+    double m_renderAccum = 0.0;
+    double m_entityAccum = 0.0;
+    int m_perfLogFrames = 0;
+    double m_frequency = 0.0;
+    double m_lastFrameSeconds = 0.0;
+    double m_lastUpdateMs = 0.0;
+    int m_screenWidth = 0;
+    int m_screenHeight = 0;
+};
+
+void BattleScene::onEnter(GameApplication &app, SceneStack &stack)
+{
+    (void)stack;
+    if (m_initialized)
     {
-        std::cerr << "SDL_Init failed: " << SDL_GetError() << '\n';
-        return 1;
+        return;
     }
 
-    if ((IMG_Init(IMG_INIT_PNG) & IMG_INIT_PNG) == 0)
-    {
-        std::cerr << "IMG_Init failed: " << IMG_GetError() << '\n';
-        SDL_Quit();
-        return 1;
-    }
-
-    SDL_Window *window = SDL_CreateWindow("Kusozako MVP", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, screenWidth, screenHeight, SDL_WINDOW_SHOWN);
-    if (!window)
-    {
-        std::cerr << "Failed to create window: " << SDL_GetError() << '\n';
-        IMG_Quit();
-        SDL_Quit();
-        return 1;
-    }
-
-    SDL_Renderer *renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
-    if (!renderer)
-    {
-        std::cerr << "Failed to create renderer: " << SDL_GetError() << '\n';
-        SDL_DestroyWindow(window);
-        IMG_Quit();
-        SDL_Quit();
-        return 1;
-    }
+    m_screenWidth = app.windowWidth();
+    m_screenHeight = app.windowHeight();
+    SDL_Renderer *renderer = app.renderer();
 
     auto configOpt = parseGameConfig("assets/game.json");
     auto entityCatalogOpt = parseEntityCatalog("assets/entities.json");
@@ -5302,291 +5320,316 @@ int main(int argc, char **argv)
     if (!configOpt || !entityCatalogOpt || !mapDefsOpt || !spawnScriptOpt || !temperamentOpt)
     {
         std::cerr << "Failed to load configuration files.\n";
-        SDL_DestroyRenderer(renderer);
-        SDL_DestroyWindow(window);
-        IMG_Quit();
-        SDL_Quit();
-        return 1;
+        app.requestQuit();
+        return;
     }
 
-    TileMap tileMap;
-    if (!loadTileMap(configOpt->map_path, renderer, tileMap))
+    m_tileMap = {};
+    if (!loadTileMap(configOpt->map_path, renderer, m_tileMap))
     {
         std::cerr << "Continuing without tilemap visuals.\n";
     }
 
-    Atlas atlas;
-    if (!loadAtlas("assets/atlas.json", renderer, atlas))
+    m_atlas = {};
+    if (!loadAtlas("assets/atlas.json", renderer, m_atlas))
     {
         std::cerr << "Continuing without atlas visuals.\n";
     }
 
-    Simulation sim;
-    sim.config = *configOpt;
-    sim.temperamentConfig = *temperamentOpt;
-    sim.yunaStats = entityCatalogOpt->yuna;
-    sim.slimeStats = entityCatalogOpt->slime;
-    sim.wallbreakerStats = entityCatalogOpt->wallbreaker;
-    sim.commanderStats = entityCatalogOpt->commander;
-    sim.mapDefs = *mapDefsOpt;
-    sim.spawnScript = *spawnScriptOpt;
+    m_sim = {};
+    m_sim.config = *configOpt;
+    m_sim.temperamentConfig = *temperamentOpt;
+    m_sim.yunaStats = entityCatalogOpt->yuna;
+    m_sim.slimeStats = entityCatalogOpt->slime;
+    m_sim.wallbreakerStats = entityCatalogOpt->wallbreaker;
+    m_sim.commanderStats = entityCatalogOpt->commander;
+    m_sim.mapDefs = *mapDefsOpt;
+    m_sim.spawnScript = *spawnScriptOpt;
     if (missionOpt && missionOpt->mode != MissionMode::None)
     {
-        sim.hasMission = true;
-        sim.missionConfig = *missionOpt;
+        m_sim.hasMission = true;
+        m_sim.missionConfig = *missionOpt;
     }
     else
     {
-        sim.hasMission = false;
+        m_sim.hasMission = false;
     }
 
-    if (tileMap.width > 0 && tileMap.height > 0)
+    if (m_tileMap.width > 0 && m_tileMap.height > 0)
     {
-        sim.setWorldBounds(static_cast<float>(tileMap.width * tileMap.tileWidth),
-                           static_cast<float>(tileMap.height * tileMap.tileHeight));
+        m_sim.setWorldBounds(static_cast<float>(m_tileMap.width * m_tileMap.tileWidth),
+                             static_cast<float>(m_tileMap.height * m_tileMap.tileHeight));
     }
     else
     {
-        sim.setWorldBounds(static_cast<float>(screenWidth), static_cast<float>(screenHeight));
+        m_sim.setWorldBounds(static_cast<float>(m_screenWidth), static_cast<float>(m_screenHeight));
     }
+
     std::vector<SkillDef> skillDefs = skillsOpt ? *skillsOpt : buildDefaultSkills();
-    sim.configureSkills(skillDefs);
-    sim.reset();
+    m_sim.configureSkills(skillDefs);
+    m_sim.reset();
 
-    if (TTF_Init() != 0)
-    {
-        std::cerr << "TTF_Init failed: " << TTF_GetError() << '\n';
-        SDL_DestroyRenderer(renderer);
-        SDL_DestroyWindow(window);
-        IMG_Quit();
-        SDL_Quit();
-        return 1;
-    }
-
-    TextRenderer hudFont;
-    if (!hudFont.load("assets/ui/NotoSansJP-Regular.ttf", 22))
+    if (!m_hudFont.load("assets/ui/NotoSansJP-Regular.ttf", 22))
     {
         std::cerr << "Failed to load HUD font (NotoSansJP-Regular.ttf).\n";
     }
-    TextRenderer debugFont;
-    if (!debugFont.load("assets/ui/NotoSansJP-Regular.ttf", 18))
+    if (!m_debugFont.load("assets/ui/NotoSansJP-Regular.ttf", 18))
     {
         std::cerr << "Failed to load debug font fallback, using HUD font size.\n";
     }
 
-    Camera camera;
-    Vec2 baseCameraTarget{sim.basePos.x - screenWidth * 0.5f, sim.basePos.y - screenHeight * 0.5f};
-    Vec2 introFocus = leftmostGateWorld(sim.mapDefs);
-    Vec2 introCameraTarget{introFocus.x - screenWidth * 0.5f, introFocus.y - screenHeight * 0.5f};
-    camera.position = introCameraTarget;
-    const float introDuration = 3.0f;
-    float introTimer = introDuration;
-    bool introActive = true;
+    m_camera = {};
+    m_baseCameraTarget = {m_sim.basePos.x - m_screenWidth * 0.5f, m_sim.basePos.y - m_screenHeight * 0.5f};
+    m_introFocus = leftmostGateWorld(m_sim.mapDefs);
+    m_introCameraTarget = {m_introFocus.x - m_screenWidth * 0.5f, m_introFocus.y - m_screenHeight * 0.5f};
+    m_camera.position = m_introCameraTarget;
+    m_introTimer = m_introDuration;
+    m_introActive = true;
 
-    bool running = true;
-    Uint64 prevCounter = SDL_GetPerformanceCounter();
-    const double frequency = static_cast<double>(SDL_GetPerformanceFrequency());
-    double accumulator = 0.0;
-    double fpsTimer = 0.0;
-    int frames = 0;
-    float currentFps = 60.0f;
-    FramePerf framePerf;
-    framePerf.fps = currentFps;
-    double perfLogTimer = 0.0;
-    double updateAccum = 0.0;
-    double renderAccum = 0.0;
-    double entityAccum = 0.0;
-    int perfLogFrames = 0;
-    bool showDebugHud = false;
+    m_accumulator = 0.0;
+    m_fpsTimer = 0.0;
+    m_frames = 0;
+    m_currentFps = 60.0f;
+    m_framePerf = {};
+    m_framePerf.fps = m_currentFps;
+    m_perfLogTimer = 0.0;
+    m_updateAccum = 0.0;
+    m_renderAccum = 0.0;
+    m_entityAccum = 0.0;
+    m_perfLogFrames = 0;
+    m_showDebugHud = false;
+    m_frequency = static_cast<double>(SDL_GetPerformanceFrequency());
+    m_lastFrameSeconds = 0.0;
+    m_lastUpdateMs = 0.0;
 
-    while (running)
+    m_initialized = true;
+}
+
+void BattleScene::onExit(GameApplication &app, SceneStack &stack)
+{
+    (void)app;
+    (void)stack;
+
+    if (m_atlas.texture)
     {
-        SDL_Event event;
-        while (SDL_PollEvent(&event))
-        {
-            if (event.type == SDL_QUIT)
-            {
-                running = false;
-            }
-            else if (event.type == SDL_KEYDOWN && event.key.repeat == 0)
-            {
-                switch (event.key.keysym.scancode)
-                {
-                case SDL_SCANCODE_ESCAPE:
-                    running = false;
-                    break;
-                case SDL_SCANCODE_F1:
-                    sim.issueOrder(ArmyStance::RushNearest);
-                    break;
-                case SDL_SCANCODE_F2:
-                    sim.issueOrder(ArmyStance::PushForward);
-                    break;
-                case SDL_SCANCODE_F3:
-                    sim.issueOrder(ArmyStance::FollowLeader);
-                    break;
-                case SDL_SCANCODE_F4:
-                    sim.issueOrder(ArmyStance::DefendBase);
-                    break;
-                case SDL_SCANCODE_F10:
-                    showDebugHud = !showDebugHud;
-                    break;
-                case SDL_SCANCODE_SPACE:
-                    camera.position = {sim.commander.pos.x - screenWidth * 0.5f, sim.commander.pos.y - screenHeight * 0.5f};
-                    introActive = false;
-                    introTimer = 0.0f;
-                    break;
-                case SDL_SCANCODE_TAB:
-                    camera.position = {sim.basePos.x - screenWidth * 0.5f, sim.basePos.y - screenHeight * 0.5f};
-                    introActive = false;
-                    introTimer = 0.0f;
-                    break;
-                case SDL_SCANCODE_Z:
-                    sim.cycleFormation(-1);
-                    break;
-                case SDL_SCANCODE_X:
-                    sim.cycleFormation(1);
-                    break;
-                case SDL_SCANCODE_R:
-                    if (sim.result != GameResult::Playing && sim.canRestart())
-                    {
-                        sim.reset();
-                        baseCameraTarget = {sim.basePos.x - screenWidth * 0.5f, sim.basePos.y - screenHeight * 0.5f};
-                        introFocus = leftmostGateWorld(sim.mapDefs);
-                        introCameraTarget = {introFocus.x - screenWidth * 0.5f, introFocus.y - screenHeight * 0.5f};
-                        camera.position = introCameraTarget;
-                        introTimer = introDuration;
-                        introActive = true;
-                    }
-                    break;
-                case SDL_SCANCODE_1:
-                case SDL_SCANCODE_2:
-                case SDL_SCANCODE_3:
-                case SDL_SCANCODE_4:
-                {
-                    const int hotkey = static_cast<int>(event.key.keysym.scancode - SDL_SCANCODE_1) + 1;
-                    sim.selectSkillByHotkey(hotkey);
-                    break;
-                }
-                default:
-                    break;
-                }
-            }
-            else if (event.type == SDL_MOUSEBUTTONDOWN && event.button.button == SDL_BUTTON_RIGHT)
-            {
-                Vec2 worldPos = screenToWorld(event.button.x, event.button.y, camera);
-                sim.activateSelectedSkill(worldPos);
-            }
-        }
+        SDL_DestroyTexture(m_atlas.texture);
+        m_atlas.texture = nullptr;
+    }
+    if (m_tileMap.tileset)
+    {
+        SDL_DestroyTexture(m_tileMap.tileset);
+        m_tileMap.tileset = nullptr;
+    }
+    m_hudFont.unload();
+    m_debugFont.unload();
+    m_initialized = false;
+}
 
-        const Uint64 nowCounter = SDL_GetPerformanceCounter();
-        const double frameTime = (nowCounter - prevCounter) / frequency;
-        prevCounter = nowCounter;
-        accumulator += frameTime;
-        fpsTimer += frameTime;
-        ++frames;
-        if (fpsTimer >= 1.0)
-        {
-            currentFps = static_cast<float>(frames / fpsTimer);
-            fpsTimer = 0.0;
-            frames = 0;
-        }
-
-        const Uint8 *keys = SDL_GetKeyboardState(nullptr);
-        const float dt = sim.config.fixed_dt;
-        const Uint64 updateStart = SDL_GetPerformanceCounter();
-        while (accumulator >= dt)
-        {
-            Vec2 commanderInput{0.0f, 0.0f};
-            if (!introActive)
-            {
-                if (keys[SDL_SCANCODE_W] || keys[SDL_SCANCODE_UP]) commanderInput.y -= 1.0f;
-                if (keys[SDL_SCANCODE_S] || keys[SDL_SCANCODE_DOWN]) commanderInput.y += 1.0f;
-                if (keys[SDL_SCANCODE_A] || keys[SDL_SCANCODE_LEFT]) commanderInput.x -= 1.0f;
-                if (keys[SDL_SCANCODE_D] || keys[SDL_SCANCODE_RIGHT]) commanderInput.x += 1.0f;
-            }
-
-            sim.update(dt, commanderInput);
-            accumulator -= dt;
-        }
-        const Uint64 updateEnd = SDL_GetPerformanceCounter();
-        const double updateMs = (updateEnd - updateStart) * 1000.0 / frequency;
-        framePerf.msUpdate = static_cast<float>(updateMs);
-
-        const float frameSeconds = static_cast<float>(frameTime);
-        if (introActive)
-        {
-            introTimer = std::max(0.0f, introTimer - frameSeconds);
-            const float t = std::clamp(1.0f - (introTimer / introDuration), 0.0f, 1.0f);
-            const float eased = t * t * (3.0f - 2.0f * t);
-            camera.position = lerp(introCameraTarget, baseCameraTarget, eased);
-            if (introTimer <= 0.0f)
-            {
-                introActive = false;
-                camera.position = lerp(introCameraTarget, baseCameraTarget, 1.0f);
-            }
-        }
-        else
-        {
-            Vec2 targetCamera{sim.commander.pos.x - screenWidth * 0.5f, sim.commander.pos.y - screenHeight * 0.5f};
-            const float followFactor = std::clamp(frameSeconds * 6.0f, 0.0f, 1.0f);
-            camera.position = lerp(camera.position, targetCamera, followFactor);
-        }
-
-        const Vec2 cameraOffset = camera.position;
-        Camera renderCamera = camera;
-        renderCamera.position = cameraOffset;
-        framePerf.fps = currentFps;
-        framePerf.entities = static_cast<int>(sim.yunas.size() + sim.enemies.size() + (sim.commander.alive ? 1 : 0));
-        const Uint64 renderStart = SDL_GetPerformanceCounter();
-        renderScene(renderer, sim, renderCamera, hudFont, debugFont, tileMap, atlas, screenWidth, screenHeight, framePerf,
-                     showDebugHud);
-        const Uint64 renderEnd = SDL_GetPerformanceCounter();
-        const double renderMs = (renderEnd - renderStart) * 1000.0 / frequency;
-        framePerf.msRender = static_cast<float>(renderMs);
-
-        perfLogTimer += frameTime;
-        updateAccum += updateMs;
-        renderAccum += renderMs;
-        entityAccum += static_cast<double>(framePerf.entities);
-        ++perfLogFrames;
-        if (perfLogTimer >= 1.0 && perfLogFrames > 0)
-        {
-            const double avgFps = static_cast<double>(perfLogFrames) / perfLogTimer;
-            const double avgUpdate = updateAccum / perfLogFrames;
-            const double avgRender = renderAccum / perfLogFrames;
-            const double avgEntities = entityAccum / perfLogFrames;
-            const bool spike = (avgUpdate + avgRender) > 9.0;
-            std::ostringstream logLine;
-            logLine << std::fixed << std::setprecision(1) << "fps=" << avgFps << " ents="
-                    << static_cast<int>(std::round(avgEntities));
-            if (spike)
-            {
-                logLine << " ★";
-            }
-            std::cout << logLine.str() << '\n';
-            std::cout.flush();
-            perfLogTimer = 0.0;
-            updateAccum = 0.0;
-            renderAccum = 0.0;
-            entityAccum = 0.0;
-            perfLogFrames = 0;
-        }
+void BattleScene::handleEvent(const SDL_Event &event, GameApplication &app, SceneStack &stack)
+{
+    (void)stack;
+    if (!m_initialized)
+    {
+        return;
     }
 
-    if (atlas.texture)
+    if (event.type == SDL_KEYDOWN && event.key.repeat == 0)
     {
-        SDL_DestroyTexture(atlas.texture);
+        switch (event.key.keysym.scancode)
+        {
+        case SDL_SCANCODE_ESCAPE:
+            app.requestQuit();
+            break;
+        case SDL_SCANCODE_F1:
+            m_sim.issueOrder(ArmyStance::RushNearest);
+            break;
+        case SDL_SCANCODE_F2:
+            m_sim.issueOrder(ArmyStance::PushForward);
+            break;
+        case SDL_SCANCODE_F3:
+            m_sim.issueOrder(ArmyStance::FollowLeader);
+            break;
+        case SDL_SCANCODE_F4:
+            m_sim.issueOrder(ArmyStance::DefendBase);
+            break;
+        case SDL_SCANCODE_F10:
+            m_showDebugHud = !m_showDebugHud;
+            break;
+        case SDL_SCANCODE_SPACE:
+            m_camera.position = {m_sim.commander.pos.x - m_screenWidth * 0.5f,
+                                 m_sim.commander.pos.y - m_screenHeight * 0.5f};
+            m_introActive = false;
+            m_introTimer = 0.0f;
+            break;
+        case SDL_SCANCODE_TAB:
+            m_camera.position = {m_sim.basePos.x - m_screenWidth * 0.5f,
+                                 m_sim.basePos.y - m_screenHeight * 0.5f};
+            m_introActive = false;
+            m_introTimer = 0.0f;
+            break;
+        case SDL_SCANCODE_Z:
+            m_sim.cycleFormation(-1);
+            break;
+        case SDL_SCANCODE_X:
+            m_sim.cycleFormation(1);
+            break;
+        case SDL_SCANCODE_R:
+            if (m_sim.result != GameResult::Playing && m_sim.canRestart())
+            {
+                m_sim.reset();
+                m_baseCameraTarget = {m_sim.basePos.x - m_screenWidth * 0.5f,
+                                      m_sim.basePos.y - m_screenHeight * 0.5f};
+                m_introFocus = leftmostGateWorld(m_sim.mapDefs);
+                m_introCameraTarget = {m_introFocus.x - m_screenWidth * 0.5f,
+                                       m_introFocus.y - m_screenHeight * 0.5f};
+                m_camera.position = m_introCameraTarget;
+                m_introTimer = m_introDuration;
+                m_introActive = true;
+            }
+            break;
+        case SDL_SCANCODE_1:
+        case SDL_SCANCODE_2:
+        case SDL_SCANCODE_3:
+        case SDL_SCANCODE_4:
+        {
+            const int hotkey = static_cast<int>(event.key.keysym.scancode - SDL_SCANCODE_1) + 1;
+            m_sim.selectSkillByHotkey(hotkey);
+            break;
+        }
+        default:
+            break;
+        }
     }
-    if (tileMap.tileset)
+    else if (event.type == SDL_MOUSEBUTTONDOWN && event.button.button == SDL_BUTTON_RIGHT)
     {
-        SDL_DestroyTexture(tileMap.tileset);
+        Vec2 worldPos = screenToWorld(event.button.x, event.button.y, m_camera);
+        m_sim.activateSelectedSkill(worldPos);
     }
-    SDL_DestroyRenderer(renderer);
-    SDL_DestroyWindow(window);
-    hudFont.unload();
-    debugFont.unload();
-    TTF_Quit();
-    IMG_Quit();
-    SDL_Quit();
-    return 0;
+}
+
+void BattleScene::update(double deltaSeconds, GameApplication &app, SceneStack &stack)
+{
+    (void)app;
+    (void)stack;
+    if (!m_initialized)
+    {
+        return;
+    }
+
+    m_lastFrameSeconds = deltaSeconds;
+    m_accumulator += deltaSeconds;
+    m_fpsTimer += deltaSeconds;
+    ++m_frames;
+    if (m_fpsTimer >= 1.0)
+    {
+        m_currentFps = static_cast<float>(m_frames / m_fpsTimer);
+        m_fpsTimer = 0.0;
+        m_frames = 0;
+    }
+
+    const Uint8 *keys = SDL_GetKeyboardState(nullptr);
+    const float dt = m_sim.config.fixed_dt;
+    const Uint64 updateStart = SDL_GetPerformanceCounter();
+    while (m_accumulator >= dt)
+    {
+        Vec2 commanderInput{0.0f, 0.0f};
+        if (!m_introActive)
+        {
+            if (keys[SDL_SCANCODE_W] || keys[SDL_SCANCODE_UP]) commanderInput.y -= 1.0f;
+            if (keys[SDL_SCANCODE_S] || keys[SDL_SCANCODE_DOWN]) commanderInput.y += 1.0f;
+            if (keys[SDL_SCANCODE_A] || keys[SDL_SCANCODE_LEFT]) commanderInput.x -= 1.0f;
+            if (keys[SDL_SCANCODE_D] || keys[SDL_SCANCODE_RIGHT]) commanderInput.x += 1.0f;
+        }
+
+        m_sim.update(dt, commanderInput);
+        m_accumulator -= dt;
+    }
+    const Uint64 updateEnd = SDL_GetPerformanceCounter();
+    const double updateMs = (updateEnd - updateStart) * 1000.0 / m_frequency;
+    m_lastUpdateMs = updateMs;
+    m_framePerf.msUpdate = static_cast<float>(updateMs);
+
+    const float frameSeconds = static_cast<float>(deltaSeconds);
+    if (m_introActive)
+    {
+        m_introTimer = std::max(0.0f, m_introTimer - frameSeconds);
+        const float t = std::clamp(1.0f - (m_introTimer / m_introDuration), 0.0f, 1.0f);
+        const float eased = t * t * (3.0f - 2.0f * t);
+        m_camera.position = lerp(m_introCameraTarget, m_baseCameraTarget, eased);
+        if (m_introTimer <= 0.0f)
+        {
+            m_introActive = false;
+            m_camera.position = lerp(m_introCameraTarget, m_baseCameraTarget, 1.0f);
+        }
+    }
+    else
+    {
+        Vec2 targetCamera{m_sim.commander.pos.x - m_screenWidth * 0.5f,
+                          m_sim.commander.pos.y - m_screenHeight * 0.5f};
+        const float followFactor = std::clamp(frameSeconds * 6.0f, 0.0f, 1.0f);
+        m_camera.position = lerp(m_camera.position, targetCamera, followFactor);
+    }
+
+    m_framePerf.fps = m_currentFps;
+}
+
+void BattleScene::render(SDL_Renderer *renderer, GameApplication &app)
+{
+    (void)app;
+    if (!m_initialized)
+    {
+        return;
+    }
+
+    const Uint64 renderStart = SDL_GetPerformanceCounter();
+
+    const Vec2 cameraOffset = m_camera.position;
+    Camera renderCamera = m_camera;
+    renderCamera.position = cameraOffset;
+    m_framePerf.entities = static_cast<int>(m_sim.yunas.size() + m_sim.enemies.size() + (m_sim.commander.alive ? 1 : 0));
+    renderScene(renderer, m_sim, renderCamera, m_hudFont, m_debugFont, m_tileMap, m_atlas, m_screenWidth, m_screenHeight,
+                m_framePerf, m_showDebugHud);
+    const Uint64 renderEnd = SDL_GetPerformanceCounter();
+    const double renderMs = (renderEnd - renderStart) * 1000.0 / m_frequency;
+    m_framePerf.msRender = static_cast<float>(renderMs);
+
+    m_perfLogTimer += m_lastFrameSeconds;
+    m_updateAccum += m_lastUpdateMs;
+    m_renderAccum += renderMs;
+    m_entityAccum += static_cast<double>(m_framePerf.entities);
+    ++m_perfLogFrames;
+    if (m_perfLogTimer >= 1.0 && m_perfLogFrames > 0)
+    {
+        const double avgFps = static_cast<double>(m_perfLogFrames) / m_perfLogTimer;
+        const double avgUpdate = m_updateAccum / m_perfLogFrames;
+        const double avgRender = m_renderAccum / m_perfLogFrames;
+        const double avgEntities = m_entityAccum / m_perfLogFrames;
+        const bool spike = (avgUpdate + avgRender) > 9.0;
+        std::ostringstream logLine;
+        logLine << std::fixed << std::setprecision(1) << "fps=" << avgFps << " ents="
+                << static_cast<int>(std::round(avgEntities));
+        if (spike)
+        {
+            logLine << " ★";
+        }
+        std::cout << logLine.str() << '\n';
+        std::cout.flush();
+        m_perfLogTimer = 0.0;
+        m_updateAccum = 0.0;
+        m_renderAccum = 0.0;
+        m_entityAccum = 0.0;
+        m_perfLogFrames = 0;
+    }
+}
+
+} // namespace
+
+int main(int argc, char **argv)
+{
+    (void)argc;
+    (void)argv;
+
+    GameApplication app;
+    app.sceneStack().push(std::make_unique<BattleScene>());
+    return app.run();
 }
