@@ -1,6 +1,6 @@
 #include "TestSystem.h"
 
-#include "services/ActionBuffer.h"
+#include "input/ActionBuffer.h"
 #include "world/WorldState.h"
 
 #include <iostream>

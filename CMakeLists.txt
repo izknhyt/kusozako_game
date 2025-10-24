@@ -17,8 +17,8 @@ add_executable(kusozako
   src/app/UiPresenter.cpp
   src/assets/AssetManager.cpp
   src/events/EventBus.cpp
-  src/services/ActionBuffer.cpp
-  src/services/InputMapper.cpp
+  src/input/ActionBuffer.cpp
+  src/input/InputMapper.cpp
   src/world/systems/FormationSystem.cpp
   src/world/systems/BehaviorSystem.cpp
   src/config/AppConfig.cpp
@@ -78,8 +78,8 @@ add_executable(world_state_step_order_test
   src/config/AppConfig.cpp
   src/config/AppConfigLoader.cpp
   src/events/EventBus.cpp
-  src/services/ActionBuffer.cpp
-  src/services/InputMapper.cpp
+  src/input/ActionBuffer.cpp
+  src/input/InputMapper.cpp
   src/services/ServiceLocator.cpp
   src/scenes/SceneStack.cpp
   src/telemetry/ConsoleTelemetrySink.cpp

@@ -11,8 +11,8 @@
 #include "scenes/Scene.h"
 #include "scenes/SceneStack.h"
 #include "events/EventBus.h"
-#include "services/ActionBuffer.h"
-#include "services/InputMapper.h"
+#include "input/ActionBuffer.h"
+#include "input/InputMapper.h"
 #include "services/ServiceLocator.h"
 #include "telemetry/TelemetrySink.h"
 #include "world/ComponentPool.h"
@@ -1520,6 +1520,8 @@ class BattleScene : public Scene
     void render(SDL_Renderer *renderer, GameApplication &app) override;
 
   private:
+    void handleActionFrame(const ActionBuffer::Frame &frame, GameApplication &app);
+
     bool m_initialized = false;
     world::WorldState m_world;
     TileMap m_tileMap;
@@ -1554,8 +1556,9 @@ class BattleScene : public Scene
     std::shared_ptr<AssetManager> m_assetService;
     UiPresenter m_ui;
     ActionBuffer m_actionBuffer;
-    InputMapper m_inputMapper;
     std::uint64_t m_inputSequence = 0;
+    std::uint64_t m_lastProcessedSequence = 0;
+    bool m_haveProcessedSequence = false;
 };
 
 void BattleScene::onEnter(GameApplication &app, SceneStack &stack)
@@ -1657,10 +1660,11 @@ void BattleScene::onEnter(GameApplication &app, SceneStack &stack)
     std::vector<SkillDef> skillDefs = appConfig.skills.empty() ? buildDefaultSkills() : appConfig.skills;
     m_world.configureSkills(skillDefs);
     m_world.reset();
-    m_inputMapper.configure(appConfig.input);
     m_actionBuffer.clear();
     m_actionBuffer.setCapacity(static_cast<std::size_t>(std::max(1, appConfig.input.bufferFrames)));
     m_inputSequence = 0;
+    m_haveProcessedSequence = false;
+    m_lastProcessedSequence = 0;
 
     if (!m_hudFont.load(assets, "assets/ui/NotoSansJP-Regular.ttf", 22))
     {
@@ -1733,60 +1737,68 @@ void BattleScene::onExit(GameApplication &app, SceneStack &stack)
 
 void BattleScene::handleEvent(const SDL_Event &event, GameApplication &app, SceneStack &stack)
 {
+    (void)event;
+    (void)app;
     (void)stack;
-    if (!m_initialized)
+}
+
+void BattleScene::handleActionFrame(const ActionBuffer::Frame &frame, GameApplication &app)
+{
+    if (m_haveProcessedSequence && frame.sequence == m_lastProcessedSequence)
     {
         return;
     }
+    m_haveProcessedSequence = true;
+    m_lastProcessedSequence = frame.sequence;
 
     LegacySimulation &sim = m_world.legacy();
 
-    if (event.type == SDL_KEYDOWN && event.key.repeat == 0)
-    {
-        switch (event.key.keysym.scancode)
+    auto handleSkillSelect = [this](ActionId id) {
+        const int baseIndex = static_cast<int>(ActionId::SelectSkill1);
+        const int actionIndex = static_cast<int>(id);
+        const int skillOffset = actionIndex - baseIndex;
+        if (skillOffset >= 0)
         {
-        case SDL_SCANCODE_ESCAPE:
-            app.requestQuit();
-            break;
-        case SDL_SCANCODE_F1:
+            const int hotkey = skillOffset + 1;
+            m_world.selectSkillByHotkey(hotkey);
+        }
+    };
+
+    for (const ActionEvent &evt : frame.events)
+    {
+        if (!evt.pressed && evt.id != ActionId::ActivateSkill)
+        {
+            continue;
+        }
+
+        switch (evt.id)
+        {
+        case ActionId::CommanderOrderRushNearest:
             m_world.issueOrder(ArmyStance::RushNearest);
             break;
-        case SDL_SCANCODE_F2:
+        case ActionId::CommanderOrderPushForward:
             m_world.issueOrder(ArmyStance::PushForward);
             break;
-        case SDL_SCANCODE_F3:
+        case ActionId::CommanderOrderFollowLeader:
             m_world.issueOrder(ArmyStance::FollowLeader);
             break;
-        case SDL_SCANCODE_F4:
+        case ActionId::CommanderOrderDefendBase:
             m_world.issueOrder(ArmyStance::DefendBase);
             break;
-        case SDL_SCANCODE_F10:
-            m_showDebugHud = !m_showDebugHud;
-            break;
-        case SDL_SCANCODE_SPACE:
-            m_camera.position = {sim.commander.pos.x - m_screenWidth * 0.5f,
-                                 sim.commander.pos.y - m_screenHeight * 0.5f};
-            m_introActive = false;
-            m_introTimer = 0.0f;
-            break;
-        case SDL_SCANCODE_TAB:
-            m_camera.position = {sim.basePos.x - m_screenWidth * 0.5f,
-                                 sim.basePos.y - m_screenHeight * 0.5f};
-            m_introActive = false;
-            m_introTimer = 0.0f;
-            break;
-        case SDL_SCANCODE_Z:
+        case ActionId::CycleFormationPrevious:
             m_world.cycleFormation(-1);
             break;
-        case SDL_SCANCODE_X:
+        case ActionId::CycleFormationNext:
             m_world.cycleFormation(1);
             break;
-        case SDL_SCANCODE_R:
+        case ActionId::ToggleDebugHud:
+            m_showDebugHud = !m_showDebugHud;
+            break;
+        case ActionId::RestartScenario:
             if (sim.result != GameResult::Playing && m_world.canRestart())
             {
                 m_world.reset();
-                m_baseCameraTarget = {sim.basePos.x - m_screenWidth * 0.5f,
-                                      sim.basePos.y - m_screenHeight * 0.5f};
+                m_baseCameraTarget = {sim.basePos.x - m_screenWidth * 0.5f, sim.basePos.y - m_screenHeight * 0.5f};
                 m_introFocus = leftmostGateWorld(sim.mapDefs);
                 m_introCameraTarget = {m_introFocus.x - m_screenWidth * 0.5f,
                                        m_introFocus.y - m_screenHeight * 0.5f};
@@ -1795,23 +1807,40 @@ void BattleScene::handleEvent(const SDL_Event &event, GameApplication &app, Scen
                 m_introActive = true;
             }
             break;
-        case SDL_SCANCODE_1:
-        case SDL_SCANCODE_2:
-        case SDL_SCANCODE_3:
-        case SDL_SCANCODE_4:
-        {
-            const int hotkey = static_cast<int>(event.key.keysym.scancode - SDL_SCANCODE_1) + 1;
-            m_world.selectSkillByHotkey(hotkey);
+        case ActionId::SelectSkill1:
+        case ActionId::SelectSkill2:
+        case ActionId::SelectSkill3:
+        case ActionId::SelectSkill4:
+        case ActionId::SelectSkill5:
+        case ActionId::SelectSkill6:
+        case ActionId::SelectSkill7:
+        case ActionId::SelectSkill8:
+            handleSkillSelect(evt.id);
             break;
-        }
+        case ActionId::FocusCommander:
+            m_camera.position = {sim.commander.pos.x - m_screenWidth * 0.5f,
+                                 sim.commander.pos.y - m_screenHeight * 0.5f};
+            m_introActive = false;
+            m_introTimer = 0.0f;
+            break;
+        case ActionId::FocusBase:
+            m_camera.position = {sim.basePos.x - m_screenWidth * 0.5f, sim.basePos.y - m_screenHeight * 0.5f};
+            m_introActive = false;
+            m_introTimer = 0.0f;
+            break;
+        case ActionId::ActivateSkill:
+            if (evt.pointer && evt.pointer->pressed)
+            {
+                Vec2 worldPos = screenToWorld(evt.pointer->x, evt.pointer->y, m_camera);
+                m_world.activateSelectedSkill(worldPos);
+            }
+            break;
+        case ActionId::QuitGame:
+            app.requestQuit();
+            break;
         default:
             break;
         }
-    }
-    else if (event.type == SDL_MOUSEBUTTONDOWN && event.button.button == SDL_BUTTON_RIGHT)
-    {
-        Vec2 worldPos = screenToWorld(event.button.x, event.button.y, m_camera);
-        m_world.activateSelectedSkill(worldPos);
     }
 }
 
@@ -1837,23 +1866,38 @@ void BattleScene::update(double deltaSeconds, GameApplication &app, SceneStack &
         m_frames = 0;
     }
 
-    const Uint8 *keys = SDL_GetKeyboardState(nullptr);
     const float dt = sim.config.fixed_dt;
     const double baseInputTimestamp = static_cast<double>(SDL_GetTicks64());
     const Uint64 updateStart = SDL_GetPerformanceCounter();
     std::size_t stepIndex = 0;
+    bool producedFrame = false;
     while (m_accumulator >= dt)
     {
         const double frameTimestamp = baseInputTimestamp +
                                       static_cast<double>(stepIndex) * (static_cast<double>(dt) * 1000.0);
-        m_inputMapper.captureKeyboardFrame(keys,
-                                           !m_introActive,
-                                           frameTimestamp,
-                                           m_inputSequence++,
-                                           m_actionBuffer);
+        app.inputMapper().sampleFrame(!m_introActive,
+                                      frameTimestamp,
+                                      m_inputSequence++,
+                                      m_actionBuffer);
+        if (const ActionBuffer::Frame *frame = m_actionBuffer.latest())
+        {
+            handleActionFrame(*frame, app);
+        }
         m_world.step(dt, m_actionBuffer);
         m_accumulator -= dt;
         ++stepIndex;
+        producedFrame = true;
+    }
+    if (!producedFrame)
+    {
+        app.inputMapper().sampleFrame(!m_introActive,
+                                      baseInputTimestamp,
+                                      m_inputSequence++,
+                                      m_actionBuffer);
+        if (const ActionBuffer::Frame *frame = m_actionBuffer.latest())
+        {
+            handleActionFrame(*frame, app);
+        }
     }
     const Uint64 updateEnd = SDL_GetPerformanceCounter();
     const double updateMs = (updateEnd - updateStart) * 1000.0 / m_frequency;

@@ -1,4 +1,4 @@
-#include "services/ActionBuffer.h"
+#include "input/ActionBuffer.h"
 
 #include <algorithm>
 
@@ -10,9 +10,9 @@ constexpr std::size_t clampCapacity(std::size_t capacity)
     return capacity == 0 ? 1 : capacity;
 }
 
-std::size_t actionIndex(ActionId id)
+std::size_t axisIndex(AxisId axis)
 {
-    return static_cast<std::size_t>(id);
+    return static_cast<std::size_t>(axis);
 }
 
 } // namespace
@@ -36,22 +36,26 @@ void ActionBuffer::clear()
     m_frames.clear();
 }
 
-void ActionBuffer::pushFrame(std::uint64_t sequence, double deviceTimestampMs, float moveX, float moveY)
+void ActionBuffer::pushFrame(std::uint64_t sequence,
+                             double deviceTimestampMs,
+                             const std::array<float, static_cast<std::size_t>(AxisId::Count)> &axes,
+                             std::vector<ActionEvent> events,
+                             const PointerState &pointer)
 {
     Frame frame;
     frame.sequence = sequence;
     frame.deviceTimestampMs = deviceTimestampMs;
-    frame.values.fill(0.0f);
-    frame.values[actionIndex(ActionId::CommanderMoveX)] = std::clamp(moveX, -1.0f, 1.0f);
-    frame.values[actionIndex(ActionId::CommanderMoveY)] = std::clamp(moveY, -1.0f, 1.0f);
+    frame.axes = axes;
+    frame.events = std::move(events);
+    frame.pointer = pointer;
 
     if (!m_frames.empty() && m_frames.back().sequence == sequence)
     {
-        m_frames.back() = frame;
+        m_frames.back() = std::move(frame);
     }
     else
     {
-        m_frames.push_back(frame);
+        m_frames.push_back(std::move(frame));
     }
 
     while (m_frames.size() > m_capacity)
@@ -82,8 +86,8 @@ Vec2 ActionBuffer::commanderMoveVector() const
     if (const Frame *frame = latest())
     {
         Vec2 vec;
-        vec.x = frame->values[actionIndex(ActionId::CommanderMoveX)];
-        vec.y = frame->values[actionIndex(ActionId::CommanderMoveY)];
+        vec.x = std::clamp(frame->axes[axisIndex(AxisId::CommanderMoveX)], -1.0f, 1.0f);
+        vec.y = std::clamp(frame->axes[axisIndex(AxisId::CommanderMoveY)], -1.0f, 1.0f);
         return vec;
     }
     return {0.0f, 0.0f};

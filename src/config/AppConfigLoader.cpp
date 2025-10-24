@@ -970,6 +970,7 @@ InputBindings parseInputBindings(const json::JsonValue &root)
 {
     InputBindings bindings;
     bindings.focusBase = json::getString(root, "FocusBase", bindings.focusBase);
+    bindings.focusCommander = json::getString(root, "FocusCommander", bindings.focusCommander);
     bindings.overview = json::getString(root, "Overview", bindings.overview);
     if (const json::JsonValue *move = json::getObjectField(root, "CameraMove"))
     {
@@ -995,6 +996,11 @@ InputBindings parseInputBindings(const json::JsonValue &root)
         }
     }
     bindings.restart = json::getString(root, "Restart", bindings.restart);
+    bindings.toggleDebugHud = json::getString(root, "ToggleDebugHud", bindings.toggleDebugHud);
+    bindings.quit = json::getString(root, "Quit", bindings.quit);
+    bindings.formationPrevious = json::getString(root, "FormationPrevious", bindings.formationPrevious);
+    bindings.formationNext = json::getString(root, "FormationNext", bindings.formationNext);
+    bindings.skillActivate = json::getString(root, "SkillActivate", bindings.skillActivate);
     if (const json::JsonValue *commander = json::getObjectField(root, "CommanderMove"))
     {
         auto assignKeys = [](const json::JsonValue *value, std::vector<std::string> &out) {
@@ -1022,6 +1028,34 @@ InputBindings parseInputBindings(const json::JsonValue &root)
         assignKeys(json::getObjectField(*commander, "Down"), bindings.commanderMoveDown);
         assignKeys(json::getObjectField(*commander, "Left"), bindings.commanderMoveLeft);
         assignKeys(json::getObjectField(*commander, "Right"), bindings.commanderMoveRight);
+    }
+    if (const json::JsonValue *orders = json::getObjectField(root, "Orders"))
+    {
+        auto assignOrder = [](const json::JsonValue *value, std::vector<std::string> &out) {
+            if (!value)
+            {
+                return;
+            }
+            out.clear();
+            if (value->type == json::JsonValue::Type::Array)
+            {
+                for (const auto &entry : value->array)
+                {
+                    if (entry.type == json::JsonValue::Type::String)
+                    {
+                        out.push_back(entry.string);
+                    }
+                }
+            }
+            else if (value->type == json::JsonValue::Type::String)
+            {
+                out.push_back(value->string);
+            }
+        };
+        assignOrder(json::getObjectField(*orders, "RushNearest"), bindings.orderRushNearest);
+        assignOrder(json::getObjectField(*orders, "PushForward"), bindings.orderPushForward);
+        assignOrder(json::getObjectField(*orders, "FollowLeader"), bindings.orderFollowLeader);
+        assignOrder(json::getObjectField(*orders, "DefendBase"), bindings.orderDefendBase);
     }
     bindings.bufferFrames = std::max(1, json::getInt(root, "buffer_frames", bindings.bufferFrames));
     bindings.bufferExpiryMs = static_cast<float>(json::getNumber(root, "buffer_expiry_ms", bindings.bufferExpiryMs));
