@@ -18,81 +18,12 @@ void CombatSystem::update(float dt, SystemContext &context)
     auto &walls = context.wallSegments;
     auto &gates = context.gates;
 
-    constexpr std::size_t followLimit = 30;
     const float yunaSpeedPx = sim.yunaStats.speed_u_s * sim.config.pixels_per_unit;
     const float followerSnapDistSq = 16.0f;
 
-    for (Unit &yuna : yunas)
-    {
-        yuna.followByStance = false;
-        yuna.effectiveFollower = false;
-    }
-
-    if (context.orderActive && sim.stance == ArmyStance::FollowLeader && commander.alive)
-    {
-        std::vector<std::pair<float, Unit *>> distances;
-        distances.reserve(yunas.size());
-        for (Unit &yuna : yunas)
-        {
-            distances.emplace_back(lengthSq(yuna.pos - commander.pos), &yuna);
-        }
-        std::sort(distances.begin(), distances.end(), [](const auto &a, const auto &b) {
-            return a.first < b.first;
-        });
-        const std::size_t take = std::min<std::size_t>(followLimit, distances.size());
-        for (std::size_t i = 0; i < take; ++i)
-        {
-            distances[i].second->followByStance = true;
-        }
-    }
-
-    std::vector<std::pair<float, Unit *>> skillFollowers;
-    skillFollowers.reserve(yunas.size());
-    for (Unit &yuna : yunas)
-    {
-        if (yuna.followBySkill)
-        {
-            skillFollowers.emplace_back(lengthSq(yuna.pos - commander.pos), &yuna);
-        }
-    }
-    std::sort(skillFollowers.begin(), skillFollowers.end(), [](const auto &a, const auto &b) {
-        return a.first < b.first;
+    const std::size_t totalFollowers = std::count_if(yunas.begin(), yunas.end(), [](const Unit &unit) {
+        return unit.effectiveFollower;
     });
-
-    std::vector<Unit *> followers;
-    followers.reserve(followLimit);
-    for (auto &entry : skillFollowers)
-    {
-        if (followers.size() >= followLimit)
-        {
-            break;
-        }
-        entry.second->effectiveFollower = true;
-        followers.push_back(entry.second);
-    }
-    if (followers.size() < followLimit)
-    {
-        for (Unit &yuna : yunas)
-        {
-            if (followers.size() >= followLimit)
-            {
-                break;
-            }
-            if (!yuna.followBySkill && yuna.followByStance)
-            {
-                yuna.effectiveFollower = true;
-                followers.push_back(&yuna);
-            }
-        }
-    }
-
-    auto formationOffsets = computeFormationOffsets(sim.formation, followers.size());
-    for (std::size_t i = 0; i < followers.size(); ++i)
-    {
-        followers[i]->formationOffset = formationOffsets[i];
-    }
-
-    const std::size_t totalFollowers = followers.size();
     const std::size_t totalDefenders = yunas.size() > totalFollowers ? yunas.size() - totalFollowers : 0;
     const std::size_t safeDefenders = totalDefenders > 0 ? totalDefenders : 1;
     std::size_t defendIndex = 0;
