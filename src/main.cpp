@@ -26,6 +26,7 @@
 #include "world/systems/CombatSystem.h"
 #include "world/systems/FormationSystem.h"
 #include "world/systems/JobAbilitySystem.h"
+#include "world/systems/RenderingPrepSystem.h"
 #include "world/systems/MoraleSystem.h"
 #include "world/systems/SystemContext.h"
 
@@ -47,6 +48,7 @@
 #include <optional>
 #include <random>
 #include <sstream>
+#include <stdexcept>
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
@@ -310,7 +312,8 @@ void WorldState::reset()
 
 void WorldState::initializeSystems()
 {
-    m_systems.clear();
+    clearSystems();
+
     auto formation = std::make_unique<systems::FormationSystem>();
     formation->reset(*m_sim);
     if (m_eventBus)
@@ -321,17 +324,62 @@ void WorldState::initializeSystems()
     {
         formation->setTelemetrySink(std::weak_ptr<TelemetrySink>(m_telemetry));
     }
-    m_systems.emplace_back(std::move(formation));
-    m_systems.emplace_back(std::make_unique<systems::BehaviorSystem>());
-    m_systems.emplace_back(std::make_unique<systems::MoraleSystem>());
-    m_systems.emplace_back(std::make_unique<systems::JobAbilitySystem>());
-    m_systems.emplace_back(std::make_unique<systems::CombatSystem>());
+    registerSystem(systems::SystemStage::CommandAndMorale, std::move(formation));
+    registerSystem(systems::SystemStage::CommandAndMorale, std::make_unique<systems::MoraleSystem>());
+    registerSystem(systems::SystemStage::AiDecision, std::make_unique<systems::BehaviorSystem>());
+    registerSystem(systems::SystemStage::Combat, std::make_unique<systems::CombatSystem>());
+    registerSystem(systems::SystemStage::StateUpdate, std::make_unique<systems::JobAbilitySystem>());
+}
+
+void WorldState::clearSystems()
+{
+    m_systems.clear();
+    m_systemStageOrder.clear();
+    m_cachedFormationSystem = nullptr;
+}
+
+void WorldState::registerSystem(systems::SystemStage stage, std::unique_ptr<systems::ISystem> system)
+{
+    if (!system)
+    {
+        return;
+    }
+    if (!m_systems.empty())
+    {
+        const systems::SystemStage lastStage = m_systems.back().stage;
+        if (static_cast<std::uint8_t>(stage) < static_cast<std::uint8_t>(lastStage))
+        {
+            throw std::logic_error("WorldState::registerSystem stage order violation");
+        }
+    }
+    if (auto *formation = dynamic_cast<systems::FormationSystem *>(system.get()))
+    {
+        m_cachedFormationSystem = formation;
+    }
+    m_systemStageOrder.push_back(stage);
+    m_systems.push_back(SystemEntry{stage, std::move(system)});
+}
+
+const std::vector<systems::SystemStage> &WorldState::systemStageOrder() const
+{
+    return m_systemStageOrder;
+}
+
+void WorldState::runSystemsForStage(systems::SystemStage stage,
+                                    float dt,
+                                    systems::SystemContext &context)
+{
+    for (auto &entry : m_systems)
+    {
+        if (entry.stage == stage && entry.system)
+        {
+            entry.system->update(dt, context);
+        }
+    }
 }
 
 void WorldState::step(float dt, const ActionBuffer &actions)
 {
-    m_sim->update(dt);
-
     systems::MissionContext missionContext{
         m_sim->hasMission,
         m_sim->missionConfig,
@@ -364,59 +412,82 @@ void WorldState::step(float dt, const ActionBuffer &actions)
         m_sim->commanderInvulnTimer,
         missionContext,
         actions};
-    for (const std::unique_ptr<systems::ISystem> &system : m_systems)
-    {
-        if (system)
-        {
-            system->update(dt, context);
-        }
-    }
+    constexpr std::array<systems::SystemStage, 8> kExecutionOrder{
+        systems::SystemStage::InputProcessing,
+        systems::SystemStage::CommandAndMorale,
+        systems::SystemStage::AiDecision,
+        systems::SystemStage::Movement,
+        systems::SystemStage::Combat,
+        systems::SystemStage::StateUpdate,
+        systems::SystemStage::Spawn,
+        systems::SystemStage::RenderingPrep,
+    };
 
-    if (m_sim->spawnEnabled)
+    for (systems::SystemStage stage : kExecutionOrder)
     {
-        if (m_waveController)
+        switch (stage)
         {
-            std::vector<std::string> announcements = m_waveController->advance(m_sim->simTime);
-            for (const std::string &text : announcements)
+        case systems::SystemStage::StateUpdate:
+            m_sim->update(dt);
+            runSystemsForStage(stage, dt, context);
+            break;
+        case systems::SystemStage::Spawn:
+        {
+            runSystemsForStage(stage, dt, context);
+
+            if (m_sim->spawnEnabled)
             {
-                if (!text.empty())
+                if (m_waveController)
                 {
-                    m_sim->pushTelemetry(text);
+                    std::vector<std::string> announcements = m_waveController->advance(m_sim->simTime);
+                    for (const std::string &text : announcements)
+                    {
+                        if (!text.empty())
+                        {
+                            m_sim->pushTelemetry(text);
+                        }
+                    }
+                }
+
+                if (m_spawner)
+                {
+                    if (m_sim->missionMode == MissionMode::Survival &&
+                        m_sim->survival.spawnMultiplier > 0.0f)
+                    {
+                        const float mult = std::max(m_sim->survival.spawnMultiplier, 0.1f);
+                        m_spawner->setIntervalModifier([mult](float base) {
+                            if (mult <= 0.0f)
+                            {
+                                return base;
+                            }
+                            return base / mult;
+                        });
+                    }
+                    else
+                    {
+                        m_spawner->setIntervalModifier({});
+                    }
+
+                    m_spawner->emit(dt, [this](const spawn::SpawnPayload &payload) {
+                        m_sim->spawnOneEnemy(payload.position, payload.type);
+                    });
                 }
             }
-        }
 
-        if (m_spawner)
-        {
-            if (m_sim->missionMode == MissionMode::Survival && m_sim->survival.spawnMultiplier > 0.0f)
+            if (m_waveController)
             {
-                const float mult = std::max(m_sim->survival.spawnMultiplier, 0.1f);
-                m_spawner->setIntervalModifier([mult](float base) {
-                    if (mult <= 0.0f)
-                    {
-                        return base;
-                    }
-                    return base / mult;
-                });
+                m_sim->waveScriptComplete = m_waveController->isComplete();
             }
-            else
+            if (m_spawner)
             {
-                m_spawner->setIntervalModifier({});
+                m_sim->spawnerIdle = m_spawner->empty();
             }
-
-            m_spawner->emit(dt, [this](const spawn::SpawnPayload &payload) {
-                m_sim->spawnOneEnemy(payload.position, payload.type);
-            });
+            break;
         }
-    }
-
-    if (m_waveController)
-    {
-        m_sim->waveScriptComplete = m_waveController->isComplete();
-    }
-    if (m_spawner)
-    {
-        m_sim->spawnerIdle = m_spawner->empty();
+        default:
+            runSystemsForStage(stage, dt, context);
+            break;
+        }
     }
 
     markComponentsDirty();
@@ -590,14 +661,7 @@ void WorldState::syncComponents() const
 
 systems::FormationSystem *WorldState::formationSystem() const
 {
-    for (const auto &system : m_systems)
-    {
-        if (auto *formation = dynamic_cast<systems::FormationSystem *>(system.get()))
-        {
-            return formation;
-        }
-    }
-    return nullptr;
+    return m_cachedFormationSystem;
 }
 
 } // namespace world
@@ -1879,6 +1943,7 @@ void BattleScene::render(SDL_Renderer *renderer, GameApplication &app)
     }
 }
 
+#ifndef KUSOZAKO_SKIP_APP_MAIN
 int main(int argc, char **argv)
 {
     (void)argc;
@@ -1889,3 +1954,4 @@ int main(int argc, char **argv)
     app.sceneStack().push(std::make_unique<BattleScene>());
     return app.run();
 }
+#endif

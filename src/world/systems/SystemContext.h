@@ -17,6 +17,18 @@ namespace world
 namespace systems
 {
 
+enum class SystemStage : std::uint8_t
+{
+    InputProcessing = 0,
+    CommandAndMorale,
+    AiDecision,
+    Movement,
+    Combat,
+    StateUpdate,
+    Spawn,
+    RenderingPrep,
+};
+
 struct MissionContext
 {
     bool &hasMission;
