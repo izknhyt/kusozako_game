@@ -1,7 +1,7 @@
 #include "world/systems/BehaviorSystem.h"
 
 #include "core/Vec2.h"
-#include "services/ActionBuffer.h"
+#include "input/ActionBuffer.h"
 #include "world/LegacySimulation.h"
 
 #include <algorithm>

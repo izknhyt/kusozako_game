@@ -7,6 +7,7 @@
 
 #include "assets/AssetManager.h"
 #include "config/AppConfigLoader.h"
+#include "input/InputMapper.h"
 #include "scenes/SceneStack.h"
 
 class EventBus;
@@ -26,6 +27,9 @@ class GameApplication
 
     const AppConfig &appConfig() const;
     const AppConfigLoadResult &appConfigResult() const;
+
+    InputMapper &inputMapper() { return m_inputMapper; }
+    const InputMapper &inputMapper() const { return m_inputMapper; }
 
     SDL_Window *window() const;
     SDL_Renderer *renderer() const;
@@ -61,5 +65,6 @@ class GameApplication
     std::shared_ptr<TelemetrySink> m_telemetrySink;
     std::shared_ptr<EventBus> m_eventBus;
     std::shared_ptr<AssetManager> m_assetManagerHandle;
+    InputMapper m_inputMapper;
 };
 

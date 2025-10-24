@@ -1,6 +1,6 @@
 #pragma once
 
-#include "services/ActionBuffer.h"
+#include "input/ActionBuffer.h"
 #include "world/Entity.h"
 #include "world/LegacySimulation.h"
 #include "world/systems/SystemContext.h"

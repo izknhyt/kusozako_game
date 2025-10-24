@@ -1,6 +1,6 @@
 #pragma once
 
-#include "services/ActionBuffer.h"
+#include "input/ActionBuffer.h"
 #include "world/ComponentPool.h"
 #include "world/LegacySimulation.h"
 

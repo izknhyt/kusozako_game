@@ -135,6 +135,7 @@ int GameApplication::run()
 
     while (m_running && !m_quitRequested)
     {
+        m_inputMapper.beginEventPump();
         SDL_Event event;
         while (SDL_PollEvent(&event))
         {
@@ -142,7 +143,7 @@ int GameApplication::run()
             {
                 m_quitRequested = true;
             }
-            m_sceneStack.handleEvent(event);
+            m_inputMapper.handleEvent(event);
         }
 
         if (m_quitRequested)
@@ -280,6 +281,8 @@ bool GameApplication::initialize()
         m_appConfigResult.config.skills = buildDefaultSkills();
         m_appConfigResult.success = false;
     }
+
+    m_inputMapper.configure(m_appConfigResult.config.input);
 
     m_running = true;
     m_quitRequested = false;
