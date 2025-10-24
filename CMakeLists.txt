@@ -14,8 +14,10 @@ endif()
 add_executable(kusozako
   src/main.cpp
   src/app/GameApplication.cpp
+  src/app/UiPresenter.cpp
   src/assets/AssetManager.cpp
   src/events/EventBus.cpp
+  src/world/systems/FormationSystem.cpp
   src/config/AppConfig.cpp
   src/config/AppConfigLoader.cpp
   src/services/ServiceLocator.cpp

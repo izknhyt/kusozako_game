@@ -43,6 +43,7 @@ class Spawner;
 namespace systems
 {
 class ISystem;
+class FormationSystem;
 } // namespace systems
 
 class WorldState
@@ -102,6 +103,7 @@ class WorldState
 
     void rebuildMissionComponents() const;
     void initializeSystems();
+    systems::FormationSystem *formationSystem() const;
 };
 
 } // namespace world
