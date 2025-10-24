@@ -336,6 +336,12 @@ struct InputBindings
     std::unordered_map<std::string, std::string> cameraMove;
     std::vector<std::string> summonMode;
     std::string restart;
+    std::vector<std::string> commanderMoveUp{"W", "Up"};
+    std::vector<std::string> commanderMoveDown{"S", "Down"};
+    std::vector<std::string> commanderMoveLeft{"A", "Left"};
+    std::vector<std::string> commanderMoveRight{"D", "Right"};
+    int bufferFrames = 4;
+    float bufferExpiryMs = 80.0f;
 };
 
 struct AppConfig

@@ -995,6 +995,36 @@ InputBindings parseInputBindings(const json::JsonValue &root)
         }
     }
     bindings.restart = json::getString(root, "Restart", bindings.restart);
+    if (const json::JsonValue *commander = json::getObjectField(root, "CommanderMove"))
+    {
+        auto assignKeys = [](const json::JsonValue *value, std::vector<std::string> &out) {
+            if (!value)
+            {
+                return;
+            }
+            out.clear();
+            if (value->type == json::JsonValue::Type::Array)
+            {
+                for (const auto &entry : value->array)
+                {
+                    if (entry.type == json::JsonValue::Type::String)
+                    {
+                        out.push_back(entry.string);
+                    }
+                }
+            }
+            else if (value->type == json::JsonValue::Type::String)
+            {
+                out.push_back(value->string);
+            }
+        };
+        assignKeys(json::getObjectField(*commander, "Up"), bindings.commanderMoveUp);
+        assignKeys(json::getObjectField(*commander, "Down"), bindings.commanderMoveDown);
+        assignKeys(json::getObjectField(*commander, "Left"), bindings.commanderMoveLeft);
+        assignKeys(json::getObjectField(*commander, "Right"), bindings.commanderMoveRight);
+    }
+    bindings.bufferFrames = std::max(1, json::getInt(root, "buffer_frames", bindings.bufferFrames));
+    bindings.bufferExpiryMs = static_cast<float>(json::getNumber(root, "buffer_expiry_ms", bindings.bufferExpiryMs));
     return bindings;
 }
 

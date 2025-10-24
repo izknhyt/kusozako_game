@@ -17,7 +17,10 @@ add_executable(kusozako
   src/app/UiPresenter.cpp
   src/assets/AssetManager.cpp
   src/events/EventBus.cpp
+  src/services/ActionBuffer.cpp
+  src/services/InputMapper.cpp
   src/world/systems/FormationSystem.cpp
+  src/world/systems/BehaviorSystem.cpp
   src/config/AppConfig.cpp
   src/config/AppConfigLoader.cpp
   src/services/ServiceLocator.cpp

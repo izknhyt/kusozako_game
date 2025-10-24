@@ -4,5 +4,13 @@
   "Overview": "Tab",
   "CameraMove": { "W": "up", "A": "left", "S": "down", "D": "right" },
   "SummonMode": ["1", "2", "3", "4", "5"],
-  "Restart": "R"
+  "Restart": "R",
+  "CommanderMove": {
+    "Up": ["W", "Up"],
+    "Down": ["S", "Down"],
+    "Left": ["A", "Left"],
+    "Right": ["D", "Right"]
+  },
+  "buffer_frames": 4,
+  "buffer_expiry_ms": 80.0
 }
