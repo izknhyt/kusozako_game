@@ -3,6 +3,7 @@
 #include "services/ActionBuffer.h"
 #include "world/Entity.h"
 #include "world/LegacySimulation.h"
+#include "world/systems/SystemContext.h"
 
 #include <memory>
 #include <vector>
@@ -87,7 +88,17 @@ class WorldState
     void markComponentsDirty();
     void syncComponents() const;
 
+    void clearSystems();
+    void registerSystem(systems::SystemStage stage, std::unique_ptr<systems::ISystem> system);
+    const std::vector<systems::SystemStage> &systemStageOrder() const;
+
   private:
+    struct SystemEntry
+    {
+        systems::SystemStage stage;
+        std::unique_ptr<systems::ISystem> system;
+    };
+
     std::unique_ptr<LegacySimulation> m_sim;
     mutable EntityRegistry m_registry;
     mutable std::unique_ptr<ComponentPool<Unit>> m_allies;
@@ -100,10 +111,13 @@ class WorldState
     std::shared_ptr<TelemetrySink> m_telemetry;
     std::unique_ptr<spawn::WaveController> m_waveController;
     std::unique_ptr<spawn::Spawner> m_spawner;
-    std::vector<std::unique_ptr<systems::ISystem>> m_systems;
+    std::vector<SystemEntry> m_systems;
+    std::vector<systems::SystemStage> m_systemStageOrder;
+    systems::FormationSystem *m_cachedFormationSystem = nullptr;
 
     void rebuildMissionComponents() const;
     void initializeSystems();
+    void runSystemsForStage(systems::SystemStage stage, float dt, systems::SystemContext &context);
     systems::FormationSystem *formationSystem() const;
 };
 
