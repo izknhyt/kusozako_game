@@ -1,5 +1,6 @@
 #pragma once
 
+#include "services/ActionBuffer.h"
 #include "world/ComponentPool.h"
 #include "world/LegacySimulation.h"
 
@@ -54,6 +55,7 @@ struct SystemContext
     float &commanderInvulnTimer;
 
     MissionContext mission;
+    const ActionBuffer &actions;
 };
 
 class ISystem

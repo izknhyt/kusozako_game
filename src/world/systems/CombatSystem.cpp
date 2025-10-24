@@ -2,7 +2,6 @@
 
 #include <algorithm>
 #include <cmath>
-#include <limits>
 #include <utility>
 #include <vector>
 
@@ -17,128 +16,6 @@ void CombatSystem::update(float dt, SystemContext &context)
     auto &enemies = context.enemyUnits;
     auto &walls = context.wallSegments;
     auto &gates = context.gates;
-
-    const float yunaSpeedPx = sim.yunaStats.speed_u_s * sim.config.pixels_per_unit;
-    const float followerSnapDistSq = 16.0f;
-
-    const std::size_t totalFollowers = std::count_if(yunas.begin(), yunas.end(), [](const Unit &unit) {
-        return unit.effectiveFollower;
-    });
-    const std::size_t totalDefenders = yunas.size() > totalFollowers ? yunas.size() - totalFollowers : 0;
-    const std::size_t safeDefenders = totalDefenders > 0 ? totalDefenders : 1;
-    std::size_t defendIndex = 0;
-    std::size_t supportIndex = 0;
-
-    auto nearestEnemy = [&enemies](const Vec2 &pos) -> EnemyUnit * {
-        EnemyUnit *best = nullptr;
-        float bestDist = std::numeric_limits<float>::max();
-        for (EnemyUnit &enemy : enemies)
-        {
-            const float dist = lengthSq(enemy.pos - pos);
-            if (dist < bestDist)
-            {
-                bestDist = dist;
-                best = &enemy;
-            }
-        }
-        return best;
-    };
-
-    std::vector<Vec2> raidTargets = sim.collectRaidTargets();
-
-    for (Unit &yuna : yunas)
-    {
-        Vec2 temperamentVelocity = sim.computeTemperamentVelocity(yuna, dt, yunaSpeedPx, nearestEnemy, raidTargets);
-        Vec2 velocity{0.0f, 0.0f};
-        const bool panicActive = yuna.temperament.panicTimer > 0.0f;
-
-        if (panicActive)
-        {
-            velocity = temperamentVelocity;
-        }
-        else if (yuna.effectiveFollower && commander.alive)
-        {
-            Vec2 desiredPos = commander.pos + yuna.formationOffset;
-            Vec2 toTarget = desiredPos - yuna.pos;
-            if (lengthSq(toTarget) > followerSnapDistSq)
-            {
-                velocity = normalize(toTarget) * yunaSpeedPx;
-            }
-            else
-            {
-                velocity = temperamentVelocity;
-            }
-        }
-        else if (context.orderActive)
-        {
-            switch (sim.stance)
-            {
-            case ArmyStance::RushNearest:
-            {
-                if (EnemyUnit *target = nearestEnemy(yuna.pos))
-                {
-                    velocity = normalize(target->pos - yuna.pos) * yunaSpeedPx;
-                }
-                else
-                {
-                    velocity = temperamentVelocity;
-                }
-                break;
-            }
-            case ArmyStance::PushForward:
-            {
-                Vec2 target = sim.basePos;
-                target.x += 512.0f;
-                velocity = normalize(target - yuna.pos) * yunaSpeedPx;
-                break;
-            }
-            case ArmyStance::FollowLeader:
-            {
-                velocity = temperamentVelocity;
-                break;
-            }
-            case ArmyStance::DefendBase:
-            {
-                if (EnemyUnit *target = nearestEnemy(sim.basePos))
-                {
-                    const float dist = lengthSq(target->pos - sim.basePos);
-                    if (dist > 0.0f)
-                    {
-                        const float ratio = static_cast<float>(supportIndex) / static_cast<float>(safeDefenders);
-                        const float angle = ratio * 2.0f * 3.14159265358979323846f;
-                        Vec2 ringTarget{sim.basePos.x + std::cos(angle) * 72.0f, sim.basePos.y + std::sin(angle) * 48.0f};
-                        ++supportIndex;
-                        velocity = normalize(ringTarget - yuna.pos) * yunaSpeedPx;
-                    }
-                    else
-                    {
-                        velocity = normalize(target->pos - yuna.pos) * yunaSpeedPx;
-                    }
-                }
-                else
-                {
-                    const float angle = 2.0f * 3.14159265358979323846f *
-                                        (static_cast<float>(defendIndex) / static_cast<float>(safeDefenders));
-                    Vec2 ringTarget{sim.basePos.x + std::cos(angle) * 120.0f,
-                                    sim.basePos.y + std::sin(angle) * 80.0f};
-                    ++defendIndex;
-                    velocity = normalize(ringTarget - yuna.pos) * yunaSpeedPx;
-                }
-                break;
-            }
-            }
-        }
-        else
-        {
-            velocity = temperamentVelocity;
-        }
-
-        if (velocity.x != 0.0f || velocity.y != 0.0f)
-        {
-            yuna.pos += velocity * dt;
-            sim.clampToWorld(yuna.pos, yuna.radius);
-        }
-    }
 
     for (EnemyUnit &enemy : enemies)
     {

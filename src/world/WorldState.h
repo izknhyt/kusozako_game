@@ -1,5 +1,6 @@
 #pragma once
 
+#include "services/ActionBuffer.h"
 #include "world/Entity.h"
 #include "world/LegacySimulation.h"
 
@@ -63,7 +64,7 @@ class WorldState
     void setWorldBounds(float width, float height);
     void configureSkills(const std::vector<SkillDef> &defs);
     void reset();
-    void step(float dt, const Vec2 &commanderInput);
+    void step(float dt, const ActionBuffer &actions);
     void issueOrder(ArmyStance stance);
     void cycleFormation(int direction);
     void selectSkillByHotkey(int hotkey);

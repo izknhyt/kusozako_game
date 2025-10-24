@@ -11,6 +11,8 @@
 #include "scenes/Scene.h"
 #include "scenes/SceneStack.h"
 #include "events/EventBus.h"
+#include "services/ActionBuffer.h"
+#include "services/InputMapper.h"
 #include "services/ServiceLocator.h"
 #include "telemetry/TelemetrySink.h"
 #include "world/ComponentPool.h"
@@ -20,6 +22,7 @@
 #include "world/WorldState.h"
 #include "world/spawn/Spawner.h"
 #include "world/spawn/WaveController.h"
+#include "world/systems/BehaviorSystem.h"
 #include "world/systems/CombatSystem.h"
 #include "world/systems/FormationSystem.h"
 #include "world/systems/JobAbilitySystem.h"
@@ -319,14 +322,15 @@ void WorldState::initializeSystems()
         formation->setTelemetrySink(std::weak_ptr<TelemetrySink>(m_telemetry));
     }
     m_systems.emplace_back(std::move(formation));
+    m_systems.emplace_back(std::make_unique<systems::BehaviorSystem>());
     m_systems.emplace_back(std::make_unique<systems::MoraleSystem>());
     m_systems.emplace_back(std::make_unique<systems::JobAbilitySystem>());
     m_systems.emplace_back(std::make_unique<systems::CombatSystem>());
 }
 
-void WorldState::step(float dt, const Vec2 &commanderInput)
+void WorldState::step(float dt, const ActionBuffer &actions)
 {
-    m_sim->update(dt, commanderInput);
+    m_sim->update(dt);
 
     systems::MissionContext missionContext{
         m_sim->hasMission,
@@ -358,7 +362,8 @@ void WorldState::step(float dt, const Vec2 &commanderInput)
         m_sim->yunaRespawnTimers,
         m_sim->commanderRespawnTimer,
         m_sim->commanderInvulnTimer,
-        missionContext};
+        missionContext,
+        actions};
     for (const std::unique_ptr<systems::ISystem> &system : m_systems)
     {
         if (system)
@@ -1484,6 +1489,9 @@ class BattleScene : public Scene
     std::shared_ptr<EventBus> m_eventBus;
     std::shared_ptr<AssetManager> m_assetService;
     UiPresenter m_ui;
+    ActionBuffer m_actionBuffer;
+    InputMapper m_inputMapper;
+    std::uint64_t m_inputSequence = 0;
 };
 
 void BattleScene::onEnter(GameApplication &app, SceneStack &stack)
@@ -1585,6 +1593,10 @@ void BattleScene::onEnter(GameApplication &app, SceneStack &stack)
     std::vector<SkillDef> skillDefs = appConfig.skills.empty() ? buildDefaultSkills() : appConfig.skills;
     m_world.configureSkills(skillDefs);
     m_world.reset();
+    m_inputMapper.configure(appConfig.input);
+    m_actionBuffer.clear();
+    m_actionBuffer.setCapacity(static_cast<std::size_t>(std::max(1, appConfig.input.bufferFrames)));
+    m_inputSequence = 0;
 
     if (!m_hudFont.load(assets, "assets/ui/NotoSansJP-Regular.ttf", 22))
     {
@@ -1763,20 +1775,21 @@ void BattleScene::update(double deltaSeconds, GameApplication &app, SceneStack &
 
     const Uint8 *keys = SDL_GetKeyboardState(nullptr);
     const float dt = sim.config.fixed_dt;
+    const double baseInputTimestamp = static_cast<double>(SDL_GetTicks64());
     const Uint64 updateStart = SDL_GetPerformanceCounter();
+    std::size_t stepIndex = 0;
     while (m_accumulator >= dt)
     {
-        Vec2 commanderInput{0.0f, 0.0f};
-        if (!m_introActive)
-        {
-            if (keys[SDL_SCANCODE_W] || keys[SDL_SCANCODE_UP]) commanderInput.y -= 1.0f;
-            if (keys[SDL_SCANCODE_S] || keys[SDL_SCANCODE_DOWN]) commanderInput.y += 1.0f;
-            if (keys[SDL_SCANCODE_A] || keys[SDL_SCANCODE_LEFT]) commanderInput.x -= 1.0f;
-            if (keys[SDL_SCANCODE_D] || keys[SDL_SCANCODE_RIGHT]) commanderInput.x += 1.0f;
-        }
-
-        m_world.step(dt, commanderInput);
+        const double frameTimestamp = baseInputTimestamp +
+                                      static_cast<double>(stepIndex) * (static_cast<double>(dt) * 1000.0);
+        m_inputMapper.captureKeyboardFrame(keys,
+                                           !m_introActive,
+                                           frameTimestamp,
+                                           m_inputSequence++,
+                                           m_actionBuffer);
+        m_world.step(dt, m_actionBuffer);
         m_accumulator -= dt;
+        ++stepIndex;
     }
     const Uint64 updateEnd = SDL_GetPerformanceCounter();
     const double updateMs = (updateEnd - updateStart) * 1000.0 / m_frequency;
