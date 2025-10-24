@@ -3,6 +3,7 @@
 #include <SDL_ttf.h>
 
 #include "app/GameApplication.h"
+#include "app/UiPresenter.h"
 #include "assets/AssetManager.h"
 #include "config/AppConfig.h"
 #include "config/AppConfigLoader.h"
@@ -13,12 +14,14 @@
 #include "services/ServiceLocator.h"
 #include "telemetry/TelemetrySink.h"
 #include "world/ComponentPool.h"
+#include "world/FormationUtils.h"
 #include "world/LegacySimulation.h"
 #include "world/LegacyTypes.h"
 #include "world/WorldState.h"
 #include "world/spawn/Spawner.h"
 #include "world/spawn/WaveController.h"
 #include "world/systems/CombatSystem.h"
+#include "world/systems/FormationSystem.h"
 #include "world/systems/JobAbilitySystem.h"
 #include "world/systems/MoraleSystem.h"
 #include "world/systems/SystemContext.h"
@@ -295,12 +298,27 @@ void WorldState::reset()
     }
     m_sim->waveScriptComplete = false;
     m_sim->spawnerIdle = true;
+    if (auto *formation = formationSystem())
+    {
+        formation->reset(*m_sim);
+    }
     markComponentsDirty();
 }
 
 void WorldState::initializeSystems()
 {
     m_systems.clear();
+    auto formation = std::make_unique<systems::FormationSystem>();
+    formation->reset(*m_sim);
+    if (m_eventBus)
+    {
+        formation->setEventBus(std::weak_ptr<EventBus>(m_eventBus));
+    }
+    if (m_telemetry)
+    {
+        formation->setTelemetrySink(std::weak_ptr<TelemetrySink>(m_telemetry));
+    }
+    m_systems.emplace_back(std::move(formation));
     m_systems.emplace_back(std::make_unique<systems::MoraleSystem>());
     m_systems.emplace_back(std::make_unique<systems::JobAbilitySystem>());
     m_systems.emplace_back(std::make_unique<systems::CombatSystem>());
@@ -401,13 +419,19 @@ void WorldState::step(float dt, const Vec2 &commanderInput)
 
 void WorldState::issueOrder(ArmyStance stance)
 {
-    m_sim->issueOrder(stance);
+    if (auto *formation = formationSystem())
+    {
+        formation->issueOrder(stance, *m_sim);
+    }
     markComponentsDirty();
 }
 
 void WorldState::cycleFormation(int direction)
 {
-    m_sim->cycleFormation(direction);
+    if (auto *formation = formationSystem())
+    {
+        formation->cycleFormation(direction, *m_sim);
+    }
     markComponentsDirty();
 }
 
@@ -430,6 +454,10 @@ void WorldState::setEventBus(std::shared_ptr<EventBus> bus)
     {
         m_waveController->setEventBus(m_eventBus);
     }
+    if (auto *formation = formationSystem())
+    {
+        formation->setEventBus(std::weak_ptr<EventBus>(m_eventBus));
+    }
 }
 
 void WorldState::setTelemetrySink(std::shared_ptr<TelemetrySink> sink)
@@ -438,6 +466,10 @@ void WorldState::setTelemetrySink(std::shared_ptr<TelemetrySink> sink)
     if (m_waveController)
     {
         m_waveController->setTelemetrySink(m_telemetry);
+    }
+    if (auto *formation = formationSystem())
+    {
+        formation->setTelemetrySink(std::weak_ptr<TelemetrySink>(m_telemetry));
     }
 }
 
@@ -549,6 +581,18 @@ void WorldState::syncComponents() const
     rebuildMissionComponents();
 
     m_componentsDirty = false;
+}
+
+systems::FormationSystem *WorldState::formationSystem() const
+{
+    for (const auto &system : m_systems)
+    {
+        if (auto *formation = dynamic_cast<systems::FormationSystem *>(system.get()))
+        {
+            return formation;
+        }
+    }
+    return nullptr;
 }
 
 } // namespace world
@@ -1439,6 +1483,7 @@ class BattleScene : public Scene
     std::shared_ptr<TelemetrySink> m_telemetry;
     std::shared_ptr<EventBus> m_eventBus;
     std::shared_ptr<AssetManager> m_assetService;
+    UiPresenter m_ui;
 };
 
 void BattleScene::onEnter(GameApplication &app, SceneStack &stack)
@@ -1459,6 +1504,9 @@ void BattleScene::onEnter(GameApplication &app, SceneStack &stack)
 
     m_world.setTelemetrySink(m_telemetry);
     m_world.setEventBus(m_eventBus);
+    m_ui.setTelemetrySink(m_telemetry);
+    m_ui.setEventBus(m_eventBus);
+    m_ui.bindSimulation(&m_world.legacy());
 
     auto telemetryNotify = [this](std::string reason, std::string detail = {}) {
         if (!m_telemetry)
@@ -1588,6 +1636,9 @@ void BattleScene::onExit(GameApplication &app, SceneStack &stack)
     (void)app;
     (void)stack;
 
+    m_ui.bindSimulation(nullptr);
+    m_ui.setEventBus(nullptr);
+    m_ui.setTelemetrySink(nullptr);
     m_atlas.texture.reset();
     m_tileMap.tileset.reset();
     m_hudFont.unload();

@@ -1147,31 +1147,6 @@ struct LegacySimulation
         }
     }
 
-    void cycleFormation(int direction)
-    {
-        static const std::array<Formation, 4> order{Formation::Swarm, Formation::Wedge, Formation::Line, Formation::Ring};
-        auto it = std::find(order.begin(), order.end(), formation);
-        if (it == order.end())
-        {
-            formation = Formation::Swarm;
-            return;
-        }
-        int index = static_cast<int>(std::distance(order.begin(), it));
-        index = (index + direction + static_cast<int>(order.size())) % static_cast<int>(order.size());
-        formation = order[static_cast<std::size_t>(index)];
-        std::string message = std::string("Formation: ") + formationLabel(formation);
-        pushTelemetry(message);
-    }
-
-    void issueOrder(ArmyStance newStance)
-    {
-        stance = newStance;
-        orderActive = true;
-        orderTimer = orderDuration;
-        std::string message = std::string("Order: ") + stanceLabel(stance);
-        pushTelemetry(message);
-    }
-
     bool isOrderActive() const { return orderActive; }
 
     float orderTimeRemaining() const { return std::max(orderTimer, 0.0f); }
