@@ -8,6 +8,8 @@
 #include <any>
 #include <array>
 #include <cmath>
+#include <iomanip>
+#include <sstream>
 #include <string>
 #include <vector>
 
@@ -46,6 +48,20 @@ float computeAlignmentProgress(const CommanderUnit &commander, const std::vector
     return followers.empty() ? 0.0f : std::clamp(total / static_cast<float>(followers.size()), 0.0f, 1.0f);
 }
 
+const char *alignmentStateLabel(FormationAlignmentState state)
+{
+    switch (state)
+    {
+    case FormationAlignmentState::Idle:
+        return "idle";
+    case FormationAlignmentState::Aligning:
+        return "aligning";
+    case FormationAlignmentState::Locked:
+        return "locked";
+    }
+    return "unknown";
+}
+
 } // namespace
 
 FormationSystem::FormationSystem()
@@ -54,7 +70,8 @@ FormationSystem::FormationSystem()
       m_lastFormation(Formation::Swarm),
       m_lastProgressSent(-1.0f),
       m_lastStateSent(FormationAlignmentState::Idle),
-      m_lastFollowerCount(0)
+      m_lastFollowerCount(0),
+      m_lastSecondsRemaining(-1.0f)
 {
 }
 
@@ -85,8 +102,16 @@ void FormationSystem::cycleFormation(int direction, LegacySimulation &simulation
     m_lastFormation = simulation.formation;
     m_state = FormationAlignmentState::Aligning;
     m_progress = 0.0f;
+    simulation.formationAlignTimer = std::max(0.0f, simulation.formationDefaults.alignDuration);
+    simulation.formationDefenseMul =
+        simulation.formationDefaults.defenseMultiplier > 0.0f ? simulation.formationDefaults.defenseMultiplier : 1.0f;
+    if (simulation.formationAlignTimer <= 0.0f)
+    {
+        simulation.formationDefenseMul = 1.0f;
+    }
+    m_lastSecondsRemaining = simulation.formationAlignTimer;
     emitFormationChanged(simulation.formation);
-    emitFormationProgress(simulation.formation, m_state, m_progress, 0);
+    emitFormationProgress(simulation.formation, m_state, m_progress, simulation.formationAlignTimer, 0);
 }
 
 void FormationSystem::issueOrder(ArmyStance stance, LegacySimulation &simulation)
@@ -119,13 +144,24 @@ void FormationSystem::reset(const LegacySimulation &simulation)
     m_lastProgressSent = -1.0f;
     m_lastStateSent = FormationAlignmentState::Idle;
     m_lastFollowerCount = 0;
+    m_lastSecondsRemaining = simulation.formationAlignTimer;
 }
 
-void FormationSystem::update(float, SystemContext &context)
+void FormationSystem::update(float dt, SystemContext &context)
 {
     LegacySimulation &sim = context.simulation;
     CommanderUnit &commander = context.commander;
     auto &yunas = context.yunaUnits;
+
+    if (sim.formationAlignTimer > 0.0f)
+    {
+        sim.formationAlignTimer = std::max(0.0f, sim.formationAlignTimer - dt);
+        if (sim.formationAlignTimer <= 0.0f)
+        {
+            sim.formationDefenseMul = 1.0f;
+        }
+    }
+    const float secondsRemaining = std::max(sim.formationAlignTimer, 0.0f);
 
     std::vector<Unit *> followers;
     followers.reserve(kFollowLimit);
@@ -196,13 +232,20 @@ void FormationSystem::update(float, SystemContext &context)
 
     if (!commander.alive || followers.empty())
     {
-        m_state = FormationAlignmentState::Idle;
         m_progress = 0.0f;
+        m_state = secondsRemaining > 0.0f ? FormationAlignmentState::Aligning : FormationAlignmentState::Idle;
     }
     else
     {
         m_progress = computeAlignmentProgress(commander, followers);
-        m_state = m_progress >= 0.99f ? FormationAlignmentState::Locked : FormationAlignmentState::Aligning;
+        if (secondsRemaining > 0.0f)
+        {
+            m_state = FormationAlignmentState::Aligning;
+        }
+        else
+        {
+            m_state = m_progress >= 0.99f ? FormationAlignmentState::Locked : FormationAlignmentState::Aligning;
+        }
     }
 
     if (m_lastFormation != sim.formation)
@@ -214,12 +257,14 @@ void FormationSystem::update(float, SystemContext &context)
     const bool stateChanged = m_state != m_lastStateSent;
     const bool progressChanged = std::fabs(m_progress - m_lastProgressSent) > 0.01f;
     const bool followerChanged = followers.size() != m_lastFollowerCount;
-    if (stateChanged || progressChanged || followerChanged)
+    const bool timerChanged = std::fabs(secondsRemaining - m_lastSecondsRemaining) > 0.01f;
+    if (stateChanged || progressChanged || followerChanged || timerChanged)
     {
-        emitFormationProgress(sim.formation, m_state, m_progress, followers.size());
+        emitFormationProgress(sim.formation, m_state, m_progress, secondsRemaining, followers.size());
         m_lastProgressSent = m_progress;
         m_lastStateSent = m_state;
         m_lastFollowerCount = followers.size();
+        m_lastSecondsRemaining = secondsRemaining;
     }
 
     context.requestComponentSync();
@@ -242,14 +287,31 @@ void FormationSystem::emitFormationChanged(Formation formation)
 }
 
 void FormationSystem::emitFormationProgress(Formation formation, FormationAlignmentState state, float progress,
-                                            std::size_t followers)
+                                            float secondsRemaining, std::size_t followers)
 {
-    FormationProgressEvent payload{formation, state, std::clamp(progress, 0.0f, 1.0f), followers};
+    FormationProgressEvent payload;
+    payload.formation = formation;
+    payload.state = state;
+    payload.progress = std::clamp(progress, 0.0f, 1.0f);
+    payload.secondsRemaining = std::max(secondsRemaining, 0.0f);
+    payload.followers = followers;
     if (auto bus = m_eventBus.lock())
     {
         EventContext ctx;
         ctx.payload = payload;
         bus->dispatch(FormationProgressEventName, ctx);
+    }
+    if (auto telemetry = m_telemetry.lock())
+    {
+        TelemetrySink::Payload data{{"formation", formationLabel(formation)}, {"state", alignmentStateLabel(state)}};
+        std::ostringstream progressStream;
+        progressStream << std::fixed << std::setprecision(2) << payload.progress;
+        data.emplace("progress", progressStream.str());
+        std::ostringstream timerStream;
+        timerStream << std::fixed << std::setprecision(2) << payload.secondsRemaining;
+        data.emplace("remaining_s", timerStream.str());
+        data.emplace("followers", std::to_string(payload.followers));
+        telemetry->recordEvent("formation.progress", data);
     }
 }
 

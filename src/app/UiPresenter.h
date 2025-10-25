@@ -18,6 +18,8 @@ struct FormationHudStatus
     Formation formation = Formation::Swarm;
     FormationAlignmentState state = FormationAlignmentState::Idle;
     float progress = 0.0f;
+    float secondsRemaining = 0.0f;
+    std::size_t followers = 0;
     std::string label;
 };
 

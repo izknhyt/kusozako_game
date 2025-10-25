@@ -42,6 +42,12 @@ struct GameConfig
     int commander_auto_reinforce = 0;
 };
 
+struct FormationAlignmentConfig
+{
+    float alignDuration = 0.0f;
+    float defenseMultiplier = 1.0f;
+};
+
 struct EntityStats
 {
     float radius = 4.0f;
@@ -359,6 +365,7 @@ struct AppConfig
     RendererConfig renderer;
     InputBindings input;
     GameConfig game;
+    FormationAlignmentConfig formations;
     EntityCatalog entityCatalog;
     MapDefs mapDefs;
     TemperamentConfig temperament;
