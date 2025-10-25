@@ -221,6 +221,8 @@ void FormationSystem::update(float, SystemContext &context)
         m_lastStateSent = m_state;
         m_lastFollowerCount = followers.size();
     }
+
+    context.requestComponentSync();
 }
 
 void FormationSystem::emitFormationChanged(Formation formation)

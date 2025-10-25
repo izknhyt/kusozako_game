@@ -496,6 +496,8 @@ void BehaviorSystem::update(float dt, SystemContext &context)
             context.allies[i] = yuna;
         }
     }
+
+    context.requestComponentSync();
 }
 
 } // namespace world::systems
