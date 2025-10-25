@@ -1,7 +1,6 @@
 #include "world/systems/BehaviorSystem.h"
 
 #include "core/Vec2.h"
-#include "input/ActionBuffer.h"
 #include "world/LegacySimulation.h"
 
 #include <algorithm>
@@ -356,18 +355,6 @@ void BehaviorSystem::update(float dt, SystemContext &context)
     auto &yunas = context.yunaUnits;
     auto &enemies = context.enemyUnits;
 
-    if (commander.alive)
-    {
-        Vec2 input = context.actions.commanderMoveVector();
-        if (input.x != 0.0f || input.y != 0.0f)
-        {
-            input = normalize(input);
-        }
-        const float speedPx = sim.commanderStats.speed_u_s * sim.config.pixels_per_unit;
-        commander.pos += input * (speedPx * dt);
-        sim.clampToWorld(commander.pos, commander.radius);
-    }
-
     const float yunaSpeedPx = sim.yunaStats.speed_u_s * sim.config.pixels_per_unit;
     const float followerSnapDistSq = 16.0f;
 
@@ -398,6 +385,8 @@ void BehaviorSystem::update(float dt, SystemContext &context)
     for (std::size_t i = 0; i < yunas.size(); ++i)
     {
         Unit &yuna = yunas[i];
+        yuna.desiredVelocity = {0.0f, 0.0f};
+        yuna.hasDesiredVelocity = false;
         Vec2 temperamentVelocity =
             computeTemperamentVelocity(sim, yuna, dt, yunaSpeedPx, nearestEnemy, raidTargets);
         Vec2 velocity{0.0f, 0.0f};
@@ -487,17 +476,10 @@ void BehaviorSystem::update(float dt, SystemContext &context)
 
         if (velocity.x != 0.0f || velocity.y != 0.0f)
         {
-            yuna.pos += velocity * dt;
-            sim.clampToWorld(yuna.pos, yuna.radius);
-        }
-
-        if (i < context.allies.size())
-        {
-            context.allies[i] = yuna;
+            yuna.desiredVelocity = velocity;
+            yuna.hasDesiredVelocity = true;
         }
     }
-
-    context.requestComponentSync();
 }
 
 } // namespace world::systems

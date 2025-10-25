@@ -3,6 +3,8 @@
 #include "input/ActionBuffer.h"
 #include "world/WorldState.h"
 
+#include <array>
+#include <cmath>
 #include <iostream>
 #include <memory>
 #include <stdexcept>
@@ -39,6 +41,7 @@ int main()
     {
         world::WorldState world;
         const std::vector<Stage> expectedDefault{
+            Stage::InputProcessing,
             Stage::CommandAndMorale,
             Stage::CommandAndMorale,
             Stage::AiDecision,
@@ -118,6 +121,73 @@ int main()
         if (world.systemStageOrder() != expectedOrder)
         {
             reportMismatch("Configured stage order", expectedOrder, world.systemStageOrder());
+            success = false;
+        }
+    }
+
+    {
+        world::WorldState world;
+        world::LegacySimulation &sim = world.legacy();
+        sim.commander.alive = true;
+        sim.commander.pos = {0.0f, 0.0f};
+        sim.commanderStats.speed_u_s = 4.0f;
+        sim.config.pixels_per_unit = 10.0f;
+
+        ActionBuffer actions;
+        std::array<float, static_cast<std::size_t>(AxisId::Count)> axes{};
+        axes[static_cast<std::size_t>(AxisId::CommanderMoveX)] = 1.0f;
+        axes[static_cast<std::size_t>(AxisId::CommanderMoveY)] = 0.0f;
+        actions.pushFrame(1, 0.0, axes, {}, PointerState{});
+
+        const float dt = 0.5f;
+        world.step(dt, actions);
+
+        const float expectedCommanderX = sim.commanderStats.speed_u_s * sim.config.pixels_per_unit * dt;
+        if (std::fabs(sim.commander.pos.x - expectedCommanderX) > 0.001f ||
+            std::fabs(sim.commander.pos.y) > 0.001f)
+        {
+            std::cerr << "Commander movement mismatch" << '\n';
+            success = false;
+        }
+        if (sim.commander.hasMoveIntent)
+        {
+            std::cerr << "Commander move intent not cleared" << '\n';
+            success = false;
+        }
+    }
+
+    {
+        world::WorldState world;
+        world::LegacySimulation &sim = world.legacy();
+        sim.commander.alive = true;
+        sim.commander.pos = {0.0f, 0.0f};
+        sim.yunaStats.speed_u_s = 2.0f;
+        sim.config.pixels_per_unit = 5.0f;
+
+        world.markComponentsDirty();
+
+        sim.yunas.clear();
+        Unit follower;
+        follower.pos = {100.0f, 0.0f};
+        follower.radius = 4.0f;
+        follower.effectiveFollower = true;
+        follower.formationOffset = {0.0f, 0.0f};
+        sim.yunas.push_back(follower);
+
+        ActionBuffer actions;
+        const float dt = 0.25f;
+        world.step(dt, actions);
+
+        const float expectedDelta = sim.yunaStats.speed_u_s * sim.config.pixels_per_unit * dt;
+        const float expectedPosX = 100.0f - expectedDelta;
+        if (sim.yunas.empty() || std::fabs(sim.yunas.front().pos.x - expectedPosX) > 0.01f)
+        {
+            std::cerr << "Follower movement mismatch" << '\n';
+            success = false;
+        }
+        if (!sim.yunas.empty() && sim.yunas.front().hasDesiredVelocity)
+        {
+            std::cerr << "Follower intent not cleared" << '\n';
             success = false;
         }
     }
