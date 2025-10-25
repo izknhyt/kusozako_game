@@ -30,7 +30,6 @@
 #include "world/systems/RenderingPrepSystem.h"
 #include "world/systems/MoraleSystem.h"
 #include "world/systems/SystemContext.h"
-
 #include <algorithm>
 #include <array>
 #include <cctype>
@@ -55,6 +54,23 @@
 #include <unordered_set>
 #include <utility>
 #include <vector>
+
+namespace world::systems
+{
+
+class MovementSystem : public ISystem
+{
+  public:
+    void update(float, SystemContext &) override {}
+};
+
+class SpawnSystem : public ISystem
+{
+  public:
+    void update(float, SystemContext &) override {}
+};
+
+} // namespace world::systems
 
 struct RenderStats
 {
@@ -311,7 +327,51 @@ void WorldState::reset()
     markComponentsDirty();
 }
 
-systems::SystemContext WorldState::makeSystemContext()
+systems::SystemContext WorldState::makeSystemContext(const ActionBuffer &actions)
+{
+    systems::MissionContext missionContext{
+        m_sim->hasMission,
+        m_sim->missionConfig,
+        m_sim->missionMode,
+        m_sim->missionUI,
+        m_sim->missionFail,
+        m_sim->missionTimer,
+        m_sim->missionVictoryCountdown};
+
+    systems::SystemContext context{
+        *m_sim,
+        m_registry,
+        *m_allies,
+        *m_enemies,
+        *m_walls,
+        *m_captureZones,
+        m_sim->commander,
+        m_sim->hud,
+        m_sim->baseHp,
+        m_sim->orderActive,
+        m_sim->orderTimer,
+        m_sim->waveScriptComplete,
+        m_sim->spawnerIdle,
+        m_sim->timeSinceLastEnemySpawn,
+        m_sim->skills,
+        m_sim->selectedSkill,
+        m_sim->rallyState,
+        m_sim->spawnRateMultiplier,
+        m_sim->spawnSlowMultiplier,
+        m_sim->spawnSlowTimer,
+        m_sim->yunas,
+        m_sim->enemies,
+        m_sim->walls,
+        m_sim->gates,
+        m_sim->yunaRespawnTimers,
+        m_sim->commanderRespawnTimer,
+        m_sim->commanderInvulnTimer,
+        missionContext,
+        actions};
+    return context;
+}
+
+void WorldState::initializeSystems()
 {
     clearSystems();
 
@@ -325,11 +385,23 @@ systems::SystemContext WorldState::makeSystemContext()
     {
         formation->setTelemetrySink(std::weak_ptr<TelemetrySink>(m_telemetry));
     }
+
+    auto morale = std::make_unique<systems::MoraleSystem>();
+    auto behavior = std::make_unique<systems::BehaviorSystem>();
+    auto movement = std::make_unique<systems::MovementSystem>();
+    auto combat = std::make_unique<systems::CombatSystem>();
+    auto jobAbility = std::make_unique<systems::JobAbilitySystem>();
+    auto spawn = std::make_unique<systems::SpawnSystem>();
+    auto rendering = std::make_unique<systems::RenderingPrepSystem>();
+
     registerSystem(systems::SystemStage::CommandAndMorale, std::move(formation));
-    registerSystem(systems::SystemStage::CommandAndMorale, std::make_unique<systems::MoraleSystem>());
-    registerSystem(systems::SystemStage::AiDecision, std::make_unique<systems::BehaviorSystem>());
-    registerSystem(systems::SystemStage::Combat, std::make_unique<systems::CombatSystem>());
-    registerSystem(systems::SystemStage::StateUpdate, std::make_unique<systems::JobAbilitySystem>());
+    registerSystem(systems::SystemStage::CommandAndMorale, std::move(morale));
+    registerSystem(systems::SystemStage::AiDecision, std::move(behavior));
+    registerSystem(systems::SystemStage::Movement, std::move(movement));
+    registerSystem(systems::SystemStage::Combat, std::move(combat));
+    registerSystem(systems::SystemStage::StateUpdate, std::move(jobAbility));
+    registerSystem(systems::SystemStage::Spawn, std::move(spawn));
+    registerSystem(systems::SystemStage::RenderingPrep, std::move(rendering));
 }
 
 void WorldState::clearSystems()
@@ -337,6 +409,7 @@ void WorldState::clearSystems()
     m_systems.clear();
     m_systemStageOrder.clear();
     m_cachedFormationSystem = nullptr;
+    m_cachedJobAbilitySystem = nullptr;
 }
 
 void WorldState::registerSystem(systems::SystemStage stage, std::unique_ptr<systems::ISystem> system)
@@ -356,6 +429,10 @@ void WorldState::registerSystem(systems::SystemStage stage, std::unique_ptr<syst
     if (auto *formation = dynamic_cast<systems::FormationSystem *>(system.get()))
     {
         m_cachedFormationSystem = formation;
+    }
+    if (auto *jobAbility = dynamic_cast<systems::JobAbilitySystem *>(system.get()))
+    {
+        m_cachedJobAbilitySystem = jobAbility;
     }
     m_systemStageOrder.push_back(stage);
     m_systems.push_back(SystemEntry{stage, std::move(system)});
@@ -381,38 +458,7 @@ void WorldState::runSystemsForStage(systems::SystemStage stage,
 
 void WorldState::step(float dt, const ActionBuffer &actions)
 {
-    systems::MissionContext missionContext{
-        m_sim->hasMission,
-        m_sim->missionConfig,
-        m_sim->missionMode,
-        m_sim->missionUI,
-        m_sim->missionFail,
-        m_sim->missionTimer,
-        m_sim->missionVictoryCountdown};
-    systems::SystemContext context{
-        *m_sim,
-        m_registry,
-        *m_allies,
-        *m_enemies,
-        *m_walls,
-        *m_captureZones,
-        m_sim->commander,
-        m_sim->hud,
-        m_sim->baseHp,
-        m_sim->orderActive,
-        m_sim->orderTimer,
-        m_sim->waveScriptComplete,
-        m_sim->spawnerIdle,
-        m_sim->timeSinceLastEnemySpawn,
-        m_sim->yunas,
-        m_sim->enemies,
-        m_sim->walls,
-        m_sim->gates,
-        m_sim->yunaRespawnTimers,
-        m_sim->commanderRespawnTimer,
-        m_sim->commanderInvulnTimer,
-        missionContext,
-        actions};
+    systems::SystemContext context = makeSystemContext(actions);
     constexpr std::array<systems::SystemStage, 8> kExecutionOrder{
         systems::SystemStage::InputProcessing,
         systems::SystemStage::CommandAndMorale,
@@ -520,11 +566,12 @@ void WorldState::selectSkillByHotkey(int hotkey)
 
 void WorldState::activateSelectedSkill(const Vec2 &worldPos)
 {
-    if (m_jobSystem)
+    if (m_cachedJobAbilitySystem)
     {
-        systems::SystemContext context = makeSystemContext();
+        ActionBuffer emptyActions;
+        systems::SystemContext context = makeSystemContext(emptyActions);
         systems::SkillCommand command{m_sim->selectedSkill, worldPos};
-        m_jobSystem->triggerSkill(context, command);
+        m_cachedJobAbilitySystem->triggerSkill(context, command);
     }
     markComponentsDirty();
 }

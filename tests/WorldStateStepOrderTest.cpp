@@ -42,8 +42,11 @@ int main()
             Stage::CommandAndMorale,
             Stage::CommandAndMorale,
             Stage::AiDecision,
+            Stage::Movement,
             Stage::Combat,
             Stage::StateUpdate,
+            Stage::Spawn,
+            Stage::RenderingPrep,
         };
         if (world.systemStageOrder() != expectedDefault)
         {
