@@ -20,7 +20,9 @@ add_executable(kusozako
   src/input/ActionBuffer.cpp
   src/input/InputMapper.cpp
   src/world/systems/FormationSystem.cpp
+  src/world/systems/CommanderInputSystem.cpp
   src/world/systems/BehaviorSystem.cpp
+  src/world/systems/MovementSystem.cpp
   src/config/AppConfig.cpp
   src/config/AppConfigLoader.cpp
   src/services/ServiceLocator.cpp
@@ -86,9 +88,11 @@ add_executable(world_state_step_order_test
   src/world/spawn/Spawner.cpp
   src/world/spawn/WaveController.cpp
   src/world/systems/BehaviorSystem.cpp
+  src/world/systems/CommanderInputSystem.cpp
   src/world/systems/CombatSystem.cpp
   src/world/systems/FormationSystem.cpp
   src/world/systems/JobAbilitySystem.cpp
+  src/world/systems/MovementSystem.cpp
   src/world/systems/MoraleSystem.cpp
   src/world/systems/RenderingPrepSystem.cpp
 )

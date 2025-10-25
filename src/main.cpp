@@ -24,9 +24,11 @@
 #include "world/spawn/Spawner.h"
 #include "world/spawn/WaveController.h"
 #include "world/systems/BehaviorSystem.h"
+#include "world/systems/CommanderInputSystem.h"
 #include "world/systems/CombatSystem.h"
 #include "world/systems/FormationSystem.h"
 #include "world/systems/JobAbilitySystem.h"
+#include "world/systems/MovementSystem.h"
 #include "world/systems/RenderingPrepSystem.h"
 #include "world/systems/MoraleSystem.h"
 #include "world/systems/SystemContext.h"
@@ -57,12 +59,6 @@
 
 namespace world::systems
 {
-
-class MovementSystem : public ISystem
-{
-  public:
-    void update(float, SystemContext &) override {}
-};
 
 class SpawnSystem : public ISystem
 {
@@ -376,6 +372,7 @@ void WorldState::initializeSystems()
 {
     clearSystems();
 
+    auto commanderInput = std::make_unique<systems::CommanderInputSystem>();
     auto formation = std::make_unique<systems::FormationSystem>();
     formation->reset(*m_sim);
     if (m_eventBus)
@@ -395,6 +392,7 @@ void WorldState::initializeSystems()
     auto spawn = std::make_unique<systems::SpawnSystem>();
     auto rendering = std::make_unique<systems::RenderingPrepSystem>();
 
+    registerSystem(systems::SystemStage::InputProcessing, std::move(commanderInput));
     registerSystem(systems::SystemStage::CommandAndMorale, std::move(formation));
     registerSystem(systems::SystemStage::CommandAndMorale, std::move(morale));
     registerSystem(systems::SystemStage::AiDecision, std::move(behavior));

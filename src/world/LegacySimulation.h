@@ -71,6 +71,8 @@ struct Unit
     bool followByStance = false;
     bool effectiveFollower = false;
     Vec2 formationOffset{0.0f, 0.0f};
+    Vec2 desiredVelocity{0.0f, 0.0f};
+    bool hasDesiredVelocity = false;
     TemperamentState temperament;
 };
 
@@ -80,6 +82,8 @@ struct CommanderUnit
     float hp = 0.0f;
     float radius = 12.0f;
     bool alive = true;
+    Vec2 moveIntent{0.0f, 0.0f};
+    bool hasMoveIntent = false;
 };
 
 struct EnemyUnit
