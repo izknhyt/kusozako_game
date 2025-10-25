@@ -75,6 +75,12 @@ struct SystemContext
 
     MissionContext mission;
     const ActionBuffer &actions;
+    bool componentsDirty = false;
+
+    void requestComponentSync()
+    {
+        componentsDirty = true;
+    }
 };
 
 class ISystem

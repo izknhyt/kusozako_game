@@ -95,12 +95,6 @@ class WorldState
     const std::vector<systems::SystemStage> &systemStageOrder() const;
 
   private:
-    struct SystemEntry
-    {
-        systems::SystemStage stage;
-        std::unique_ptr<systems::ISystem> system;
-    };
-
     std::unique_ptr<LegacySimulation> m_sim;
     mutable EntityRegistry m_registry;
     mutable std::unique_ptr<ComponentPool<Unit>> m_allies;
@@ -113,7 +107,7 @@ class WorldState
     std::shared_ptr<TelemetrySink> m_telemetry;
     std::unique_ptr<spawn::WaveController> m_waveController;
     std::unique_ptr<spawn::Spawner> m_spawner;
-    std::vector<SystemEntry> m_systems;
+    std::vector<std::unique_ptr<systems::ISystem>> m_systems;
     std::vector<systems::SystemStage> m_systemStageOrder;
     systems::FormationSystem *m_cachedFormationSystem = nullptr;
     systems::JobAbilitySystem *m_cachedJobAbilitySystem = nullptr;
@@ -121,7 +115,8 @@ class WorldState
     void rebuildMissionComponents() const;
     systems::SystemContext makeSystemContext(const ActionBuffer &actions);
     void initializeSystems();
-    void runSystemsForStage(systems::SystemStage stage, float dt, systems::SystemContext &context);
+    void advanceLegacyState(float dt);
+    void runSpawnStage(float dt, systems::SystemContext &context);
     systems::FormationSystem *formationSystem() const;
 };
 

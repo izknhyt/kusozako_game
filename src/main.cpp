@@ -367,7 +367,8 @@ systems::SystemContext WorldState::makeSystemContext(const ActionBuffer &actions
         m_sim->commanderRespawnTimer,
         m_sim->commanderInvulnTimer,
         missionContext,
-        actions};
+        actions,
+        false};
     return context;
 }
 
@@ -418,9 +419,9 @@ void WorldState::registerSystem(systems::SystemStage stage, std::unique_ptr<syst
     {
         return;
     }
-    if (!m_systems.empty())
+    if (!m_systemStageOrder.empty())
     {
-        const systems::SystemStage lastStage = m_systems.back().stage;
+        const systems::SystemStage lastStage = m_systemStageOrder.back();
         if (static_cast<std::uint8_t>(stage) < static_cast<std::uint8_t>(lastStage))
         {
             throw std::logic_error("WorldState::registerSystem stage order violation");
@@ -435,7 +436,7 @@ void WorldState::registerSystem(systems::SystemStage stage, std::unique_ptr<syst
         m_cachedJobAbilitySystem = jobAbility;
     }
     m_systemStageOrder.push_back(stage);
-    m_systems.push_back(SystemEntry{stage, std::move(system)});
+    m_systems.push_back(std::move(system));
 }
 
 const std::vector<systems::SystemStage> &WorldState::systemStageOrder() const
@@ -443,101 +444,126 @@ const std::vector<systems::SystemStage> &WorldState::systemStageOrder() const
     return m_systemStageOrder;
 }
 
-void WorldState::runSystemsForStage(systems::SystemStage stage,
-                                    float dt,
-                                    systems::SystemContext &context)
+void WorldState::advanceLegacyState(float dt)
 {
-    for (auto &entry : m_systems)
+    if (!m_sim)
     {
-        if (entry.stage == stage && entry.system)
+        return;
+    }
+
+    m_sim->simTime += dt;
+    if (m_sim->timeSinceLastEnemySpawn < 10000.0f)
+    {
+        m_sim->timeSinceLastEnemySpawn += dt;
+    }
+    if (m_sim->restartCooldown > 0.0f)
+    {
+        m_sim->restartCooldown = std::max(0.0f, m_sim->restartCooldown - dt);
+    }
+
+    m_sim->updateYunaSpawn(dt);
+    m_sim->updateCommanderRespawn(dt);
+    m_sim->updateWalls(dt);
+    m_sim->updateMission(dt);
+}
+
+void WorldState::runSpawnStage(float dt, systems::SystemContext &context)
+{
+    if (!m_sim)
+    {
+        return;
+    }
+
+    if (m_sim->spawnEnabled)
+    {
+        if (m_waveController)
         {
-            entry.system->update(dt, context);
+            std::vector<std::string> announcements = m_waveController->advance(m_sim->simTime);
+            for (const std::string &text : announcements)
+            {
+                if (!text.empty())
+                {
+                    m_sim->pushTelemetry(text);
+                }
+            }
         }
+
+        if (m_spawner)
+        {
+            if (m_sim->missionMode == MissionMode::Survival && m_sim->survival.spawnMultiplier > 0.0f)
+            {
+                const float mult = std::max(m_sim->survival.spawnMultiplier, 0.1f);
+                m_spawner->setIntervalModifier([mult](float base) {
+                    if (mult <= 0.0f)
+                    {
+                        return base;
+                    }
+                    return base / mult;
+                });
+            }
+            else
+            {
+                m_spawner->setIntervalModifier({});
+            }
+
+            m_spawner->emit(dt, [this, &context](const spawn::SpawnPayload &payload) {
+                m_sim->spawnOneEnemy(payload.position, payload.type);
+                context.requestComponentSync();
+            });
+        }
+    }
+
+    if (m_waveController)
+    {
+        m_sim->waveScriptComplete = m_waveController->isComplete();
+    }
+    if (m_spawner)
+    {
+        m_sim->spawnerIdle = m_spawner->empty();
     }
 }
 
 void WorldState::step(float dt, const ActionBuffer &actions)
 {
     systems::SystemContext context = makeSystemContext(actions);
-    constexpr std::array<systems::SystemStage, 8> kExecutionOrder{
-        systems::SystemStage::InputProcessing,
-        systems::SystemStage::CommandAndMorale,
-        systems::SystemStage::AiDecision,
-        systems::SystemStage::Movement,
-        systems::SystemStage::Combat,
-        systems::SystemStage::StateUpdate,
-        systems::SystemStage::Spawn,
-        systems::SystemStage::RenderingPrep,
-    };
 
-    for (systems::SystemStage stage : kExecutionOrder)
+    for (std::size_t i = 0; i < m_systems.size(); ++i)
     {
+        if (!m_systems[i])
+        {
+            continue;
+        }
+
+        systems::SystemStage stage = systems::SystemStage::InputProcessing;
+        if (i < m_systemStageOrder.size())
+        {
+            stage = m_systemStageOrder[i];
+        }
+
         switch (stage)
         {
         case systems::SystemStage::StateUpdate:
-            m_sim->update(dt);
-            runSystemsForStage(stage, dt, context);
+            advanceLegacyState(dt);
+            m_systems[i]->update(dt, context);
+            context.componentsDirty = true;
             break;
         case systems::SystemStage::Spawn:
         {
-            runSystemsForStage(stage, dt, context);
-
-            if (m_sim->spawnEnabled)
-            {
-                if (m_waveController)
-                {
-                    std::vector<std::string> announcements = m_waveController->advance(m_sim->simTime);
-                    for (const std::string &text : announcements)
-                    {
-                        if (!text.empty())
-                        {
-                            m_sim->pushTelemetry(text);
-                        }
-                    }
-                }
-
-                if (m_spawner)
-                {
-                    if (m_sim->missionMode == MissionMode::Survival &&
-                        m_sim->survival.spawnMultiplier > 0.0f)
-                    {
-                        const float mult = std::max(m_sim->survival.spawnMultiplier, 0.1f);
-                        m_spawner->setIntervalModifier([mult](float base) {
-                            if (mult <= 0.0f)
-                            {
-                                return base;
-                            }
-                            return base / mult;
-                        });
-                    }
-                    else
-                    {
-                        m_spawner->setIntervalModifier({});
-                    }
-
-                    m_spawner->emit(dt, [this](const spawn::SpawnPayload &payload) {
-                        m_sim->spawnOneEnemy(payload.position, payload.type);
-                    });
-                }
-            }
-
-            if (m_waveController)
-            {
-                m_sim->waveScriptComplete = m_waveController->isComplete();
-            }
-            if (m_spawner)
-            {
-                m_sim->spawnerIdle = m_spawner->empty();
-            }
+            m_systems[i]->update(dt, context);
+            runSpawnStage(dt, context);
             break;
         }
         default:
-            runSystemsForStage(stage, dt, context);
+            m_systems[i]->update(dt, context);
             break;
         }
-    }
 
-    markComponentsDirty();
+        if (context.componentsDirty)
+        {
+            markComponentsDirty();
+            context.componentsDirty = false;
+        }
+    }
 }
 
 void WorldState::issueOrder(ArmyStance stance)
@@ -566,14 +592,19 @@ void WorldState::selectSkillByHotkey(int hotkey)
 
 void WorldState::activateSelectedSkill(const Vec2 &worldPos)
 {
+    bool dirty = false;
     if (m_cachedJobAbilitySystem)
     {
         ActionBuffer emptyActions;
         systems::SystemContext context = makeSystemContext(emptyActions);
         systems::SkillCommand command{m_sim->selectedSkill, worldPos};
         m_cachedJobAbilitySystem->triggerSkill(context, command);
+        dirty = context.componentsDirty;
     }
-    markComponentsDirty();
+    if (dirty)
+    {
+        markComponentsDirty();
+    }
 }
 
 void WorldState::setEventBus(std::shared_ptr<EventBus> bus)

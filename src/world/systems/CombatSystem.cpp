@@ -213,6 +213,8 @@ void CombatSystem::update(float dt, SystemContext &context)
     walls.erase(std::remove_if(walls.begin(), walls.end(), [](const WallSegment &wall) {
         return wall.hp <= 0.0f;
     }), walls.end());
+
+    context.requestComponentSync();
 }
 
 } // namespace world::systems
