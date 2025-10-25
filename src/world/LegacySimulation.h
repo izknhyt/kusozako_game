@@ -202,6 +202,9 @@ struct LegacySimulation
     float orderTimer = 0.0f;
     float orderDuration = 10.0f;
     Formation formation = Formation::Swarm;
+    FormationAlignmentConfig formationDefaults;
+    float formationAlignTimer = 0.0f;
+    float formationDefenseMul = 1.0f;
     int selectedSkill = 0;
     bool rallyState = false;
     float spawnRateMultiplier = 1.0f;
@@ -296,6 +299,8 @@ struct LegacySimulation
         rallyState = false;
         stance = defaultStance;
         formation = Formation::Swarm;
+        formationAlignTimer = 0.0f;
+        formationDefenseMul = 1.0f;
         selectedSkill = 0;
         for (RuntimeSkill &skill : skills)
         {

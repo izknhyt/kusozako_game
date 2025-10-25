@@ -835,8 +835,8 @@ void drawTileLayer(SDL_Renderer *renderer, const TileMap &map, const std::vector
     }
 }
 
-void renderScene(SDL_Renderer *renderer, const LegacySimulation &sim, const Camera &camera, const TextRenderer &font,
-                 const TextRenderer &debugFont, const TileMap &map,
+void renderScene(SDL_Renderer *renderer, const LegacySimulation &sim, const FormationHudStatus *formationHud,
+                 const Camera &camera, const TextRenderer &font, const TextRenderer &debugFont, const TileMap &map,
                  const Atlas &atlas, int screenW, int screenH, FramePerf &perf, bool showDebugHud)
 {
     RenderStats stats;
@@ -1389,6 +1389,25 @@ void renderScene(SDL_Renderer *renderer, const LegacySimulation &sim, const Came
                       SDL_Color{255, 220, 120, 255});
         topUiAnchor = bannerRect.y + bannerRect.h + 12;
     }
+    if (formationHud && formationHud->state == FormationAlignmentState::Aligning &&
+        formationHud->secondsRemaining > 0.0f)
+    {
+        std::ostringstream alignText;
+        alignText << std::fixed << std::setprecision(1) << std::max(formationHud->secondsRemaining, 0.0f);
+        const std::string bannerText = std::string(u8"整列中 ") + alignText.str() + "s";
+        const int padX = 16;
+        const int padY = 6;
+        const int textWidth = measureWithFallback(font, bannerText, lineHeight);
+        SDL_Rect alignRect{screenW / 2 - (textWidth + padX * 2) / 2, topUiAnchor, textWidth + padX * 2,
+                           lineHeight + padY * 2};
+        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+        SDL_SetRenderDrawColor(renderer, 0, 0, 0, 180);
+        countedRenderFillRect(renderer, &alignRect, stats);
+        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
+        font.drawText(renderer, bannerText, alignRect.x + padX, alignRect.y + padY, &stats,
+                      SDL_Color{255, 208, 144, 255});
+        topUiAnchor = alignRect.y + alignRect.h + 10;
+    }
     const int baseHpInt = static_cast<int>(std::round(std::max(sim.baseHp, 0.0f)));
     const float hpRatio = sim.config.base_hp > 0 ? std::clamp(baseHpInt / static_cast<float>(sim.config.base_hp), 0.0f, 1.0f) : 0.0f;
     SDL_Rect barBg{screenW / 2 - 160, topUiAnchor, 320, 20};
@@ -1719,6 +1738,9 @@ void BattleScene::onEnter(GameApplication &app, SceneStack &stack)
     sim.commanderStats = appConfig.entityCatalog.commander;
     sim.mapDefs = appConfig.mapDefs;
     sim.spawnScript = appConfig.spawnScript;
+    sim.formationDefaults = appConfig.formations;
+    sim.formationAlignTimer = 0.0f;
+    sim.formationDefenseMul = 1.0f;
     if (appConfig.mission && appConfig.mission->mode != MissionMode::None)
     {
         sim.hasMission = true;
@@ -2027,8 +2049,9 @@ void BattleScene::render(SDL_Renderer *renderer, GameApplication &app)
     const auto &allyPool = m_world.allies();
     const auto &enemyPool = m_world.enemies();
     m_framePerf.entities = static_cast<int>(allyPool.size() + enemyPool.size() + (sim.commander.alive ? 1 : 0));
-    renderScene(renderer, sim, renderCamera, m_hudFont, m_debugFont, m_tileMap, m_atlas, m_screenWidth, m_screenHeight,
-                m_framePerf, m_showDebugHud);
+    const FormationHudStatus &formationHud = m_ui.formationHud();
+    renderScene(renderer, sim, &formationHud, renderCamera, m_hudFont, m_debugFont, m_tileMap, m_atlas, m_screenWidth,
+                m_screenHeight, m_framePerf, m_showDebugHud);
     const Uint64 renderEnd = SDL_GetPerformanceCounter();
     const double renderMs = (renderEnd - renderStart) * 1000.0 / m_frequency;
     m_framePerf.msRender = static_cast<float>(renderMs);

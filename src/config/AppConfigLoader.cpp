@@ -162,6 +162,40 @@ std::optional<GameConfig> parseGameConfig(ParseContext &ctx, const std::string &
     return cfg;
 }
 
+std::optional<FormationAlignmentConfig> parseFormationConfig(ParseContext &ctx, const std::string &path)
+{
+    AssetManager::AssetLoadStatus status;
+    auto jsonDoc = ctx.assets.acquireJson(path);
+    status = jsonDoc.status();
+    if (!jsonDoc.get())
+    {
+        auto &errors = *ctx.errors;
+        if (!status.message.empty())
+        {
+            errors.push_back({path, status.message});
+        }
+        else
+        {
+            errors.push_back({path, "Failed to load formation config"});
+        }
+        return std::nullopt;
+    }
+    if (!status.ok && !status.message.empty())
+    {
+        ctx.errors->push_back({path, status.message});
+    }
+
+    FormationAlignmentConfig config;
+    const json::JsonValue &root = *jsonDoc.get();
+    config.alignDuration = std::max(0.0f, json::getNumber(root, "align_duration_s", config.alignDuration));
+    config.defenseMultiplier = json::getNumber(root, "defense_multiplier", config.defenseMultiplier);
+    if (config.defenseMultiplier <= 0.0f)
+    {
+        config.defenseMultiplier = 1.0f;
+    }
+    return config;
+}
+
 std::optional<EntityCatalog> parseEntityCatalog(ParseContext &ctx, const std::string &path)
 {
     AssetManager::AssetLoadStatus status;
@@ -1122,6 +1156,7 @@ AppConfigLoadResult AppConfigLoader::load(AssetManager &assets)
     std::string mapDefsPath = "assets/map_defs.json";
     std::string temperamentPath = "assets/ai_temperaments.json";
     std::string skillsPath = "assets/skills.json";
+    std::string formationsPath = "assets/formations.json";
     std::string atlasPath = "assets/atlas.json";
     if (assetsObj)
     {
@@ -1130,6 +1165,7 @@ AppConfigLoadResult AppConfigLoader::load(AssetManager &assets)
         mapDefsPath = json::getString(*assetsObj, "map_defs", mapDefsPath);
         temperamentPath = json::getString(*assetsObj, "temperaments", temperamentPath);
         skillsPath = json::getString(*assetsObj, "skills", skillsPath);
+        formationsPath = json::getString(*assetsObj, "formations", formationsPath);
         atlasPath = json::getString(*assetsObj, "atlas", atlasPath);
     }
 
@@ -1208,6 +1244,7 @@ AppConfigLoadResult AppConfigLoader::load(AssetManager &assets)
         skills = buildDefaultSkills();
         errors.push_back({skillsPath, "Failed to parse skills, using defaults"});
     }
+    auto formations = parseFormationConfig(ctx, formationsPath);
 
     trackFile("assets/game", assets.resolvePath(gamePath));
     trackFile("assets/entities", assets.resolvePath(entitiesPath));
@@ -1215,6 +1252,7 @@ AppConfigLoadResult AppConfigLoader::load(AssetManager &assets)
     trackFile("assets/temperaments", assets.resolvePath(temperamentPath));
     trackFile("assets/spawn", assets.resolvePath(gameCfg->enemy_script));
     trackFile("assets/skills", assets.resolvePath(skillsPath));
+    trackFile("assets/formations", assets.resolvePath(formationsPath));
     if (!gameCfg->mission_path.empty())
     {
         trackFile("assets/mission", assets.resolvePath(gameCfg->mission_path));
@@ -1231,6 +1269,10 @@ AppConfigLoadResult AppConfigLoader::load(AssetManager &assets)
     result.config.spawnScript = *spawnScript;
     result.config.mission = mission;
     result.config.skills = *skills;
+    if (formations)
+    {
+        result.config.formations = *formations;
+    }
     result.config.atlasPath = atlasPath;
 
     result.errors = std::move(errors);

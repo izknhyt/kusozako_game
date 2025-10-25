@@ -83,6 +83,8 @@ void UiPresenter::handleFormationChanged(const FormationChangedEvent &event)
     m_formationHud.label = event.label;
     m_formationHud.state = FormationAlignmentState::Aligning;
     m_formationHud.progress = 0.0f;
+    m_formationHud.secondsRemaining = 0.0f;
+    m_formationHud.followers = 0;
 
     updateTelemetryText(std::string("Formation: ") + event.label);
 
@@ -98,6 +100,8 @@ void UiPresenter::handleFormationProgress(const FormationProgressEvent &event)
     m_formationHud.formation = event.formation;
     m_formationHud.state = event.state;
     m_formationHud.progress = event.progress;
+    m_formationHud.secondsRemaining = event.secondsRemaining;
+    m_formationHud.followers = event.followers;
 }
 
 void UiPresenter::updateTelemetryText(const std::string &text)

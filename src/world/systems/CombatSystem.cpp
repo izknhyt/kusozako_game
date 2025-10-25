@@ -17,6 +17,10 @@ void CombatSystem::update(float dt, SystemContext &context)
     auto &walls = context.wallSegments;
     auto &gates = context.gates;
 
+    const float defenseMultiplier =
+        sim.formationAlignTimer > 0.0f ? std::max(sim.formationDefenseMul, 0.01f) : 1.0f;
+    const float formationDamageScale = 1.0f / defenseMultiplier;
+
     for (EnemyUnit &enemy : enemies)
     {
         Vec2 target = sim.basePos;
@@ -89,7 +93,7 @@ void CombatSystem::update(float dt, SystemContext &context)
                 enemy.hp -= sim.commanderStats.dps * dt;
                 if (context.commanderInvulnTimer <= 0.0f)
                 {
-                    commanderDamage += enemy.dpsUnit * dt;
+                    commanderDamage += enemy.dpsUnit * dt * formationDamageScale;
                 }
             }
         }
@@ -120,7 +124,7 @@ void CombatSystem::update(float dt, SystemContext &context)
             if (lengthSq(yuna.pos - enemy.pos) <= combined * combined)
             {
                 enemy.hp -= sim.yunaStats.dps * dt;
-                yunaDamage[i] += enemy.dpsUnit * dt;
+                yunaDamage[i] += enemy.dpsUnit * dt * formationDamageScale;
             }
         }
         for (GateRuntime &gate : gates)
