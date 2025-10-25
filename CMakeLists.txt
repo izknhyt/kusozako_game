@@ -14,8 +14,13 @@ endif()
 add_executable(kusozako
   src/main.cpp
   src/app/GameApplication.cpp
+  src/app/UiPresenter.cpp
   src/assets/AssetManager.cpp
   src/events/EventBus.cpp
+  src/input/ActionBuffer.cpp
+  src/input/InputMapper.cpp
+  src/world/systems/FormationSystem.cpp
+  src/world/systems/BehaviorSystem.cpp
   src/config/AppConfig.cpp
   src/config/AppConfigLoader.cpp
   src/services/ServiceLocator.cpp
@@ -26,6 +31,7 @@ add_executable(kusozako
   src/world/systems/CombatSystem.cpp
   src/world/systems/JobAbilitySystem.cpp
   src/world/systems/MoraleSystem.cpp
+  src/world/systems/RenderingPrepSystem.cpp
 )
 
 target_include_directories(kusozako PRIVATE
@@ -62,3 +68,39 @@ target_compile_definitions(config_schema_test PRIVATE PROJECT_SOURCE_DIR="${CMAK
 target_link_libraries(config_schema_test PRIVATE SDL2::SDL2 SDL2_image::SDL2_image SDL2_ttf::SDL2_ttf)
 
 add_test(NAME config_schema COMMAND config_schema_test)
+
+add_executable(world_state_step_order_test
+  tests/WorldStateStepOrderTest.cpp
+  src/main.cpp
+  src/app/GameApplication.cpp
+  src/app/UiPresenter.cpp
+  src/assets/AssetManager.cpp
+  src/config/AppConfig.cpp
+  src/config/AppConfigLoader.cpp
+  src/events/EventBus.cpp
+  src/input/ActionBuffer.cpp
+  src/input/InputMapper.cpp
+  src/services/ServiceLocator.cpp
+  src/scenes/SceneStack.cpp
+  src/telemetry/ConsoleTelemetrySink.cpp
+  src/world/spawn/Spawner.cpp
+  src/world/spawn/WaveController.cpp
+  src/world/systems/BehaviorSystem.cpp
+  src/world/systems/CombatSystem.cpp
+  src/world/systems/FormationSystem.cpp
+  src/world/systems/JobAbilitySystem.cpp
+  src/world/systems/MoraleSystem.cpp
+  src/world/systems/RenderingPrepSystem.cpp
+)
+
+target_include_directories(world_state_step_order_test PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}/include
+  ${CMAKE_CURRENT_SOURCE_DIR}/src
+  ${CMAKE_CURRENT_SOURCE_DIR}/tests
+)
+
+target_compile_definitions(world_state_step_order_test PRIVATE KUSOZAKO_SKIP_APP_MAIN=1)
+
+target_link_libraries(world_state_step_order_test PRIVATE SDL2::SDL2 SDL2_image::SDL2_image SDL2_ttf::SDL2_ttf)
+
+add_test(NAME world_state_step_order COMMAND world_state_step_order_test)

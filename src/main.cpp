@@ -3,6 +3,7 @@
 #include <SDL_ttf.h>
 
 #include "app/GameApplication.h"
+#include "app/UiPresenter.h"
 #include "assets/AssetManager.h"
 #include "config/AppConfig.h"
 #include "config/AppConfigLoader.h"
@@ -10,16 +11,23 @@
 #include "scenes/Scene.h"
 #include "scenes/SceneStack.h"
 #include "events/EventBus.h"
+#include "input/ActionBuffer.h"
+#include "input/InputMapper.h"
 #include "services/ServiceLocator.h"
 #include "telemetry/TelemetrySink.h"
 #include "world/ComponentPool.h"
+#include "world/FormationUtils.h"
+#include "world/LegacySimulation.h"
 #include "world/LegacyTypes.h"
 #include "world/SkillRuntime.h"
 #include "world/WorldState.h"
 #include "world/spawn/Spawner.h"
 #include "world/spawn/WaveController.h"
+#include "world/systems/BehaviorSystem.h"
 #include "world/systems/CombatSystem.h"
+#include "world/systems/FormationSystem.h"
 #include "world/systems/JobAbilitySystem.h"
+#include "world/systems/RenderingPrepSystem.h"
 #include "world/systems/MoraleSystem.h"
 #include "world/systems/SystemContext.h"
 
@@ -41,39 +49,38 @@
 #include <optional>
 #include <random>
 #include <sstream>
+#include <stdexcept>
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
 #include <utility>
 #include <vector>
 
-namespace
-{
 struct RenderStats
 {
     int drawCalls = 0;
 };
 
-static Vec2 operator+(const Vec2 &a, const Vec2 &b) { return {a.x + b.x, a.y + b.y}; }
-static Vec2 operator-(const Vec2 &a, const Vec2 &b) { return {a.x - b.x, a.y - b.y}; }
-static Vec2 operator*(const Vec2 &a, float s) { return {a.x * s, a.y * s}; }
-static Vec2 operator/(const Vec2 &a, float s) { return {a.x / s, a.y / s}; }
-static Vec2 &operator+=(Vec2 &a, const Vec2 &b)
+Vec2 operator+(const Vec2 &a, const Vec2 &b) { return {a.x + b.x, a.y + b.y}; }
+Vec2 operator-(const Vec2 &a, const Vec2 &b) { return {a.x - b.x, a.y - b.y}; }
+Vec2 operator*(const Vec2 &a, float s) { return {a.x * s, a.y * s}; }
+Vec2 operator/(const Vec2 &a, float s) { return {a.x / s, a.y / s}; }
+Vec2 &operator+=(Vec2 &a, const Vec2 &b)
 {
     a.x += b.x;
     a.y += b.y;
     return a;
 }
 
-static Vec2 lerp(const Vec2 &a, const Vec2 &b, float t)
+Vec2 lerp(const Vec2 &a, const Vec2 &b, float t)
 {
     return a + (b - a) * t;
 }
 
-static float dot(const Vec2 &a, const Vec2 &b) { return a.x * b.x + a.y * b.y; }
-static float lengthSq(const Vec2 &v) { return dot(v, v); }
-static float length(const Vec2 &v) { return std::sqrt(lengthSq(v)); }
-static Vec2 normalize(const Vec2 &v)
+float dot(const Vec2 &a, const Vec2 &b) { return a.x * b.x + a.y * b.y; }
+float lengthSq(const Vec2 &v) { return dot(v, v); }
+float length(const Vec2 &v) { return std::sqrt(lengthSq(v)); }
+Vec2 normalize(const Vec2 &v)
 {
     const float len = length(v);
     return len > 0.0001f ? v / len : Vec2{0.0f, 0.0f};
@@ -131,28 +138,6 @@ const char *temperamentBehaviorName(TemperamentBehavior behavior)
     }
     return "Unknown";
 }
-
-struct TemperamentState
-{
-    const TemperamentDefinition *definition = nullptr;
-    TemperamentBehavior currentBehavior = TemperamentBehavior::Wander;
-    TemperamentBehavior lastBehavior = TemperamentBehavior::Wander;
-    bool mimicActive = false;
-    TemperamentBehavior mimicBehavior = TemperamentBehavior::Wander;
-    float mimicCooldown = 0.0f;
-    float mimicDuration = 0.0f;
-    Vec2 wanderDirection{1.0f, 0.0f};
-    float wanderTimer = 0.0f;
-    float sleepTimer = 0.0f;
-    float sleepRemaining = 0.0f;
-    bool sleeping = false;
-    float catchupTimer = 0.0f;
-    float cryTimer = 0.0f;
-    float cryPauseTimer = 0.0f;
-    bool crying = false;
-    float panicTimer = 0.0f;
-    float chargeDashTimer = 0.0f;
-};
 
 Vec2 tileToWorld(const Vec2 &tile, int tileSize)
 {
@@ -249,2497 +234,7 @@ const char *stanceLabel(ArmyStance stance)
     return "Unknown";
 }
 
-const char *orderLabel(ArmyStance stance)
-{
-    switch (stance)
-    {
-    case ArmyStance::RushNearest: return "突撃";
-    case ArmyStance::PushForward: return "前進";
-    case ArmyStance::FollowLeader: return "追従";
-    case ArmyStance::DefendBase: return "防衛";
-    }
-    return "";
-}
-
-const char *formationLabel(Formation formation)
-{
-    switch (formation)
-    {
-    case Formation::Swarm: return "Swarm";
-    case Formation::Wedge: return "Wedge";
-    case Formation::Line: return "Line";
-    case Formation::Ring: return "Ring";
-    }
-    return "Unknown";
-}
-
-struct Unit
-{
-    Vec2 pos;
-    float hp = 0.0f;
-    float radius = 4.0f;
-    bool followBySkill = false;
-    bool followByStance = false;
-    bool effectiveFollower = false;
-    Vec2 formationOffset{0.0f, 0.0f};
-    TemperamentState temperament;
-};
-
-struct CommanderUnit
-{
-    Vec2 pos;
-    float hp = 0.0f;
-    float radius = 12.0f;
-    bool alive = true;
-};
-
-struct EnemyUnit
-{
-    Vec2 pos;
-    float hp = 0.0f;
-    float radius = 0.0f;
-    EnemyArchetype type = EnemyArchetype::Slime;
-    float speedPx = 0.0f;
-    float dpsUnit = 0.0f;
-    float dpsBase = 0.0f;
-    float dpsWall = 0.0f;
-    bool noOverlap = false;
-};
-
-struct WallSegment
-{
-    Vec2 pos;
-    float hp = 0.0f;
-    float life = 0.0f;
-    float radius = 0.0f;
-};
-
-struct GateRuntime
-{
-    std::string id;
-    Vec2 pos;
-    float radius = 24.0f;
-    float hp = 0.0f;
-    float maxHp = 0.0f;
-    bool destroyed = false;
-};
-
-class TextRenderer
-{
-  public:
-    TextRenderer() = default;
-    ~TextRenderer() { unload(); }
-
-    bool load(AssetManager &assets, const std::string &fontPath, int pointSize)
-    {
-        unload();
-        auto fontRef = assets.acquireFont(fontPath, pointSize);
-        if (!fontRef.get())
-        {
-            if (!fontRef.status().message.empty())
-            {
-                std::cerr << fontRef.status().message << '\n';
-            }
-            return false;
-        }
-        lineHeight = TTF_FontLineSkip(fontRef.getRaw());
-        font = std::move(fontRef);
-        return lineHeight > 0;
-    }
-
-    void unload()
-    {
-        font.reset();
-        lineHeight = 0;
-    }
-
-    int getLineHeight() const { return lineHeight; }
-
-    int measureText(const std::string &text) const
-    {
-        if (!font.get())
-        {
-            return 0;
-        }
-        int width = 0;
-        if (TTF_SizeUTF8(font.getRaw(), text.c_str(), &width, nullptr) != 0)
-        {
-            return 0;
-        }
-        return width;
-    }
-
-    void drawText(SDL_Renderer *renderer, const std::string &text, int x, int y, RenderStats *stats = nullptr,
-                  SDL_Color color = {255, 255, 255, 255}) const
-    {
-        if (!font.get() || text.empty())
-        {
-            return;
-        }
-        SDL_Surface *surface = TTF_RenderUTF8_Blended(font.getRaw(), text.c_str(), color);
-        if (!surface)
-        {
-            std::cerr << "TTF_RenderUTF8_Blended failed: " << TTF_GetError() << '\n';
-            return;
-        }
-        SDL_Texture *texture = SDL_CreateTextureFromSurface(renderer, surface);
-        if (!texture)
-        {
-            std::cerr << "SDL_CreateTextureFromSurface failed: " << SDL_GetError() << '\n';
-            SDL_FreeSurface(surface);
-            return;
-        }
-        SDL_Rect dst{x, y, surface->w, surface->h};
-        if (SDL_RenderCopy(renderer, texture, nullptr, &dst) == 0)
-        {
-            if (stats)
-            {
-                ++stats->drawCalls;
-            }
-        }
-        SDL_DestroyTexture(texture);
-        SDL_FreeSurface(surface);
-    }
-
-    bool isLoaded() const { return static_cast<bool>(font.get()); }
-
-  private:
-    AssetManager::FontReference font;
-    int lineHeight = 0;
-};
-
-struct TileMap
-{
-    int width = 0;
-    int height = 0;
-    int tileWidth = 16;
-    int tileHeight = 16;
-    int tilesetColumns = 1;
-    AssetManager::TextureReference tileset;
-    std::vector<int> floor;
-    std::vector<int> block;
-    std::vector<int> deco;
-};
-
-struct Atlas
-{
-    AssetManager::TextureReference texture;
-    std::unordered_map<std::string, SDL_Rect> frames;
-
-    const SDL_Rect *getFrame(const std::string &name) const
-    {
-        auto it = frames.find(name);
-        return it == frames.end() ? nullptr : &it->second;
-    }
-};
-
-inline void countedRenderClear(SDL_Renderer *renderer, RenderStats &stats)
-{
-    ++stats.drawCalls;
-    SDL_RenderClear(renderer);
-}
-
-inline void countedRenderCopy(SDL_Renderer *renderer, SDL_Texture *texture, const SDL_Rect *src, const SDL_Rect *dst,
-                              RenderStats &stats)
-{
-    ++stats.drawCalls;
-    SDL_RenderCopy(renderer, texture, src, dst);
-}
-
-inline void countedRenderFillRect(SDL_Renderer *renderer, const SDL_Rect *rect, RenderStats &stats)
-{
-    ++stats.drawCalls;
-    SDL_RenderFillRect(renderer, rect);
-}
-
-inline void countedRenderFillRectF(SDL_Renderer *renderer, const SDL_FRect *rect, RenderStats &stats)
-{
-    ++stats.drawCalls;
-    SDL_RenderFillRectF(renderer, rect);
-}
-
-inline void countedRenderDrawRect(SDL_Renderer *renderer, const SDL_Rect *rect, RenderStats &stats)
-{
-    ++stats.drawCalls;
-    SDL_RenderDrawRect(renderer, rect);
-}
-
-std::string parentDirectory(const std::string &path)
-{
-    const std::size_t pos = path.find_last_of("/\\");
-    if (pos == std::string::npos)
-    {
-        return std::string();
-    }
-    return path.substr(0, pos);
-}
-
-std::optional<std::string> findAttribute(const std::string &tag, const std::string &name)
-{
-    const std::string needle = name + "=\"";
-    auto pos = tag.find(needle);
-    if (pos == std::string::npos)
-    {
-        return std::nullopt;
-    }
-    pos += needle.size();
-    auto end = tag.find('"', pos);
-    if (end == std::string::npos)
-    {
-        return std::nullopt;
-    }
-    return tag.substr(pos, end - pos);
-}
-
-std::vector<int> parseCsvInts(const std::string &data)
-{
-    std::vector<int> values;
-    std::string token;
-    for (char c : data)
-    {
-        if ((c >= '0' && c <= '9') || c == '-')
-        {
-            token.push_back(c);
-        }
-        else if (c == ',' || c == '\n' || c == '\r' || c == ' ' || c == '\t')
-        {
-            if (!token.empty())
-            {
-                values.push_back(std::stoi(token));
-                token.clear();
-            }
-        }
-    }
-    if (!token.empty())
-    {
-        values.push_back(std::stoi(token));
-    }
-    return values;
-}
-
-bool extractLayer(const std::string &xml, const std::string &layerName, std::vector<int> &outTiles)
-{
-    std::size_t searchPos = 0;
-    while (true)
-    {
-        std::size_t layerPos = xml.find("<layer", searchPos);
-        if (layerPos == std::string::npos)
-        {
-            return false;
-        }
-        std::size_t layerEnd = xml.find('>', layerPos);
-        if (layerEnd == std::string::npos)
-        {
-            return false;
-        }
-        std::string layerTag = xml.substr(layerPos, layerEnd - layerPos + 1);
-        auto nameAttr = findAttribute(layerTag, "name");
-        if (nameAttr && *nameAttr == layerName)
-        {
-            std::size_t dataPos = xml.find("<data", layerEnd);
-            if (dataPos == std::string::npos)
-            {
-                return false;
-            }
-            std::size_t dataStart = xml.find('>', dataPos);
-            if (dataStart == std::string::npos)
-            {
-                return false;
-            }
-            std::size_t dataEnd = xml.find("</data>", dataStart);
-            if (dataEnd == std::string::npos)
-            {
-                return false;
-            }
-            std::string csv = xml.substr(dataStart + 1, dataEnd - dataStart - 1);
-            outTiles = parseCsvInts(csv);
-            return true;
-        }
-        searchPos = layerEnd;
-    }
-}
-
-bool loadTileMap(AssetManager &assets, const std::string &tmxPath, TileMap &outMap)
-{
-    const std::string resolvedPath = assets.resolvePath(tmxPath);
-    std::ifstream file(resolvedPath);
-    if (!file.is_open())
-    {
-        std::cerr << "Failed to open TMX: " << resolvedPath << '\n';
-        return false;
-    }
-    std::stringstream buffer;
-    buffer << file.rdbuf();
-    const std::string xml = buffer.str();
-
-    std::size_t mapPos = xml.find("<map");
-    if (mapPos == std::string::npos)
-    {
-        std::cerr << "Invalid TMX: missing <map> tag\n";
-        return false;
-    }
-    std::size_t mapEnd = xml.find('>', mapPos);
-    std::string mapTag = xml.substr(mapPos, mapEnd - mapPos + 1);
-    auto widthAttr = findAttribute(mapTag, "width");
-    auto heightAttr = findAttribute(mapTag, "height");
-    auto tileWidthAttr = findAttribute(mapTag, "tilewidth");
-    auto tileHeightAttr = findAttribute(mapTag, "tileheight");
-    if (!widthAttr || !heightAttr || !tileWidthAttr || !tileHeightAttr)
-    {
-        std::cerr << "Invalid TMX: missing map attributes\n";
-        return false;
-    }
-    outMap.width = std::stoi(*widthAttr);
-    outMap.height = std::stoi(*heightAttr);
-    outMap.tileWidth = std::stoi(*tileWidthAttr);
-    outMap.tileHeight = std::stoi(*tileHeightAttr);
-
-    std::size_t tilesetPos = xml.find("<tileset", mapEnd);
-    if (tilesetPos == std::string::npos)
-    {
-        std::cerr << "Invalid TMX: missing <tileset>\n";
-        return false;
-    }
-    std::size_t tilesetEnd = xml.find('>', tilesetPos);
-    std::string tilesetTag = xml.substr(tilesetPos, tilesetEnd - tilesetPos + 1);
-    auto columnsAttr = findAttribute(tilesetTag, "columns");
-    if (columnsAttr)
-    {
-        outMap.tilesetColumns = std::max(1, std::stoi(*columnsAttr));
-    }
-
-    std::size_t imagePos = xml.find("<image", tilesetEnd);
-    if (imagePos == std::string::npos)
-    {
-        std::cerr << "Invalid TMX: missing <image>\n";
-        return false;
-    }
-    std::size_t imageEnd = xml.find('>', imagePos);
-    std::string imageTag = xml.substr(imagePos, imageEnd - imagePos + 1);
-    auto sourceAttr = findAttribute(imageTag, "source");
-    if (!sourceAttr)
-    {
-        std::cerr << "Invalid TMX: image source not found\n";
-        return false;
-    }
-
-    std::string baseDir = parentDirectory(resolvedPath);
-    std::string imagePath = baseDir.empty() ? *sourceAttr : baseDir + "/" + *sourceAttr;
-    auto tilesetTexture = assets.acquireTexture(imagePath);
-    AssetManager::AssetLoadStatus textureStatus = tilesetTexture.status();
-    if (!tilesetTexture.get())
-    {
-        if (!textureStatus.message.empty())
-        {
-            std::cerr << textureStatus.message << '\n';
-        }
-        else
-        {
-            std::cerr << "Failed to load tileset texture: " << imagePath << '\n';
-        }
-        return false;
-    }
-    if (!textureStatus.ok && !textureStatus.message.empty())
-    {
-        std::cerr << textureStatus.message << '\n';
-    }
-    outMap.tileset = std::move(tilesetTexture);
-
-    if (!extractLayer(xml, "Floor", outMap.floor))
-    {
-        std::cerr << "TMX missing Floor layer\n";
-        return false;
-    }
-    if (!extractLayer(xml, "Block", outMap.block))
-    {
-        outMap.block.assign(outMap.width * outMap.height, 0);
-    }
-    if (!extractLayer(xml, "Deco", outMap.deco))
-    {
-        outMap.deco.assign(outMap.width * outMap.height, 0);
-    }
-    return textureStatus.ok;
-}
-
-bool loadAtlas(AssetManager &assets, const std::string &atlasPath, Atlas &atlas)
-{
-    AssetManager::AssetLoadStatus jsonStatus;
-    auto json = loadJsonDocument(assets, atlasPath, &jsonStatus);
-    if (!json)
-    {
-        if (!jsonStatus.message.empty())
-        {
-            std::cerr << jsonStatus.message << '\n';
-        }
-        else
-        {
-            std::cerr << "Failed to load atlas json: " << atlasPath << '\n';
-        }
-        return false;
-    }
-    if (!jsonStatus.ok && !jsonStatus.message.empty())
-    {
-        std::cerr << jsonStatus.message << '\n';
-    }
-    atlas.frames.clear();
-
-    const JsonValue *meta = getObjectField(*json, "meta");
-    std::string imageName = "atlas.png";
-    if (meta)
-    {
-        imageName = getString(*meta, "image", imageName);
-    }
-    const std::string resolvedAtlas = assets.resolvePath(atlasPath);
-    std::string baseDir = parentDirectory(resolvedAtlas);
-    std::string imagePath = baseDir.empty() ? imageName : baseDir + "/" + imageName;
-    auto textureRef = assets.acquireTexture(imagePath);
-    AssetManager::AssetLoadStatus textureStatus = textureRef.status();
-    if (!textureRef.get())
-    {
-        if (!textureStatus.message.empty())
-        {
-            std::cerr << textureStatus.message << '\n';
-        }
-        else
-        {
-            std::cerr << "Failed to load atlas texture: " << imagePath << '\n';
-        }
-        return false;
-    }
-    if (!textureStatus.ok && !textureStatus.message.empty())
-    {
-        std::cerr << textureStatus.message << '\n';
-    }
-    atlas.texture = std::move(textureRef);
-
-    const JsonValue *frames = getObjectField(*json, "frames");
-    if (!frames || frames->type != JsonValue::Type::Object)
-    {
-        std::cerr << "Atlas json missing frames object\n";
-        return false;
-    }
-
-    for (const auto &kv : frames->object)
-    {
-        const JsonValue &frame = kv.second;
-        const JsonValue *xywh = getObjectField(frame, "xywh");
-        if (!xywh || xywh->type != JsonValue::Type::Array || xywh->array.size() < 4)
-        {
-            continue;
-        }
-        SDL_Rect rect{};
-        rect.x = static_cast<int>(xywh->array[0].number);
-        rect.y = static_cast<int>(xywh->array[1].number);
-        rect.w = static_cast<int>(xywh->array[2].number);
-        rect.h = static_cast<int>(xywh->array[3].number);
-        atlas.frames[kv.first] = rect;
-    }
-    return textureStatus.ok;
-}
-
-std::string normalizeTelemetry(const std::string &text)
-{
-    bool asciiOnly = true;
-    for (unsigned char c : text)
-    {
-        if (c < 32 || c > 126)
-        {
-            asciiOnly = false;
-            break;
-        }
-    }
-    if (asciiOnly)
-    {
-        return text;
-    }
-    if (text.find("左から敵") != std::string::npos)
-    {
-        return "Enemies from the left!";
-    }
-    if (text.find("増援が接近") != std::string::npos)
-    {
-        return "Reinforcements approaching!";
-    }
-    if (text.find("左右から敵") != std::string::npos)
-    {
-        return "Enemies on both sides!";
-    }
-    if (text.find("総攻撃") != std::string::npos)
-    {
-        return "All-out assault!";
-    }
-    return "Wave incoming!";
-}
-
-struct LegacySimulation
-{
-    GameConfig config;
-    TemperamentConfig temperamentConfig;
-    EntityStats yunaStats;
-    EntityStats slimeStats;
-    WallbreakerStats wallbreakerStats;
-    CommanderStats commanderStats;
-    CommanderUnit commander;
-    MapDefs mapDefs;
-    SpawnScript spawnScript;
-    std::vector<Unit> yunas;
-    std::vector<EnemyUnit> enemies;
-    std::vector<WallSegment> walls;
-    std::vector<GateRuntime> gates;
-    std::vector<RuntimeSkill> skills;
-    Vec2 worldMin{0.0f, 0.0f};
-    Vec2 worldMax{1280.0f, 720.0f};
-    float spawnTimer = 0.0f;
-    float yunaSpawnTimer = 0.0f;
-    float simTime = 0.0f;
-    float timeSinceLastEnemySpawn = 0.0f;
-    float restartCooldown = 0.0f;
-    float baseHp = 0.0f;
-    bool spawnEnabled = true;
-    GameResult result = GameResult::Playing;
-    HUDState hud;
-    std::mt19937 rng;
-    std::uniform_real_distribution<float> scatterY;
-    std::uniform_real_distribution<float> gateJitter;
-
-    bool hasMission = false;
-    MissionConfig missionConfig;
-    MissionMode missionMode = MissionMode::None;
-    MissionUIOptions missionUI;
-    MissionFailConditions missionFail;
-    float missionTimer = 0.0f;
-    float missionVictoryCountdown = -1.0f;
-
-    struct BossRuntime
-    {
-        bool active = false;
-        float hp = 0.0f;
-        float maxHp = 0.0f;
-        float speedPx = 0.0f;
-        float radius = 0.0f;
-        MissionBossMechanic mechanic;
-        float cycleTimer = 0.0f;
-        float windupTimer = 0.0f;
-        bool inWindup = false;
-    } boss;
-
-    struct CaptureRuntime
-    {
-        MissionCaptureZone config;
-        Vec2 worldPos{0.0f, 0.0f};
-        float progress = 0.0f;
-        bool captured = false;
-    };
-    std::vector<CaptureRuntime> captureZones;
-    int capturedZones = 0;
-    int captureGoal = 0;
-
-    struct SurvivalRuntime
-    {
-        float elapsed = 0.0f;
-        float duration = 0.0f;
-        float pacingTimer = 0.0f;
-        float spawnMultiplier = 1.0f;
-        std::vector<MissionSurvivalElite> elites;
-        std::size_t nextElite = 0;
-    } survival;
-
-    std::unordered_set<std::string> disabledGates;
-
-    ArmyStance stance = ArmyStance::RushNearest;
-    ArmyStance defaultStance = ArmyStance::RushNearest;
-    bool orderActive = false;
-    float orderTimer = 0.0f;
-    float orderDuration = 10.0f;
-    Formation formation = Formation::Swarm;
-    int selectedSkill = 0;
-    bool rallyState = false;
-    float spawnRateMultiplier = 1.0f;
-    float spawnSlowMultiplier = 1.0f;
-    float spawnSlowTimer = 0.0f;
-    float commanderRespawnTimer = 0.0f;
-    float commanderInvulnTimer = 0.0f;
-    int reinforcementQueue = 0;
-
-    bool waveScriptComplete = false;
-    bool spawnerIdle = true;
-
-    Vec2 basePos;
-    Vec2 yunaSpawnPos;
-    std::vector<float> yunaRespawnTimers;
-
-    void setWorldBounds(float width, float height)
-    {
-        if (width <= 0.0f || height <= 0.0f)
-        {
-            worldMin = {0.0f, 0.0f};
-            worldMax = {1280.0f, 720.0f};
-            return;
-        }
-        worldMin = {0.0f, 0.0f};
-        worldMax = {width, height};
-    }
-
-    void clampToWorld(Vec2 &pos, float radius) const
-    {
-        const float minX = worldMin.x + radius;
-        const float maxX = worldMax.x - radius;
-        const float minY = worldMin.y + radius;
-        const float maxY = worldMax.y - radius;
-        if (minX <= maxX)
-        {
-            pos.x = std::clamp(pos.x, minX, maxX);
-        }
-        if (minY <= maxY)
-        {
-            pos.y = std::clamp(pos.y, minY, maxY);
-        }
-    }
-
-    void configureSkills(const std::vector<SkillDef> &defs)
-    {
-        skills.clear();
-        skills.reserve(defs.size());
-        for (const SkillDef &def : defs)
-        {
-            RuntimeSkill runtime;
-            runtime.def = def;
-            runtime.cooldownRemaining = 0.0f;
-            runtime.activeTimer = 0.0f;
-            skills.push_back(runtime);
-        }
-        selectedSkill = 0;
-    }
-
-    void reset()
-    {
-        simTime = 0.0f;
-        timeSinceLastEnemySpawn = 0.0f;
-        restartCooldown = 0.0f;
-        yunaSpawnTimer = 0.0f;
-        yunas.clear();
-        enemies.clear();
-        walls.clear();
-        spawnEnabled = true;
-        result = GameResult::Playing;
-        baseHp = static_cast<float>(config.base_hp);
-        hud = {};
-        rng.seed(static_cast<std::mt19937::result_type>(config.rng_seed));
-        scatterY = std::uniform_real_distribution<float>(-config.yuna_scatter_y, config.yuna_scatter_y);
-        gateJitter = std::uniform_real_distribution<float>(-spawnScript.y_jitter, spawnScript.y_jitter);
-        stance = defaultStance;
-        orderActive = false;
-        orderTimer = 0.0f;
-        orderDuration = temperamentConfig.orderDuration;
-        basePos = tileToWorld(mapDefs.base_tile, mapDefs.tile_size);
-        yunaSpawnPos = tileToWorld(mapDefs.spawn_tile_yuna, mapDefs.tile_size) + config.yuna_offset_px;
-        commander.hp = commanderStats.hp;
-        commander.radius = commanderStats.radius;
-        commander.pos = yunaSpawnPos;
-        commander.alive = true;
-        commanderRespawnTimer = 0.0f;
-        commanderInvulnTimer = 0.0f;
-        reinforcementQueue = 0;
-        spawnRateMultiplier = 1.0f;
-        spawnSlowMultiplier = 1.0f;
-        spawnSlowTimer = 0.0f;
-        rallyState = false;
-        stance = defaultStance;
-        formation = Formation::Swarm;
-        selectedSkill = 0;
-        for (RuntimeSkill &skill : skills)
-        {
-            skill.cooldownRemaining = 0.0f;
-            skill.activeTimer = 0.0f;
-        }
-        yunaRespawnTimers.clear();
-        waveScriptComplete = false;
-        spawnerIdle = true;
-        rebuildGates();
-        initializeMissionState();
-    }
-
-    float clampOverkillRatio(float overkill, float maxHp) const
-    {
-        if (maxHp <= 0.0f)
-        {
-            return 0.0f;
-        }
-        return std::clamp(overkill / maxHp, 0.0f, 3.0f);
-    }
-
-    float computeChibiRespawnTime(float overkillRatio) const
-    {
-        float time = config.yuna_respawn.base + config.yuna_respawn.k * overkillRatio * config.yuna_respawn.scale;
-        return std::max(0.0f, time);
-    }
-
-    float computeCommanderRespawnTime(float overkillRatio) const
-    {
-        float time = config.commander_respawn.base + config.commander_respawn.k * overkillRatio * config.commander_respawn.scale;
-        if (time < config.commander_respawn.floor)
-        {
-            time = config.commander_respawn.floor;
-        }
-        return time;
-    }
-
-    void enqueueYunaRespawn(float overkillRatio)
-    {
-        yunaRespawnTimers.push_back(computeChibiRespawnTime(overkillRatio));
-    }
-
-    void updateCommanderRespawn(float dt)
-    {
-        if (commander.alive)
-        {
-            return;
-        }
-        if (commanderRespawnTimer > 0.0f)
-        {
-            commanderRespawnTimer = std::max(0.0f, commanderRespawnTimer - dt);
-            if (commanderRespawnTimer <= 0.0f)
-            {
-                commander.alive = true;
-                commander.hp = commanderStats.hp;
-                commander.pos = yunaSpawnPos;
-                commanderInvulnTimer = config.commander_respawn.invuln;
-            }
-        }
-    }
-
-    void updateCommanderInvulnerability(float dt)
-    {
-        if (commanderInvulnTimer > 0.0f && commander.alive)
-        {
-            commanderInvulnTimer = std::max(0.0f, commanderInvulnTimer - dt);
-        }
-    }
-
-    void updateWalls(float dt)
-    {
-        for (WallSegment &wall : walls)
-        {
-            if (wall.life > 0.0f)
-            {
-                wall.life = std::max(0.0f, wall.life - dt);
-            }
-        }
-        walls.erase(std::remove_if(walls.begin(), walls.end(), [](const WallSegment &wall) {
-                        return wall.life <= 0.0f || wall.hp <= 0.0f;
-                    }),
-                    walls.end());
-    }
-
-    Vec2 randomUnitVector()
-    {
-        std::uniform_real_distribution<float> angleDist(0.0f, 2.0f * 3.14159265358979323846f);
-        const float angle = angleDist(rng);
-        return {std::cos(angle), std::sin(angle)};
-    }
-
-    float randomRange(const TemperamentRange &range)
-    {
-        if (range.max <= range.min)
-        {
-            return range.min;
-        }
-        std::uniform_real_distribution<float> dist(range.min, range.max);
-        return dist(rng);
-    }
-
-    const TemperamentDefinition *selectTemperamentDefinition()
-    {
-        if (temperamentConfig.definitions.empty())
-        {
-            return nullptr;
-        }
-        if (temperamentConfig.cumulativeWeights.empty())
-        {
-            return &temperamentConfig.definitions.front();
-        }
-        const float total = temperamentConfig.cumulativeWeights.back();
-        if (total <= 0.0f)
-        {
-            return &temperamentConfig.definitions.front();
-        }
-        std::uniform_real_distribution<float> dist(0.0f, total);
-        const float roll = dist(rng);
-        auto it = std::lower_bound(temperamentConfig.cumulativeWeights.begin(), temperamentConfig.cumulativeWeights.end(), roll);
-        if (it == temperamentConfig.cumulativeWeights.end())
-        {
-            return &temperamentConfig.definitions.back();
-        }
-        std::size_t index = static_cast<std::size_t>(std::distance(temperamentConfig.cumulativeWeights.begin(), it));
-        if (index >= temperamentConfig.definitions.size())
-        {
-            index = temperamentConfig.definitions.size() - 1;
-        }
-        return &temperamentConfig.definitions[index];
-    }
-
-    void assignTemperament(Unit &yuna)
-    {
-        yuna.temperament = {};
-        const TemperamentDefinition *def = selectTemperamentDefinition();
-        yuna.temperament.definition = def;
-        if (!def)
-        {
-            return;
-        }
-        TemperamentState &state = yuna.temperament;
-        if (def->behavior == TemperamentBehavior::Mimic)
-        {
-            state.currentBehavior = def->mimicDefault;
-            state.mimicActive = false;
-            state.mimicBehavior = def->mimicDefault;
-            state.mimicCooldown = randomRange(def->mimicEvery);
-            state.mimicDuration = 0.0f;
-        }
-        else
-        {
-            state.currentBehavior = def->behavior;
-        }
-        state.lastBehavior = state.currentBehavior;
-        state.wanderDirection = randomUnitVector();
-        state.wanderTimer = randomRange(temperamentConfig.wanderTurnInterval);
-        state.sleepTimer = randomRange(temperamentConfig.sleepEvery);
-        state.sleepRemaining = temperamentConfig.sleepDuration;
-        state.sleeping = false;
-        state.catchupTimer = 0.0f;
-        state.cryTimer = def->cryPauseEvery.max > 0.0f ? randomRange(def->cryPauseEvery) : 0.0f;
-        state.cryPauseTimer = 0.0f;
-        state.crying = false;
-        state.panicTimer = 0.0f;
-        state.chargeDashTimer = state.currentBehavior == TemperamentBehavior::ChargeNearest ? temperamentConfig.chargeDash.duration : 0.0f;
-    }
-
-    void spawnYunaUnit()
-    {
-        Unit yuna;
-        yuna.pos = yunaSpawnPos;
-        yuna.pos.y += scatterY(rng);
-        yuna.hp = yunaStats.hp;
-        yuna.radius = yunaStats.radius;
-        yunas.push_back(yuna);
-        assignTemperament(yunas.back());
-        clampToWorld(yunas.back().pos, yunas.back().radius);
-    }
-
-    GateRuntime *findGate(const std::string &id)
-    {
-        for (GateRuntime &gate : gates)
-        {
-            if (gate.id == id)
-            {
-                return &gate;
-            }
-        }
-        return nullptr;
-    }
-
-    const GateRuntime *findGate(const std::string &id) const
-    {
-        for (const GateRuntime &gate : gates)
-        {
-            if (gate.id == id)
-            {
-                return &gate;
-            }
-        }
-        return nullptr;
-    }
-
-    void destroyGate(GateRuntime &gate, bool silent = false)
-    {
-        if (gate.destroyed)
-        {
-            return;
-        }
-        gate.destroyed = true;
-        gate.hp = 0.0f;
-        disabledGates.insert(gate.id);
-        if (!silent)
-        {
-            pushTelemetry(std::string("Gate ") + gate.id + " destroyed!");
-        }
-    }
-
-    void rebuildGates()
-    {
-        gates.clear();
-        auto upsertGate = [&](const std::string &id, const Vec2 &tile) {
-            if (id.empty())
-            {
-                return;
-            }
-            Vec2 world = tileToWorld(tile, mapDefs.tile_size);
-            for (GateRuntime &gate : gates)
-            {
-                if (gate.id == id)
-                {
-                    gate.pos = world;
-                    gate.radius = config.gate_radius;
-                    gate.maxHp = config.gate_hp;
-                    gate.hp = gate.maxHp;
-                    gate.destroyed = false;
-                    return;
-                }
-            }
-            GateRuntime gate;
-            gate.id = id;
-            gate.pos = world;
-            gate.radius = config.gate_radius;
-            gate.maxHp = config.gate_hp;
-            gate.hp = gate.maxHp;
-            gate.destroyed = false;
-            gates.push_back(gate);
-        };
-
-        for (const auto &kv : mapDefs.gate_tiles)
-        {
-            upsertGate(kv.first, kv.second);
-        }
-        for (const auto &kv : spawnScript.gate_tiles)
-        {
-            upsertGate(kv.first, kv.second);
-        }
-    }
-
-    void disableGate(const std::string &gate)
-    {
-        if (gate.empty())
-        {
-            return;
-        }
-        disabledGates.insert(gate);
-        if (GateRuntime *runtime = findGate(gate))
-        {
-            destroyGate(*runtime, true);
-        }
-    }
-
-    void initializeMissionState()
-    {
-        missionTimer = 0.0f;
-        missionVictoryCountdown = -1.0f;
-        boss = {};
-        captureZones.clear();
-        capturedZones = 0;
-        captureGoal = 0;
-        survival = {};
-        disabledGates.clear();
-
-        if (!hasMission)
-        {
-            missionMode = MissionMode::None;
-            missionUI = {};
-            missionFail = {};
-            return;
-        }
-
-        missionMode = missionConfig.mode;
-        missionUI = missionConfig.ui;
-        missionFail = missionConfig.fail;
-
-        if (missionMode == MissionMode::Boss)
-        {
-            spawnMissionBoss();
-        }
-        if (missionMode == MissionMode::Capture)
-        {
-            for (const MissionCaptureZone &zone : missionConfig.captureZones)
-            {
-                CaptureRuntime runtime;
-                runtime.config = zone;
-                runtime.worldPos = tileToWorld(zone.tile, mapDefs.tile_size);
-                captureZones.push_back(runtime);
-            }
-            captureGoal = missionConfig.win.requireCaptured > 0
-                              ? missionConfig.win.requireCaptured
-                              : static_cast<int>(captureZones.size());
-        }
-        if (missionMode == MissionMode::Survival)
-        {
-            survival.duration = missionConfig.survival.duration > 0.0f ? missionConfig.survival.duration : missionConfig.win.surviveTime;
-            survival.spawnMultiplier = 1.0f;
-            survival.pacingTimer = missionConfig.survival.pacingStep;
-            survival.elites = missionConfig.survival.elites;
-            survival.nextElite = 0;
-        }
-    }
-
-    void spawnMissionBoss()
-    {
-        if (missionConfig.boss.hp <= 0.0f)
-        {
-            return;
-        }
-        Vec2 world = tileToWorld(missionConfig.boss.tile, mapDefs.tile_size);
-        EnemyUnit bossUnit;
-        bossUnit.type = EnemyArchetype::Boss;
-        bossUnit.pos = world;
-        bossUnit.hp = missionConfig.boss.hp;
-        bossUnit.radius = missionConfig.boss.radius_px > 0.0f ? missionConfig.boss.radius_px : 32.0f;
-        bossUnit.speedPx = missionConfig.boss.speed_u_s * config.pixels_per_unit;
-        bossUnit.dpsUnit = slimeStats.dps;
-        bossUnit.dpsBase = slimeStats.dps;
-        bossUnit.dpsWall = slimeStats.dps;
-        bossUnit.noOverlap = missionConfig.boss.noOverlap;
-        enemies.push_back(bossUnit);
-        boss.active = true;
-        boss.hp = bossUnit.hp;
-        boss.maxHp = bossUnit.hp;
-        boss.speedPx = bossUnit.speedPx;
-        boss.radius = bossUnit.radius;
-        boss.mechanic = missionConfig.boss.slam;
-        boss.cycleTimer = boss.mechanic.period;
-        boss.windupTimer = 0.0f;
-        boss.inWindup = false;
-        timeSinceLastEnemySpawn = 0.0f;
-    }
-
-    void performBossSlam(const EnemyUnit &bossEnemy)
-    {
-        if (boss.mechanic.radius <= 0.0f || boss.mechanic.damage <= 0.0f)
-        {
-            return;
-        }
-        const float radiusSq = boss.mechanic.radius * boss.mechanic.radius;
-        bool hitSomething = false;
-
-        if (commander.alive && lengthSq(commander.pos - bossEnemy.pos) <= radiusSq)
-        {
-            const float hpBefore = commander.hp;
-            commander.hp -= boss.mechanic.damage;
-            Vec2 push = normalize(commander.pos - bossEnemy.pos) * 48.0f;
-            if (lengthSq(push) > 0.0f)
-            {
-                commander.pos += push;
-                clampToWorld(commander.pos, commanderStats.radius);
-            }
-            if (commander.hp <= 0.0f)
-            {
-                const float overkill = std::max(0.0f, boss.mechanic.damage - std::max(hpBefore, 0.0f));
-                const float ratio = clampOverkillRatio(overkill, commanderStats.hp);
-                scheduleCommanderRespawn(1.0f, 0.0f, ratio);
-            }
-            hitSomething = true;
-        }
-
-        if (!yunas.empty())
-        {
-            std::vector<Unit> survivors;
-            survivors.reserve(yunas.size());
-            for (Unit &yuna : yunas)
-            {
-                if (lengthSq(yuna.pos - bossEnemy.pos) <= radiusSq)
-                {
-                    Vec2 push = normalize(yuna.pos - bossEnemy.pos) * 40.0f;
-                    if (lengthSq(push) > 0.0f)
-                    {
-                        yuna.pos += push;
-                        clampToWorld(yuna.pos, yuna.radius);
-                    }
-                    const float hpBefore = yuna.hp;
-                    yuna.hp -= boss.mechanic.damage;
-                    if (yuna.hp <= 0.0f)
-                    {
-                        const float overkill = std::max(0.0f, boss.mechanic.damage - std::max(hpBefore, 0.0f));
-                        const float ratio = clampOverkillRatio(overkill, yunaStats.hp);
-                        enqueueYunaRespawn(ratio);
-                        hitSomething = true;
-                        continue;
-                    }
-                    hitSomething = true;
-                }
-                survivors.push_back(yuna);
-            }
-            yunas.swap(survivors);
-        }
-
-        if (hitSomething)
-        {
-            pushTelemetry("Boss Slam!");
-        }
-    }
-
-    void spawnMissionElite(const MissionSurvivalElite &elite)
-    {
-        if (disabledGates.find(elite.gate) != disabledGates.end())
-        {
-            return;
-        }
-        Vec2 gateTile{};
-        bool foundGate = false;
-        if (auto scriptGate = spawnScript.gate_tiles.find(elite.gate); scriptGate != spawnScript.gate_tiles.end())
-        {
-            gateTile = scriptGate->second;
-            foundGate = true;
-        }
-        else if (auto mapGate = mapDefs.gate_tiles.find(elite.gate); mapGate != mapDefs.gate_tiles.end())
-        {
-            gateTile = mapGate->second;
-            foundGate = true;
-        }
-        if (!foundGate)
-        {
-            return;
-        }
-        Vec2 world = tileToWorld(gateTile, mapDefs.tile_size);
-        spawnOneEnemy(world, elite.type);
-    }
-
-    void updateBossMechanics(float dt)
-    {
-        if (!boss.active)
-        {
-            return;
-        }
-        EnemyUnit *bossEnemy = nullptr;
-        for (EnemyUnit &enemy : enemies)
-        {
-            if (enemy.type == EnemyArchetype::Boss)
-            {
-                bossEnemy = &enemy;
-                break;
-            }
-        }
-        if (!bossEnemy)
-        {
-            boss.active = false;
-            if (missionVictoryCountdown < 0.0f)
-            {
-                missionVictoryCountdown = std::max(config.victory_grace, 5.0f);
-                pushTelemetry("Boss defeated!");
-            }
-            return;
-        }
-        boss.hp = bossEnemy->hp;
-        bossEnemy->speedPx = boss.speedPx;
-        if (boss.mechanic.period > 0.0f)
-        {
-            boss.cycleTimer -= dt;
-            if (!boss.inWindup && boss.mechanic.windup > 0.0f && boss.cycleTimer <= boss.mechanic.windup)
-            {
-                boss.inWindup = true;
-                boss.windupTimer = boss.mechanic.windup;
-            }
-            if (boss.inWindup)
-            {
-                boss.windupTimer -= dt;
-                if (boss.windupTimer <= 0.0f)
-                {
-                    performBossSlam(*bossEnemy);
-                    boss.inWindup = false;
-                    boss.cycleTimer = boss.mechanic.period;
-                }
-            }
-            else if (boss.mechanic.windup <= 0.0f && boss.cycleTimer <= 0.0f)
-            {
-                performBossSlam(*bossEnemy);
-                boss.cycleTimer = boss.mechanic.period;
-            }
-            else if (boss.cycleTimer <= 0.0f)
-            {
-                boss.cycleTimer = boss.mechanic.period;
-            }
-        }
-    }
-
-    void updateCaptureMission(float dt)
-    {
-        for (CaptureRuntime &zone : captureZones)
-        {
-            if (zone.captured)
-            {
-                continue;
-            }
-            const float radiusSq = zone.config.radius_px * zone.config.radius_px;
-            int allies = 0;
-            for (const Unit &yuna : yunas)
-            {
-                if (lengthSq(yuna.pos - zone.worldPos) <= radiusSq)
-                {
-                    ++allies;
-                }
-            }
-            if (commander.alive && lengthSq(commander.pos - zone.worldPos) <= radiusSq)
-            {
-                ++allies;
-            }
-            int foes = 0;
-            for (const EnemyUnit &enemy : enemies)
-            {
-                if (lengthSq(enemy.pos - zone.worldPos) <= radiusSq)
-                {
-                    ++foes;
-                }
-            }
-            if (foes == 0 && allies > 0)
-            {
-                if (zone.config.capture_s > 0.0f)
-                {
-                    zone.progress += dt / zone.config.capture_s;
-                }
-                else
-                {
-                    zone.progress = 1.0f;
-                }
-            }
-            else if (zone.config.decay_s > 0.0f)
-            {
-                zone.progress -= dt / zone.config.decay_s;
-            }
-            zone.progress = std::clamp(zone.progress, 0.0f, 1.0f);
-            if (!zone.captured && zone.progress >= 1.0f)
-            {
-                zone.captured = true;
-                ++capturedZones;
-                if (!zone.config.onCapture.disableGate.empty())
-                {
-                    disableGate(zone.config.onCapture.disableGate);
-                }
-                if (!zone.config.onCapture.telemetry.empty())
-                {
-                    pushTelemetry(zone.config.onCapture.telemetry);
-                }
-            }
-        }
-        if (captureGoal > 0 && capturedZones >= captureGoal && missionVictoryCountdown < 0.0f)
-        {
-            missionVictoryCountdown = config.victory_grace;
-            pushTelemetry("Zones secured");
-        }
-    }
-
-    void updateSurvivalMission(float dt)
-    {
-        survival.elapsed += dt;
-        if (missionConfig.survival.pacingStep > 0.0f && missionConfig.survival.pacingMultiplier > 0.0f)
-        {
-            survival.pacingTimer -= dt;
-            if (survival.pacingTimer <= 0.0f)
-            {
-                survival.spawnMultiplier *= missionConfig.survival.pacingMultiplier;
-                survival.pacingTimer += missionConfig.survival.pacingStep;
-            }
-        }
-        while (survival.nextElite < survival.elites.size() && survival.elapsed >= survival.elites[survival.nextElite].time)
-        {
-            spawnMissionElite(survival.elites[survival.nextElite]);
-            ++survival.nextElite;
-        }
-        if (survival.duration > 0.0f && survival.elapsed >= survival.duration && missionVictoryCountdown < 0.0f)
-        {
-            missionVictoryCountdown = 0.0f;
-        }
-    }
-
-    void updateMission(float dt)
-    {
-        if (missionMode == MissionMode::None)
-        {
-            return;
-        }
-        missionTimer += dt;
-        switch (missionMode)
-        {
-        case MissionMode::Boss:
-            updateBossMechanics(dt);
-            break;
-        case MissionMode::Capture:
-            updateCaptureMission(dt);
-            break;
-        case MissionMode::Survival:
-            updateSurvivalMission(dt);
-            break;
-        case MissionMode::None:
-            break;
-        }
-        if (missionVictoryCountdown >= 0.0f)
-        {
-            missionVictoryCountdown = std::max(0.0f, missionVictoryCountdown - dt);
-            if (missionVictoryCountdown <= 0.0f)
-            {
-                setResult(GameResult::Victory, "Victory");
-            }
-        }
-    }
-
-    void scheduleCommanderRespawn(float penaltyMultiplier, float bonusSeconds, float overkillRatio)
-    {
-        commander.alive = false;
-        commander.hp = 0.0f;
-        const float penalty = std::max(1.0f, penaltyMultiplier);
-        const float bonus = std::max(0.0f, bonusSeconds);
-        float respawnTime = computeCommanderRespawnTime(overkillRatio);
-        respawnTime = std::max(config.commander_respawn.floor, respawnTime * penalty - bonus);
-        commanderRespawnTimer = respawnTime;
-        commanderInvulnTimer = 0.0f;
-        reinforcementQueue += config.commander_auto_reinforce;
-        rallyState = false;
-        for (Unit &yuna : yunas)
-        {
-            yuna.followBySkill = false;
-            yuna.followByStance = false;
-            yuna.effectiveFollower = false;
-        }
-        hud.resultText = "Commander Down";
-        hud.resultTimer = config.telemetry_duration;
-    }
-
-    void applyRallyState(bool active, const SkillDef &def, const Vec2 &worldTarget)
-    {
-        rallyState = active;
-        if (rallyState)
-        {
-            const float radiusSq = def.radius * def.radius;
-            for (Unit &yuna : yunas)
-            {
-                if (lengthSq(yuna.pos - worldTarget) <= radiusSq)
-                {
-                    yuna.followBySkill = true;
-                }
-            }
-            pushTelemetry("Rally!");
-        }
-        else
-        {
-            for (Unit &yuna : yunas)
-            {
-                yuna.followBySkill = false;
-            }
-            pushTelemetry("Rally dismissed");
-        }
-    }
-
-    void spawnWallSegments(const SkillDef &def, const Vec2 &worldTarget)
-    {
-        if (!commander.alive)
-        {
-            return;
-        }
-        Vec2 direction = normalize(worldTarget - commander.pos);
-        if (lengthSq(direction) < 0.0001f)
-        {
-            direction = {-1.0f, 0.0f};
-        }
-        const float spacing = static_cast<float>(mapDefs.tile_size);
-        Vec2 start = commander.pos + direction * spacing;
-        std::vector<Vec2> segmentPositions;
-        segmentPositions.reserve(def.lenTiles);
-        for (int i = 0; i < def.lenTiles; ++i)
-        {
-            segmentPositions.push_back(start + direction * (spacing * static_cast<float>(i)));
-        }
-
-        if (yunas.empty())
-        {
-            pushTelemetry("Need chibi allies for wall");
-            return;
-        }
-
-        const int maxSegments = std::min(static_cast<int>(segmentPositions.size()), static_cast<int>(yunas.size()));
-        std::vector<char> taken(yunas.size(), 0);
-        std::vector<std::size_t> convertIndices;
-        std::vector<Vec2> chosenPositions;
-        convertIndices.reserve(maxSegments);
-        chosenPositions.reserve(maxSegments);
-
-        for (int i = 0; i < maxSegments; ++i)
-        {
-            float bestDist = std::numeric_limits<float>::max();
-            std::size_t bestIndex = std::numeric_limits<std::size_t>::max();
-            for (std::size_t idx = 0; idx < yunas.size(); ++idx)
-            {
-                if (taken[idx])
-                {
-                    continue;
-                }
-                const float dist = lengthSq(yunas[idx].pos - segmentPositions[static_cast<std::size_t>(i)]);
-                if (dist < bestDist)
-                {
-                    bestDist = dist;
-                    bestIndex = idx;
-                }
-            }
-            if (bestIndex == std::numeric_limits<std::size_t>::max())
-            {
-                break;
-            }
-            taken[bestIndex] = 1;
-            convertIndices.push_back(bestIndex);
-            chosenPositions.push_back(segmentPositions[static_cast<std::size_t>(i)]);
-        }
-
-        if (convertIndices.empty())
-        {
-            pushTelemetry("Need chibi allies for wall");
-            return;
-        }
-
-        std::sort(convertIndices.begin(), convertIndices.end(), std::greater<>());
-        for (std::size_t idx : convertIndices)
-        {
-            enqueueYunaRespawn(0.0f);
-            yunas.erase(yunas.begin() + static_cast<std::ptrdiff_t>(idx));
-        }
-
-        for (const Vec2 &segmentPos : chosenPositions)
-        {
-            WallSegment segment;
-            segment.pos = segmentPos;
-            segment.hp = def.hpPerSegment;
-            segment.life = def.duration;
-            segment.radius = spacing * 0.5f;
-            walls.push_back(segment);
-        }
-        pushTelemetry("Wall deployed");
-    }
-
-    void detonateCommander(const SkillDef &def)
-    {
-        if (!commander.alive)
-        {
-            return;
-        }
-        const float radiusSq = def.radius * def.radius;
-        int hits = 0;
-        const float knockbackDistance = def.radius * 0.5f;
-        for (EnemyUnit &enemy : enemies)
-        {
-            const Vec2 offset = enemy.pos - commander.pos;
-            const float distanceSq = lengthSq(offset);
-            if (distanceSq <= radiusSq)
-            {
-                enemy.hp -= def.damage;
-                if (!enemy.noOverlap && distanceSq > 0.0001f)
-                {
-                    enemy.pos += normalize(offset) * knockbackDistance;
-                }
-                ++hits;
-            }
-        }
-        spawnSlowMultiplier = def.spawnSlowMult;
-        spawnSlowTimer = def.spawnSlowDuration;
-        const float bonus = std::min(def.respawnBonusCap, def.respawnBonusPerHit * static_cast<float>(hits));
-        commander.hp = 0.0f;
-        scheduleCommanderRespawn(def.respawnPenalty, bonus, 0.0f);
-        pushTelemetry("Self Destruct!");
-    }
-
-    void selectSkillByHotkey(int hotkey)
-    {
-        for (std::size_t i = 0; i < skills.size(); ++i)
-        {
-            if (skills[i].def.hotkey == hotkey)
-            {
-                selectedSkill = static_cast<int>(i);
-                return;
-            }
-        }
-    }
-
-    void cycleFormation(int direction)
-    {
-        static const std::array<Formation, 4> order{Formation::Swarm, Formation::Wedge, Formation::Line, Formation::Ring};
-        auto it = std::find(order.begin(), order.end(), formation);
-        if (it == order.end())
-        {
-            formation = Formation::Swarm;
-            return;
-        }
-        int index = static_cast<int>(std::distance(order.begin(), it));
-        index = (index + direction + static_cast<int>(order.size())) % static_cast<int>(order.size());
-        formation = order[static_cast<std::size_t>(index)];
-        std::string message = std::string("Formation: ") + formationLabel(formation);
-        pushTelemetry(message);
-    }
-
-    void issueOrder(ArmyStance newStance)
-    {
-        stance = newStance;
-        orderActive = true;
-        orderTimer = orderDuration;
-        std::string message = std::string("Order: ") + stanceLabel(stance);
-        pushTelemetry(message);
-    }
-
-    bool isOrderActive() const { return orderActive; }
-
-    float orderTimeRemaining() const { return std::max(orderTimer, 0.0f); }
-
-    ArmyStance currentOrder() const { return stance; }
-
-    void pushTelemetry(const std::string &text)
-    {
-        hud.telemetryText = normalizeTelemetry(text);
-        hud.telemetryTimer = config.telemetry_duration;
-    }
-
-    void setResult(GameResult r, const std::string &text)
-    {
-        if (result != GameResult::Playing)
-        {
-            return;
-        }
-        result = r;
-        spawnEnabled = false;
-        hud.resultText = text;
-        hud.resultTimer = config.telemetry_duration;
-        restartCooldown = config.restart_delay;
-    }
-
-    void update(float dt, const Vec2 &commanderMoveInput)
-    {
-        simTime += dt;
-        if (timeSinceLastEnemySpawn < 10000.0f)
-        {
-            timeSinceLastEnemySpawn += dt;
-        }
-        if (restartCooldown > 0.0f)
-        {
-            restartCooldown = std::max(0.0f, restartCooldown - dt);
-        }
-
-        updateYunaSpawn(dt);
-        updateCommanderRespawn(dt);
-        updateCommanderInvulnerability(dt);
-        updateCommander(dt, commanderMoveInput);
-        updateWalls(dt);
-        updateUnits(dt);
-        updateMission(dt);
-    }
-
-    void updateCommander(float dt, const Vec2 &moveInput)
-    {
-        if (!commander.alive)
-        {
-            return;
-        }
-        Vec2 dir = moveInput;
-        if (dir.x != 0.0f || dir.y != 0.0f)
-        {
-            dir = normalize(dir);
-        }
-        const float speedPx = commanderStats.speed_u_s * config.pixels_per_unit;
-        commander.pos += dir * (speedPx * dt);
-        clampToWorld(commander.pos, commanderStats.radius);
-    }
-
-    void spawnOneEnemy(Vec2 gatePos, EnemyArchetype type)
-    {
-        EnemyUnit enemy;
-        enemy.pos = gatePos;
-        enemy.pos.y += gateJitter(rng);
-        enemy.type = type;
-        if (type == EnemyArchetype::Wallbreaker)
-        {
-            enemy.hp = wallbreakerStats.hp;
-            enemy.radius = wallbreakerStats.radius;
-            enemy.speedPx = wallbreakerStats.speed_u_s * config.pixels_per_unit;
-            enemy.dpsUnit = wallbreakerStats.dps_unit;
-            enemy.dpsBase = wallbreakerStats.dps_base;
-            enemy.dpsWall = wallbreakerStats.dps_wall;
-            enemy.noOverlap = wallbreakerStats.ignoreKnockback;
-        }
-        else if (type == EnemyArchetype::Boss)
-        {
-            enemy.hp = missionConfig.boss.hp > 0.0f ? missionConfig.boss.hp : 500.0f;
-            enemy.radius = missionConfig.boss.radius_px > 0.0f ? missionConfig.boss.radius_px : 32.0f;
-            enemy.speedPx = missionConfig.boss.speed_u_s * config.pixels_per_unit;
-            enemy.dpsUnit = slimeStats.dps;
-            enemy.dpsBase = slimeStats.dps;
-            enemy.dpsWall = slimeStats.dps;
-            enemy.noOverlap = missionConfig.boss.noOverlap;
-        }
-        else
-        {
-            enemy.hp = slimeStats.hp;
-            enemy.radius = slimeStats.radius;
-            enemy.speedPx = slimeStats.speed_u_s * config.pixels_per_unit;
-            enemy.dpsUnit = slimeStats.dps;
-            enemy.dpsBase = slimeStats.dps;
-            enemy.dpsWall = slimeStats.dps;
-        }
-        enemies.push_back(enemy);
-        timeSinceLastEnemySpawn = 0.0f;
-    }
-
-    void updateYunaSpawn(float dt)
-    {
-        if (!spawnEnabled)
-        {
-            return;
-        }
-        const float rateMultiplier = std::max(spawnRateMultiplier, 0.1f);
-        const float slowMultiplier = std::max(spawnSlowMultiplier, 0.1f);
-        yunaSpawnTimer -= dt;
-        const float minInterval = 0.1f;
-        const float spawnInterval = std::max(minInterval, (config.yuna_interval / rateMultiplier) * slowMultiplier);
-        while (yunaSpawnTimer <= 0.0f)
-        {
-            if (static_cast<int>(yunas.size()) < config.yuna_max)
-            {
-                spawnYunaUnit();
-                yunaSpawnTimer += spawnInterval;
-            }
-            else
-            {
-                yunaSpawnTimer = 0.0f;
-                break;
-            }
-        }
-
-        const float respawnRate = rateMultiplier / slowMultiplier;
-        for (float &timer : yunaRespawnTimers)
-        {
-            timer -= dt * respawnRate;
-        }
-        std::vector<float> remainingRespawns;
-        remainingRespawns.reserve(yunaRespawnTimers.size());
-        for (float timer : yunaRespawnTimers)
-        {
-            if (timer <= 0.0f && static_cast<int>(yunas.size()) < config.yuna_max)
-            {
-                spawnYunaUnit();
-            }
-            else
-            {
-                remainingRespawns.push_back(std::max(timer, 0.0f));
-            }
-        }
-        yunaRespawnTimers.swap(remainingRespawns);
-
-        while (reinforcementQueue > 0 && static_cast<int>(yunas.size()) < config.yuna_max)
-        {
-            spawnYunaUnit();
-            --reinforcementQueue;
-        }
-    }
-
-    std::vector<Vec2> collectRaidTargets() const
-    {
-        std::vector<Vec2> targets;
-        targets.reserve(captureZones.size() + spawnScript.gate_tiles.size() + mapDefs.gate_tiles.size());
-        for (const CaptureRuntime &zone : captureZones)
-        {
-            if (!zone.captured)
-            {
-                targets.push_back(zone.worldPos);
-            }
-        }
-        std::unordered_set<std::string> seen;
-        for (const auto &kv : spawnScript.gate_tiles)
-        {
-            if (disabledGates.find(kv.first) != disabledGates.end())
-            {
-                continue;
-            }
-            if (const GateRuntime *gate = findGate(kv.first))
-            {
-                if (gate->destroyed)
-                {
-                    continue;
-                }
-            }
-            targets.push_back(tileToWorld(kv.second, mapDefs.tile_size));
-            seen.insert(kv.first);
-        }
-        for (const auto &kv : mapDefs.gate_tiles)
-        {
-            if (disabledGates.find(kv.first) != disabledGates.end())
-            {
-                continue;
-            }
-            if (const GateRuntime *gate = findGate(kv.first))
-            {
-                if (gate->destroyed)
-                {
-                    continue;
-                }
-            }
-            if (seen.insert(kv.first).second)
-            {
-                targets.push_back(tileToWorld(kv.second, mapDefs.tile_size));
-            }
-        }
-        return targets;
-    }
-
-    EnemyUnit *findTargetByTags(const Vec2 &from, const std::vector<std::string> &tags)
-    {
-        for (const std::string &tag : tags)
-        {
-            EnemyUnit *best = nullptr;
-            float bestDist = std::numeric_limits<float>::max();
-            if (tag == "boss")
-            {
-                for (EnemyUnit &enemy : enemies)
-                {
-                    if (enemy.hp > 0.0f && enemy.type == EnemyArchetype::Boss)
-                    {
-                        const float distSq = lengthSq(enemy.pos - from);
-                        if (distSq < bestDist)
-                        {
-                            bestDist = distSq;
-                            best = &enemy;
-                        }
-                    }
-                }
-            }
-            else if (tag == "elite")
-            {
-                for (EnemyUnit &enemy : enemies)
-                {
-                    if (enemy.hp > 0.0f && enemy.type == EnemyArchetype::Wallbreaker)
-                    {
-                        const float distSq = lengthSq(enemy.pos - from);
-                        if (distSq < bestDist)
-                        {
-                            bestDist = distSq;
-                            best = &enemy;
-                        }
-                    }
-                }
-            }
-            else if (tag == "enemy" || tag == "any")
-            {
-                for (EnemyUnit &enemy : enemies)
-                {
-                    if (enemy.hp > 0.0f && enemy.type != EnemyArchetype::Boss)
-                    {
-                        const float distSq = lengthSq(enemy.pos - from);
-                        if (distSq < bestDist)
-                        {
-                            bestDist = distSq;
-                            best = &enemy;
-                        }
-                    }
-                }
-            }
-            if (best)
-            {
-                return best;
-            }
-        }
-        return nullptr;
-    }
-
-    Vec2 computeTemperamentVelocity(Unit &yuna,
-                                    float dt,
-                                    float baseSpeed,
-                                    const std::function<EnemyUnit *(const Vec2 &)> &nearestEnemy,
-                                    const std::vector<Vec2> &raidTargets)
-    {
-        TemperamentState &state = yuna.temperament;
-        if (!state.definition)
-        {
-            return {0.0f, 0.0f};
-        }
-        const TemperamentDefinition &def = *state.definition;
-
-        if (def.behavior == TemperamentBehavior::Mimic)
-        {
-            if (state.mimicActive)
-            {
-                state.mimicDuration -= dt;
-                if (state.mimicDuration <= 0.0f)
-                {
-                    state.mimicActive = false;
-                    state.currentBehavior = def.mimicDefault;
-                    state.mimicCooldown = randomRange(def.mimicEvery);
-                }
-            }
-            if (!state.mimicActive)
-            {
-                if (state.mimicCooldown > 0.0f)
-                {
-                    state.mimicCooldown = std::max(0.0f, state.mimicCooldown - dt);
-                }
-                if (state.mimicCooldown <= 0.0f && !def.mimicPool.empty())
-                {
-                    std::uniform_int_distribution<std::size_t> pick(0, def.mimicPool.size() - 1);
-                    state.mimicBehavior = def.mimicPool[pick(rng)];
-                    state.currentBehavior = state.mimicBehavior;
-                    state.mimicActive = true;
-                    state.mimicDuration = randomRange(def.mimicDuration);
-                    if (state.mimicDuration <= 0.0f)
-                    {
-                        state.mimicDuration = def.mimicDuration.max > 0.0f ? def.mimicDuration.max : 1.0f;
-                    }
-                }
-                else if (!state.mimicActive)
-                {
-                    state.currentBehavior = def.mimicDefault;
-                }
-            }
-        }
-        else
-        {
-            state.currentBehavior = def.behavior;
-        }
-
-        if (state.lastBehavior != state.currentBehavior)
-        {
-            if (state.currentBehavior == TemperamentBehavior::ChargeNearest)
-            {
-                state.chargeDashTimer = temperamentConfig.chargeDash.duration;
-            }
-            if (state.currentBehavior == TemperamentBehavior::Wander || state.currentBehavior == TemperamentBehavior::Homebound || state.currentBehavior == TemperamentBehavior::GuardBase)
-            {
-                state.wanderDirection = randomUnitVector();
-                state.wanderTimer = randomRange(temperamentConfig.wanderTurnInterval);
-            }
-            state.lastBehavior = state.currentBehavior;
-        }
-
-        float dashTime = state.chargeDashTimer;
-        if (state.chargeDashTimer > 0.0f)
-        {
-            state.chargeDashTimer = std::max(0.0f, state.chargeDashTimer - dt);
-        }
-        float catchupTime = state.catchupTimer;
-        if (state.catchupTimer > 0.0f)
-        {
-            state.catchupTimer = std::max(0.0f, state.catchupTimer - dt);
-        }
-        bool panicking = state.panicTimer > 0.0f;
-        if (state.panicTimer > 0.0f)
-        {
-            state.panicTimer = std::max(0.0f, state.panicTimer - dt);
-        }
-
-        const bool dozing = state.currentBehavior == TemperamentBehavior::Doze;
-        if (dozing)
-        {
-            if (state.sleeping)
-            {
-                state.sleepRemaining = std::max(0.0f, state.sleepRemaining - dt);
-                if (state.sleepRemaining <= 0.0f)
-                {
-                    state.sleeping = false;
-                    state.sleepTimer = randomRange(temperamentConfig.sleepEvery);
-                    state.sleepRemaining = temperamentConfig.sleepDuration;
-                }
-            }
-            else
-            {
-                state.sleepTimer = std::max(0.0f, state.sleepTimer - dt);
-                if (state.sleepTimer <= 0.0f)
-                {
-                    state.sleeping = true;
-                    state.sleepRemaining = temperamentConfig.sleepDuration;
-                }
-            }
-        }
-        else
-        {
-            state.sleeping = false;
-        }
-
-        if (def.cryPauseEvery.max > 0.0f)
-        {
-            if (state.crying)
-            {
-                state.cryPauseTimer = std::max(0.0f, state.cryPauseTimer - dt);
-                if (state.cryPauseTimer <= 0.0f)
-                {
-                    state.crying = false;
-                    state.cryTimer = randomRange(def.cryPauseEvery);
-                }
-            }
-            else
-            {
-                state.cryTimer = std::max(0.0f, state.cryTimer - dt);
-                if (state.cryTimer <= 0.0f)
-                {
-                    state.crying = true;
-                    state.cryPauseTimer = def.cryPauseDuration > 0.0f ? def.cryPauseDuration : 0.1f;
-                }
-            }
-        }
-        else
-        {
-            state.crying = false;
-        }
-
-        if (state.sleeping || state.crying)
-        {
-            return {0.0f, 0.0f};
-        }
-
-        if (panicking)
-        {
-            if (EnemyUnit *threat = nearestEnemy(yuna.pos))
-            {
-                Vec2 dir = normalize(yuna.pos - threat->pos);
-                if (lengthSq(dir) > 0.0f)
-                {
-                    return dir * baseSpeed;
-                }
-            }
-        }
-
-        float speed = baseSpeed;
-        auto ensureWander = [&]() {
-            if (state.wanderTimer <= 0.0f || lengthSq(state.wanderDirection) < 0.0001f)
-            {
-                state.wanderDirection = randomUnitVector();
-                state.wanderTimer = randomRange(temperamentConfig.wanderTurnInterval);
-            }
-        };
-        if (state.wanderTimer > 0.0f)
-        {
-            state.wanderTimer = std::max(0.0f, state.wanderTimer - dt);
-        }
-
-        switch (state.currentBehavior)
-        {
-        case TemperamentBehavior::ChargeNearest:
-        {
-            if (EnemyUnit *target = nearestEnemy(yuna.pos))
-            {
-                Vec2 dir = normalize(target->pos - yuna.pos);
-                if (dashTime > 0.0f)
-                {
-                    speed *= temperamentConfig.chargeDash.multiplier;
-                }
-                return dir * speed;
-            }
-            Vec2 dir = normalize(basePos - yuna.pos);
-            return dir * speed;
-        }
-        case TemperamentBehavior::FleeNearest:
-        {
-            if (EnemyUnit *threat = nearestEnemy(yuna.pos))
-            {
-                const float fear = temperamentConfig.fearRadius;
-                if (fear <= 0.0f || lengthSq(threat->pos - yuna.pos) <= fear * fear)
-                {
-                    Vec2 dir = normalize(yuna.pos - threat->pos);
-                    if (lengthSq(dir) > 0.0f)
-                    {
-                        return dir * speed;
-                    }
-                }
-            }
-            Vec2 dir = normalize(basePos - yuna.pos);
-            return dir * speed;
-        }
-        case TemperamentBehavior::FollowYuna:
-        {
-            Vec2 target = commander.alive ? commander.pos : basePos;
-            Vec2 toTarget = target - yuna.pos;
-            const float distSq = lengthSq(toTarget);
-            if (commander.alive && distSq > temperamentConfig.followCatchup.distance * temperamentConfig.followCatchup.distance)
-            {
-                if (state.catchupTimer <= 0.0f)
-                {
-                    state.catchupTimer = temperamentConfig.followCatchup.duration;
-                }
-                catchupTime = std::max(catchupTime, state.catchupTimer);
-            }
-            if (catchupTime > 0.0f || state.catchupTimer > 0.0f)
-            {
-                speed *= temperamentConfig.followCatchup.multiplier;
-            }
-            if (distSq > 1.0f)
-            {
-                return normalize(toTarget) * speed;
-            }
-            return Vec2{0.0f, 0.0f};
-        }
-        case TemperamentBehavior::RaidGate:
-        {
-            Vec2 target = basePos;
-            float best = std::numeric_limits<float>::max();
-            for (const Vec2 &candidate : raidTargets)
-            {
-                const float distSq = lengthSq(candidate - yuna.pos);
-                if (distSq < best)
-                {
-                    best = distSq;
-                    target = candidate;
-                }
-            }
-            if (best == std::numeric_limits<float>::max())
-            {
-                if (EnemyUnit *enemy = nearestEnemy(yuna.pos))
-                {
-                    target = enemy->pos;
-                }
-            }
-            Vec2 dir = normalize(target - yuna.pos);
-            return dir * speed;
-        }
-        case TemperamentBehavior::Homebound:
-        {
-            const float homeRadius = def.homeRadius > 0.0f ? def.homeRadius : 48.0f;
-            const float avoidRadius = def.avoidEnemyRadius > 0.0f ? def.avoidEnemyRadius : homeRadius * 2.0f;
-            Vec2 toBase = basePos - yuna.pos;
-            if (lengthSq(toBase) > homeRadius * homeRadius)
-            {
-                return normalize(toBase) * speed;
-            }
-            if (EnemyUnit *threat = nearestEnemy(basePos))
-            {
-                if (lengthSq(threat->pos - basePos) <= avoidRadius * avoidRadius)
-                {
-                    Vec2 away = basePos - threat->pos;
-                    if (lengthSq(away) > 0.0f)
-                    {
-                        Vec2 target = basePos + normalize(away) * std::max(homeRadius, 8.0f);
-                        return normalize(target - yuna.pos) * speed;
-                    }
-                }
-            }
-            ensureWander();
-            Vec2 wander = normalize(state.wanderDirection);
-            Vec2 desired = normalize(wander * homeRadius + toBase * 0.3f);
-            if (lengthSq(desired) < 0.0001f)
-            {
-                desired = normalize(toBase);
-            }
-            return desired * speed;
-        }
-        case TemperamentBehavior::Wander:
-        case TemperamentBehavior::Doze:
-        {
-            ensureWander();
-            Vec2 dir = normalize(state.wanderDirection);
-            return dir * speed;
-        }
-        case TemperamentBehavior::GuardBase:
-        {
-            const float guardRadius = mapDefs.tile_size * 22.0f;
-            if (EnemyUnit *target = nearestEnemy(basePos))
-            {
-                if (lengthSq(target->pos - basePos) <= guardRadius * guardRadius)
-                {
-                    return normalize(target->pos - yuna.pos) * speed;
-                }
-            }
-            ensureWander();
-            Vec2 dir = normalize(state.wanderDirection);
-            Vec2 guardTarget{basePos.x + dir.x * 120.0f, basePos.y + dir.y * 80.0f};
-            return normalize(guardTarget - yuna.pos) * speed;
-        }
-        case TemperamentBehavior::TargetTag:
-        {
-            if (EnemyUnit *target = findTargetByTags(yuna.pos, def.targetTags))
-            {
-                return normalize(target->pos - yuna.pos) * speed;
-            }
-            if (EnemyUnit *enemy = nearestEnemy(yuna.pos))
-            {
-                return normalize(enemy->pos - yuna.pos) * speed;
-            }
-            Vec2 dir = normalize(basePos - yuna.pos);
-            return dir * speed;
-        }
-        case TemperamentBehavior::Mimic:
-        {
-            ensureWander();
-            Vec2 dir = normalize(state.wanderDirection);
-            return dir * speed;
-        }
-        }
-        return {0.0f, 0.0f};
-    }
-
-    void updateUnits(float dt)
-    {
-        constexpr std::size_t followLimit = 30;
-        const float yunaSpeedPx = yunaStats.speed_u_s * config.pixels_per_unit;
-        const float followerSnapDistSq = 16.0f;
-
-        for (Unit &yuna : yunas)
-        {
-            yuna.followByStance = false;
-            yuna.effectiveFollower = false;
-        }
-
-        if (orderActive && stance == ArmyStance::FollowLeader && commander.alive)
-        {
-            std::vector<std::pair<float, Unit *>> distances;
-            distances.reserve(yunas.size());
-            for (Unit &yuna : yunas)
-            {
-                distances.emplace_back(lengthSq(yuna.pos - commander.pos), &yuna);
-            }
-            std::sort(distances.begin(), distances.end(), [](const auto &a, const auto &b) { return a.first < b.first; });
-            const std::size_t take = std::min<std::size_t>(followLimit, distances.size());
-            for (std::size_t i = 0; i < take; ++i)
-            {
-                distances[i].second->followByStance = true;
-            }
-        }
-
-        std::vector<std::pair<float, Unit *>> skillFollowers;
-        skillFollowers.reserve(yunas.size());
-        for (Unit &yuna : yunas)
-        {
-            if (yuna.followBySkill)
-            {
-                skillFollowers.emplace_back(lengthSq(yuna.pos - commander.pos), &yuna);
-            }
-        }
-        std::sort(skillFollowers.begin(), skillFollowers.end(), [](const auto &a, const auto &b) { return a.first < b.first; });
-
-        std::vector<Unit *> followers;
-        followers.reserve(followLimit);
-        for (auto &entry : skillFollowers)
-        {
-            if (followers.size() >= followLimit)
-            {
-                break;
-            }
-            entry.second->effectiveFollower = true;
-            followers.push_back(entry.second);
-        }
-        if (followers.size() < followLimit)
-        {
-            for (Unit &yuna : yunas)
-            {
-                if (followers.size() >= followLimit)
-                {
-                    break;
-                }
-                if (!yuna.followBySkill && yuna.followByStance)
-                {
-                    yuna.effectiveFollower = true;
-                    followers.push_back(&yuna);
-                }
-            }
-        }
-
-        auto formationOffsets = computeFormationOffsets(formation, followers.size());
-        for (std::size_t i = 0; i < followers.size(); ++i)
-        {
-            followers[i]->formationOffset = formationOffsets[i];
-        }
-
-        const std::size_t totalFollowers = followers.size();
-        const std::size_t totalDefenders = yunas.size() > totalFollowers ? yunas.size() - totalFollowers : 0;
-        const std::size_t safeDefenders = totalDefenders > 0 ? totalDefenders : 1;
-        std::size_t defendIndex = 0;
-        std::size_t supportIndex = 0;
-
-        auto nearestEnemy = [this](const Vec2 &pos) -> EnemyUnit * {
-            EnemyUnit *best = nullptr;
-            float bestDist = std::numeric_limits<float>::max();
-            for (EnemyUnit &enemy : enemies)
-            {
-                const float dist = lengthSq(enemy.pos - pos);
-                if (dist < bestDist)
-                {
-                    bestDist = dist;
-                    best = &enemy;
-                }
-            }
-            return best;
-        };
-
-        std::vector<Vec2> raidTargets = collectRaidTargets();
-
-        for (Unit &yuna : yunas)
-        {
-            Vec2 temperamentVelocity = computeTemperamentVelocity(yuna, dt, yunaSpeedPx, nearestEnemy, raidTargets);
-            Vec2 velocity{0.0f, 0.0f};
-            const bool panicActive = yuna.temperament.panicTimer > 0.0f;
-
-            if (panicActive)
-            {
-                velocity = temperamentVelocity;
-            }
-            else if (yuna.effectiveFollower && commander.alive)
-            {
-                Vec2 desiredPos = commander.pos + yuna.formationOffset;
-                Vec2 toTarget = desiredPos - yuna.pos;
-                if (lengthSq(toTarget) > followerSnapDistSq)
-                {
-                    velocity = normalize(toTarget) * yunaSpeedPx;
-                }
-                else
-                {
-                    velocity = temperamentVelocity;
-                }
-            }
-            else if (orderActive)
-            {
-                switch (stance)
-                {
-                case ArmyStance::RushNearest:
-                {
-                    if (EnemyUnit *target = nearestEnemy(yuna.pos))
-                    {
-                        velocity = normalize(target->pos - yuna.pos) * yunaSpeedPx;
-                    }
-                    else
-                    {
-                        velocity = normalize(basePos - yuna.pos) * yunaSpeedPx;
-                    }
-                    break;
-                }
-                case ArmyStance::PushForward:
-                {
-                    EnemyUnit *target = nearestEnemy(yuna.pos);
-                    Vec2 pushTarget{std::max(basePos.x - mapDefs.tile_size * 25.0f, mapDefs.tile_size * 4.0f), basePos.y};
-                    if (target && lengthSq(target->pos - yuna.pos) < 160.0f * 160.0f)
-                    {
-                        velocity = normalize(target->pos - yuna.pos) * yunaSpeedPx;
-                    }
-                    else
-                    {
-                        velocity = normalize(pushTarget - yuna.pos) * yunaSpeedPx;
-                    }
-                    break;
-                }
-                case ArmyStance::FollowLeader:
-                {
-                    if (commander.alive)
-                    {
-                        const float lane = static_cast<float>(supportIndex) - static_cast<float>(safeDefenders - 1) * 0.5f;
-                        Vec2 supportPos{commander.pos.x - 96.0f, commander.pos.y + lane * 20.0f};
-                        ++supportIndex;
-                        velocity = normalize(supportPos - yuna.pos) * yunaSpeedPx;
-                    }
-                    else if (EnemyUnit *target = nearestEnemy(yuna.pos))
-                    {
-                        velocity = normalize(target->pos - yuna.pos) * yunaSpeedPx;
-                    }
-                    else
-                    {
-                        velocity = normalize(basePos - yuna.pos) * yunaSpeedPx;
-                    }
-                    break;
-                }
-                case ArmyStance::DefendBase:
-                {
-                    EnemyUnit *target = nearestEnemy(basePos);
-                    if (target && lengthSq(target->pos - basePos) < (mapDefs.tile_size * 22.0f) * (mapDefs.tile_size * 22.0f))
-                    {
-                        velocity = normalize(target->pos - yuna.pos) * yunaSpeedPx;
-                    }
-                    else
-                    {
-                        const float angle = 2.0f * 3.14159265358979323846f * (static_cast<float>(defendIndex) / static_cast<float>(safeDefenders));
-                        Vec2 ringTarget{basePos.x + std::cos(angle) * 120.0f, basePos.y + std::sin(angle) * 80.0f};
-                        ++defendIndex;
-                        velocity = normalize(ringTarget - yuna.pos) * yunaSpeedPx;
-                    }
-                    break;
-                }
-                }
-            }
-            else
-            {
-                velocity = temperamentVelocity;
-            }
-
-            if (velocity.x != 0.0f || velocity.y != 0.0f)
-            {
-                yuna.pos += velocity * dt;
-                clampToWorld(yuna.pos, yuna.radius);
-            }
-        }
-
-        for (EnemyUnit &enemy : enemies)
-        {
-            Vec2 target = basePos;
-            if (enemy.type == EnemyArchetype::Wallbreaker)
-            {
-                const float preferRadius = wallbreakerStats.preferWallRadiusPx;
-                if (preferRadius > 0.0f)
-                {
-                    const float preferRadiusSq = preferRadius * preferRadius;
-                    WallSegment *bestWall = nullptr;
-                    float bestDistSq = preferRadiusSq;
-                    for (WallSegment &wall : walls)
-                    {
-                        if (wall.hp <= 0.0f)
-                        {
-                            continue;
-                        }
-                        const float distSq = lengthSq(wall.pos - enemy.pos);
-                        if (distSq < bestDistSq)
-                        {
-                            bestDistSq = distSq;
-                            bestWall = &wall;
-                        }
-                    }
-                    if (bestWall)
-                    {
-                        target = bestWall->pos;
-                    }
-                }
-            }
-
-            Vec2 dir = normalize(target - enemy.pos);
-            float speedPx = enemy.speedPx;
-            if (speedPx <= 0.0f)
-            {
-                const float speedUnits = enemy.type == EnemyArchetype::Wallbreaker ? wallbreakerStats.speed_u_s : slimeStats.speed_u_s;
-                speedPx = speedUnits * config.pixels_per_unit;
-            }
-            enemy.pos += dir * (speedPx * dt);
-        }
-
-        for (EnemyUnit &enemy : enemies)
-        {
-            for (WallSegment &wall : walls)
-            {
-                const float combined = enemy.radius + wall.radius;
-                const float distSq = lengthSq(enemy.pos - wall.pos);
-                if (distSq <= combined * combined)
-                {
-                    float dist = std::sqrt(std::max(distSq, 0.0001f));
-                    Vec2 normal = dist > 0.0f ? (enemy.pos - wall.pos) / dist : Vec2{1.0f, 0.0f};
-                    const float overlap = combined - dist;
-                    enemy.pos += normal * overlap;
-                    wall.hp -= enemy.dpsWall * dt;
-                }
-            }
-        }
-
-        std::vector<float> yunaDamage(yunas.size(), 0.0f);
-        float commanderDamage = 0.0f;
-
-        if (commander.alive)
-        {
-            for (EnemyUnit &enemy : enemies)
-            {
-                const float combined = commander.radius + enemy.radius;
-                if (lengthSq(commander.pos - enemy.pos) <= combined * combined)
-                {
-                    enemy.hp -= commanderStats.dps * dt;
-                    if (commanderInvulnTimer <= 0.0f)
-                    {
-                        commanderDamage += enemy.dpsUnit * dt;
-                    }
-                }
-            }
-            for (GateRuntime &gate : gates)
-            {
-                if (gate.destroyed)
-                {
-                    continue;
-                }
-                const float combined = commander.radius + gate.radius;
-                if (lengthSq(commander.pos - gate.pos) <= combined * combined)
-                {
-                    gate.hp = std::max(0.0f, gate.hp - commanderStats.dps * dt);
-                    if (gate.hp <= 0.0f)
-                    {
-                        destroyGate(gate);
-                    }
-                }
-            }
-        }
-
-        for (std::size_t i = 0; i < yunas.size(); ++i)
-        {
-            Unit &yuna = yunas[i];
-            for (EnemyUnit &enemy : enemies)
-            {
-                const float combined = yuna.radius + enemy.radius;
-                if (lengthSq(yuna.pos - enemy.pos) <= combined * combined)
-                {
-                    enemy.hp -= yunaStats.dps * dt;
-                    yunaDamage[i] += enemy.dpsUnit * dt;
-                }
-            }
-            for (GateRuntime &gate : gates)
-            {
-                if (gate.destroyed)
-                {
-                    continue;
-                }
-                const float combined = yuna.radius + gate.radius;
-                if (lengthSq(yuna.pos - gate.pos) <= combined * combined)
-                {
-                    gate.hp = std::max(0.0f, gate.hp - yunaStats.dps * dt);
-                    if (gate.hp <= 0.0f)
-                    {
-                        destroyGate(gate);
-                    }
-                }
-            }
-        }
-
-        enemies.erase(std::remove_if(enemies.begin(), enemies.end(), [](const EnemyUnit &e) { return e.hp <= 0.0f; }), enemies.end());
-
-        if (commander.alive && commanderDamage > 0.0f)
-        {
-            const float hpBefore = commander.hp;
-            commander.hp -= commanderDamage;
-            if (commander.hp <= 0.0f)
-            {
-                const float overkill = std::max(0.0f, commanderDamage - std::max(hpBefore, 0.0f));
-                const float ratio = clampOverkillRatio(overkill, commanderStats.hp);
-                scheduleCommanderRespawn(1.0f, 0.0f, ratio);
-            }
-        }
-
-        if (!yunaDamage.empty())
-        {
-            std::vector<Unit> survivors;
-            survivors.reserve(yunas.size());
-            for (std::size_t i = 0; i < yunas.size(); ++i)
-            {
-                Unit &yuna = yunas[i];
-                if (yuna.hp <= 0.0f)
-                {
-                    enqueueYunaRespawn(0.0f);
-                    continue;
-                }
-                if (yunaDamage[i] > 0.0f)
-                {
-                    const float hpBefore = yuna.hp;
-                    yuna.hp -= yunaDamage[i];
-                    if (yuna.hp <= 0.0f)
-                    {
-                        const float overkill = std::max(0.0f, yunaDamage[i] - std::max(hpBefore, 0.0f));
-                        const float ratio = clampOverkillRatio(overkill, yunaStats.hp);
-                        enqueueYunaRespawn(ratio);
-                        continue;
-                    }
-                    if (yuna.temperament.definition && yuna.temperament.definition->panicOnHit > 0.0f)
-                    {
-                        yuna.temperament.panicTimer = std::max(yuna.temperament.panicTimer, yuna.temperament.definition->panicOnHit);
-                    }
-                }
-                survivors.push_back(yuna);
-            }
-            yunas.swap(survivors);
-        }
-
-        const float baseRadius = std::max(config.base_aabb.x, config.base_aabb.y) * 0.5f;
-        for (EnemyUnit &enemy : enemies)
-        {
-            const float combined = baseRadius + enemy.radius;
-            if (lengthSq(enemy.pos - basePos) <= combined * combined)
-            {
-                baseHp -= enemy.dpsBase * dt;
-                if (baseHp <= 0.0f)
-                {
-                    baseHp = 0.0f;
-                    if (!hasMission || missionFail.baseHpZero)
-                    {
-                        setResult(GameResult::Defeat, "Defeat");
-                    }
-                    break;
-                }
-            }
-        }
-
-        walls.erase(std::remove_if(walls.begin(), walls.end(), [](const WallSegment &wall) { return wall.hp <= 0.0f; }), walls.end());
-    }
-
-    bool canRestart() const { return restartCooldown <= 0.0f; }
-};
+using world::LegacySimulation;
 
 namespace world
 {
@@ -2809,10 +304,82 @@ void WorldState::reset()
     }
     m_sim->waveScriptComplete = false;
     m_sim->spawnerIdle = true;
+    if (auto *formation = formationSystem())
+    {
+        formation->reset(*m_sim);
+    }
     markComponentsDirty();
 }
 
 systems::SystemContext WorldState::makeSystemContext()
+{
+    clearSystems();
+
+    auto formation = std::make_unique<systems::FormationSystem>();
+    formation->reset(*m_sim);
+    if (m_eventBus)
+    {
+        formation->setEventBus(std::weak_ptr<EventBus>(m_eventBus));
+    }
+    if (m_telemetry)
+    {
+        formation->setTelemetrySink(std::weak_ptr<TelemetrySink>(m_telemetry));
+    }
+    registerSystem(systems::SystemStage::CommandAndMorale, std::move(formation));
+    registerSystem(systems::SystemStage::CommandAndMorale, std::make_unique<systems::MoraleSystem>());
+    registerSystem(systems::SystemStage::AiDecision, std::make_unique<systems::BehaviorSystem>());
+    registerSystem(systems::SystemStage::Combat, std::make_unique<systems::CombatSystem>());
+    registerSystem(systems::SystemStage::StateUpdate, std::make_unique<systems::JobAbilitySystem>());
+}
+
+void WorldState::clearSystems()
+{
+    m_systems.clear();
+    m_systemStageOrder.clear();
+    m_cachedFormationSystem = nullptr;
+}
+
+void WorldState::registerSystem(systems::SystemStage stage, std::unique_ptr<systems::ISystem> system)
+{
+    if (!system)
+    {
+        return;
+    }
+    if (!m_systems.empty())
+    {
+        const systems::SystemStage lastStage = m_systems.back().stage;
+        if (static_cast<std::uint8_t>(stage) < static_cast<std::uint8_t>(lastStage))
+        {
+            throw std::logic_error("WorldState::registerSystem stage order violation");
+        }
+    }
+    if (auto *formation = dynamic_cast<systems::FormationSystem *>(system.get()))
+    {
+        m_cachedFormationSystem = formation;
+    }
+    m_systemStageOrder.push_back(stage);
+    m_systems.push_back(SystemEntry{stage, std::move(system)});
+}
+
+const std::vector<systems::SystemStage> &WorldState::systemStageOrder() const
+{
+    return m_systemStageOrder;
+}
+
+void WorldState::runSystemsForStage(systems::SystemStage stage,
+                                    float dt,
+                                    systems::SystemContext &context)
+{
+    for (auto &entry : m_systems)
+    {
+        if (entry.stage == stage && entry.system)
+        {
+            entry.system->update(dt, context);
+        }
+    }
+}
+
+void WorldState::step(float dt, const ActionBuffer &actions)
 {
     systems::MissionContext missionContext{
         m_sim->hasMission,
@@ -2824,6 +391,7 @@ systems::SystemContext WorldState::makeSystemContext()
         m_sim->missionVictoryCountdown};
     systems::SystemContext context{
         *m_sim,
+        m_registry,
         *m_allies,
         *m_enemies,
         *m_walls,
@@ -2836,87 +404,91 @@ systems::SystemContext WorldState::makeSystemContext()
         m_sim->waveScriptComplete,
         m_sim->spawnerIdle,
         m_sim->timeSinceLastEnemySpawn,
-        m_sim->skills,
-        m_sim->selectedSkill,
-        m_sim->rallyState,
-        m_sim->spawnRateMultiplier,
-        m_sim->spawnSlowMultiplier,
-        m_sim->spawnSlowTimer,
-        missionContext};
-    return context;
-}
+        m_sim->yunas,
+        m_sim->enemies,
+        m_sim->walls,
+        m_sim->gates,
+        m_sim->yunaRespawnTimers,
+        m_sim->commanderRespawnTimer,
+        m_sim->commanderInvulnTimer,
+        missionContext,
+        actions};
+    constexpr std::array<systems::SystemStage, 8> kExecutionOrder{
+        systems::SystemStage::InputProcessing,
+        systems::SystemStage::CommandAndMorale,
+        systems::SystemStage::AiDecision,
+        systems::SystemStage::Movement,
+        systems::SystemStage::Combat,
+        systems::SystemStage::StateUpdate,
+        systems::SystemStage::Spawn,
+        systems::SystemStage::RenderingPrep,
+    };
 
-void WorldState::initializeSystems()
-{
-    m_systems.clear();
-    m_jobSystem = std::make_unique<systems::JobAbilitySystem>();
-    m_systems.emplace_back(std::make_unique<systems::MoraleSystem>());
-    m_systems.emplace_back(std::make_unique<systems::CombatSystem>());
-}
-
-void WorldState::step(float dt, const Vec2 &commanderInput)
-{
-    systems::SystemContext context = makeSystemContext();
-    if (m_jobSystem)
+    for (systems::SystemStage stage : kExecutionOrder)
     {
-        m_jobSystem->update(dt, context);
-    }
-
-    m_sim->update(dt, commanderInput);
-
-    for (const std::unique_ptr<systems::ISystem> &system : m_systems)
-    {
-        if (system)
+        switch (stage)
         {
-            system->update(dt, context);
-        }
-    }
-
-    if (m_sim->spawnEnabled)
-    {
-        if (m_waveController)
+        case systems::SystemStage::StateUpdate:
+            m_sim->update(dt);
+            runSystemsForStage(stage, dt, context);
+            break;
+        case systems::SystemStage::Spawn:
         {
-            std::vector<std::string> announcements = m_waveController->advance(m_sim->simTime);
-            for (const std::string &text : announcements)
+            runSystemsForStage(stage, dt, context);
+
+            if (m_sim->spawnEnabled)
             {
-                if (!text.empty())
+                if (m_waveController)
                 {
-                    m_sim->pushTelemetry(text);
+                    std::vector<std::string> announcements = m_waveController->advance(m_sim->simTime);
+                    for (const std::string &text : announcements)
+                    {
+                        if (!text.empty())
+                        {
+                            m_sim->pushTelemetry(text);
+                        }
+                    }
+                }
+
+                if (m_spawner)
+                {
+                    if (m_sim->missionMode == MissionMode::Survival &&
+                        m_sim->survival.spawnMultiplier > 0.0f)
+                    {
+                        const float mult = std::max(m_sim->survival.spawnMultiplier, 0.1f);
+                        m_spawner->setIntervalModifier([mult](float base) {
+                            if (mult <= 0.0f)
+                            {
+                                return base;
+                            }
+                            return base / mult;
+                        });
+                    }
+                    else
+                    {
+                        m_spawner->setIntervalModifier({});
+                    }
+
+                    m_spawner->emit(dt, [this](const spawn::SpawnPayload &payload) {
+                        m_sim->spawnOneEnemy(payload.position, payload.type);
+                    });
                 }
             }
-        }
 
-        if (m_spawner)
-        {
-            if (m_sim->missionMode == MissionMode::Survival && m_sim->survival.spawnMultiplier > 0.0f)
+            if (m_waveController)
             {
-                const float mult = std::max(m_sim->survival.spawnMultiplier, 0.1f);
-                m_spawner->setIntervalModifier([mult](float base) {
-                    if (mult <= 0.0f)
-                    {
-                        return base;
-                    }
-                    return base / mult;
-                });
+                m_sim->waveScriptComplete = m_waveController->isComplete();
             }
-            else
+            if (m_spawner)
             {
-                m_spawner->setIntervalModifier({});
+                m_sim->spawnerIdle = m_spawner->empty();
             }
-
-            m_spawner->emit(dt, [this](const spawn::SpawnPayload &payload) {
-                m_sim->spawnOneEnemy(payload.position, payload.type);
-            });
+            break;
         }
-    }
-
-    if (m_waveController)
-    {
-        m_sim->waveScriptComplete = m_waveController->isComplete();
-    }
-    if (m_spawner)
-    {
-        m_sim->spawnerIdle = m_spawner->empty();
+        default:
+            runSystemsForStage(stage, dt, context);
+            break;
+        }
     }
 
     markComponentsDirty();
@@ -2924,13 +496,19 @@ void WorldState::step(float dt, const Vec2 &commanderInput)
 
 void WorldState::issueOrder(ArmyStance stance)
 {
-    m_sim->issueOrder(stance);
+    if (auto *formation = formationSystem())
+    {
+        formation->issueOrder(stance, *m_sim);
+    }
     markComponentsDirty();
 }
 
 void WorldState::cycleFormation(int direction)
 {
-    m_sim->cycleFormation(direction);
+    if (auto *formation = formationSystem())
+    {
+        formation->cycleFormation(direction, *m_sim);
+    }
     markComponentsDirty();
 }
 
@@ -2958,6 +536,10 @@ void WorldState::setEventBus(std::shared_ptr<EventBus> bus)
     {
         m_waveController->setEventBus(m_eventBus);
     }
+    if (auto *formation = formationSystem())
+    {
+        formation->setEventBus(std::weak_ptr<EventBus>(m_eventBus));
+    }
 }
 
 void WorldState::setTelemetrySink(std::shared_ptr<TelemetrySink> sink)
@@ -2966,6 +548,10 @@ void WorldState::setTelemetrySink(std::shared_ptr<TelemetrySink> sink)
     if (m_waveController)
     {
         m_waveController->setTelemetrySink(m_telemetry);
+    }
+    if (auto *formation = formationSystem())
+    {
+        formation->setTelemetrySink(std::weak_ptr<TelemetrySink>(m_telemetry));
     }
 }
 
@@ -3077,6 +663,11 @@ void WorldState::syncComponents() const
     rebuildMissionComponents();
 
     m_componentsDirty = false;
+}
+
+systems::FormationSystem *WorldState::formationSystem() const
+{
+    return m_cachedFormationSystem;
 }
 
 } // namespace world
@@ -3935,6 +1526,8 @@ class BattleScene : public Scene
     void render(SDL_Renderer *renderer, GameApplication &app) override;
 
   private:
+    void handleActionFrame(const ActionBuffer::Frame &frame, GameApplication &app);
+
     bool m_initialized = false;
     world::WorldState m_world;
     TileMap m_tileMap;
@@ -3967,6 +1560,11 @@ class BattleScene : public Scene
     std::shared_ptr<TelemetrySink> m_telemetry;
     std::shared_ptr<EventBus> m_eventBus;
     std::shared_ptr<AssetManager> m_assetService;
+    UiPresenter m_ui;
+    ActionBuffer m_actionBuffer;
+    std::uint64_t m_inputSequence = 0;
+    std::uint64_t m_lastProcessedSequence = 0;
+    bool m_haveProcessedSequence = false;
 };
 
 void BattleScene::onEnter(GameApplication &app, SceneStack &stack)
@@ -3987,6 +1585,9 @@ void BattleScene::onEnter(GameApplication &app, SceneStack &stack)
 
     m_world.setTelemetrySink(m_telemetry);
     m_world.setEventBus(m_eventBus);
+    m_ui.setTelemetrySink(m_telemetry);
+    m_ui.setEventBus(m_eventBus);
+    m_ui.bindSimulation(&m_world.legacy());
 
     auto telemetryNotify = [this](std::string reason, std::string detail = {}) {
         if (!m_telemetry)
@@ -4065,6 +1666,11 @@ void BattleScene::onEnter(GameApplication &app, SceneStack &stack)
     std::vector<SkillDef> skillDefs = appConfig.skills.empty() ? buildDefaultSkills() : appConfig.skills;
     m_world.configureSkills(skillDefs);
     m_world.reset();
+    m_actionBuffer.clear();
+    m_actionBuffer.setCapacity(static_cast<std::size_t>(std::max(1, appConfig.input.bufferFrames)));
+    m_inputSequence = 0;
+    m_haveProcessedSequence = false;
+    m_lastProcessedSequence = 0;
 
     if (!m_hudFont.load(assets, "assets/ui/NotoSansJP-Regular.ttf", 22))
     {
@@ -4116,6 +1722,9 @@ void BattleScene::onExit(GameApplication &app, SceneStack &stack)
     (void)app;
     (void)stack;
 
+    m_ui.bindSimulation(nullptr);
+    m_ui.setEventBus(nullptr);
+    m_ui.setTelemetrySink(nullptr);
     m_atlas.texture.reset();
     m_tileMap.tileset.reset();
     m_hudFont.unload();
@@ -4134,60 +1743,68 @@ void BattleScene::onExit(GameApplication &app, SceneStack &stack)
 
 void BattleScene::handleEvent(const SDL_Event &event, GameApplication &app, SceneStack &stack)
 {
+    (void)event;
+    (void)app;
     (void)stack;
-    if (!m_initialized)
+}
+
+void BattleScene::handleActionFrame(const ActionBuffer::Frame &frame, GameApplication &app)
+{
+    if (m_haveProcessedSequence && frame.sequence == m_lastProcessedSequence)
     {
         return;
     }
+    m_haveProcessedSequence = true;
+    m_lastProcessedSequence = frame.sequence;
 
     LegacySimulation &sim = m_world.legacy();
 
-    if (event.type == SDL_KEYDOWN && event.key.repeat == 0)
-    {
-        switch (event.key.keysym.scancode)
+    auto handleSkillSelect = [this](ActionId id) {
+        const int baseIndex = static_cast<int>(ActionId::SelectSkill1);
+        const int actionIndex = static_cast<int>(id);
+        const int skillOffset = actionIndex - baseIndex;
+        if (skillOffset >= 0)
         {
-        case SDL_SCANCODE_ESCAPE:
-            app.requestQuit();
-            break;
-        case SDL_SCANCODE_F1:
+            const int hotkey = skillOffset + 1;
+            m_world.selectSkillByHotkey(hotkey);
+        }
+    };
+
+    for (const ActionEvent &evt : frame.events)
+    {
+        if (!evt.pressed && evt.id != ActionId::ActivateSkill)
+        {
+            continue;
+        }
+
+        switch (evt.id)
+        {
+        case ActionId::CommanderOrderRushNearest:
             m_world.issueOrder(ArmyStance::RushNearest);
             break;
-        case SDL_SCANCODE_F2:
+        case ActionId::CommanderOrderPushForward:
             m_world.issueOrder(ArmyStance::PushForward);
             break;
-        case SDL_SCANCODE_F3:
+        case ActionId::CommanderOrderFollowLeader:
             m_world.issueOrder(ArmyStance::FollowLeader);
             break;
-        case SDL_SCANCODE_F4:
+        case ActionId::CommanderOrderDefendBase:
             m_world.issueOrder(ArmyStance::DefendBase);
             break;
-        case SDL_SCANCODE_F10:
-            m_showDebugHud = !m_showDebugHud;
-            break;
-        case SDL_SCANCODE_SPACE:
-            m_camera.position = {sim.commander.pos.x - m_screenWidth * 0.5f,
-                                 sim.commander.pos.y - m_screenHeight * 0.5f};
-            m_introActive = false;
-            m_introTimer = 0.0f;
-            break;
-        case SDL_SCANCODE_TAB:
-            m_camera.position = {sim.basePos.x - m_screenWidth * 0.5f,
-                                 sim.basePos.y - m_screenHeight * 0.5f};
-            m_introActive = false;
-            m_introTimer = 0.0f;
-            break;
-        case SDL_SCANCODE_Z:
+        case ActionId::CycleFormationPrevious:
             m_world.cycleFormation(-1);
             break;
-        case SDL_SCANCODE_X:
+        case ActionId::CycleFormationNext:
             m_world.cycleFormation(1);
             break;
-        case SDL_SCANCODE_R:
+        case ActionId::ToggleDebugHud:
+            m_showDebugHud = !m_showDebugHud;
+            break;
+        case ActionId::RestartScenario:
             if (sim.result != GameResult::Playing && m_world.canRestart())
             {
                 m_world.reset();
-                m_baseCameraTarget = {sim.basePos.x - m_screenWidth * 0.5f,
-                                      sim.basePos.y - m_screenHeight * 0.5f};
+                m_baseCameraTarget = {sim.basePos.x - m_screenWidth * 0.5f, sim.basePos.y - m_screenHeight * 0.5f};
                 m_introFocus = leftmostGateWorld(sim.mapDefs);
                 m_introCameraTarget = {m_introFocus.x - m_screenWidth * 0.5f,
                                        m_introFocus.y - m_screenHeight * 0.5f};
@@ -4196,23 +1813,40 @@ void BattleScene::handleEvent(const SDL_Event &event, GameApplication &app, Scen
                 m_introActive = true;
             }
             break;
-        case SDL_SCANCODE_1:
-        case SDL_SCANCODE_2:
-        case SDL_SCANCODE_3:
-        case SDL_SCANCODE_4:
-        {
-            const int hotkey = static_cast<int>(event.key.keysym.scancode - SDL_SCANCODE_1) + 1;
-            m_world.selectSkillByHotkey(hotkey);
+        case ActionId::SelectSkill1:
+        case ActionId::SelectSkill2:
+        case ActionId::SelectSkill3:
+        case ActionId::SelectSkill4:
+        case ActionId::SelectSkill5:
+        case ActionId::SelectSkill6:
+        case ActionId::SelectSkill7:
+        case ActionId::SelectSkill8:
+            handleSkillSelect(evt.id);
             break;
-        }
+        case ActionId::FocusCommander:
+            m_camera.position = {sim.commander.pos.x - m_screenWidth * 0.5f,
+                                 sim.commander.pos.y - m_screenHeight * 0.5f};
+            m_introActive = false;
+            m_introTimer = 0.0f;
+            break;
+        case ActionId::FocusBase:
+            m_camera.position = {sim.basePos.x - m_screenWidth * 0.5f, sim.basePos.y - m_screenHeight * 0.5f};
+            m_introActive = false;
+            m_introTimer = 0.0f;
+            break;
+        case ActionId::ActivateSkill:
+            if (evt.pointer && evt.pointer->pressed)
+            {
+                Vec2 worldPos = screenToWorld(evt.pointer->x, evt.pointer->y, m_camera);
+                m_world.activateSelectedSkill(worldPos);
+            }
+            break;
+        case ActionId::QuitGame:
+            app.requestQuit();
+            break;
         default:
             break;
         }
-    }
-    else if (event.type == SDL_MOUSEBUTTONDOWN && event.button.button == SDL_BUTTON_RIGHT)
-    {
-        Vec2 worldPos = screenToWorld(event.button.x, event.button.y, m_camera);
-        m_world.activateSelectedSkill(worldPos);
     }
 }
 
@@ -4238,22 +1872,38 @@ void BattleScene::update(double deltaSeconds, GameApplication &app, SceneStack &
         m_frames = 0;
     }
 
-    const Uint8 *keys = SDL_GetKeyboardState(nullptr);
     const float dt = sim.config.fixed_dt;
+    const double baseInputTimestamp = static_cast<double>(SDL_GetTicks64());
     const Uint64 updateStart = SDL_GetPerformanceCounter();
+    std::size_t stepIndex = 0;
+    bool producedFrame = false;
     while (m_accumulator >= dt)
     {
-        Vec2 commanderInput{0.0f, 0.0f};
-        if (!m_introActive)
+        const double frameTimestamp = baseInputTimestamp +
+                                      static_cast<double>(stepIndex) * (static_cast<double>(dt) * 1000.0);
+        app.inputMapper().sampleFrame(!m_introActive,
+                                      frameTimestamp,
+                                      m_inputSequence++,
+                                      m_actionBuffer);
+        if (const ActionBuffer::Frame *frame = m_actionBuffer.latest())
         {
-            if (keys[SDL_SCANCODE_W] || keys[SDL_SCANCODE_UP]) commanderInput.y -= 1.0f;
-            if (keys[SDL_SCANCODE_S] || keys[SDL_SCANCODE_DOWN]) commanderInput.y += 1.0f;
-            if (keys[SDL_SCANCODE_A] || keys[SDL_SCANCODE_LEFT]) commanderInput.x -= 1.0f;
-            if (keys[SDL_SCANCODE_D] || keys[SDL_SCANCODE_RIGHT]) commanderInput.x += 1.0f;
+            handleActionFrame(*frame, app);
         }
-
-        m_world.step(dt, commanderInput);
+        m_world.step(dt, m_actionBuffer);
         m_accumulator -= dt;
+        ++stepIndex;
+        producedFrame = true;
+    }
+    if (!producedFrame)
+    {
+        app.inputMapper().sampleFrame(!m_introActive,
+                                      baseInputTimestamp,
+                                      m_inputSequence++,
+                                      m_actionBuffer);
+        if (const ActionBuffer::Frame *frame = m_actionBuffer.latest())
+        {
+            handleActionFrame(*frame, app);
+        }
     }
     const Uint64 updateEnd = SDL_GetPerformanceCounter();
     const double updateMs = (updateEnd - updateStart) * 1000.0 / m_frequency;
@@ -4343,8 +1993,7 @@ void BattleScene::render(SDL_Renderer *renderer, GameApplication &app)
     }
 }
 
-} // namespace
-
+#ifndef KUSOZAKO_SKIP_APP_MAIN
 int main(int argc, char **argv)
 {
     (void)argc;
@@ -4355,3 +2004,4 @@ int main(int argc, char **argv)
     app.sceneStack().push(std::make_unique<BattleScene>());
     return app.run();
 }
+#endif

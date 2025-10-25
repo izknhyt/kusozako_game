@@ -1,8 +1,28 @@
 {
   "schema_version": 1,
-  "FocusBase": "Space",
+  "FocusBase": "Tab",
+  "FocusCommander": "Space",
   "Overview": "Tab",
   "CameraMove": { "W": "up", "A": "left", "S": "down", "D": "right" },
   "SummonMode": ["1", "2", "3", "4", "5"],
-  "Restart": "R"
+  "Restart": "R",
+  "ToggleDebugHud": "F10",
+  "Quit": "Escape",
+  "FormationPrevious": "Z",
+  "FormationNext": "X",
+  "SkillActivate": "MouseRight",
+  "Orders": {
+    "RushNearest": ["F1"],
+    "PushForward": ["F2"],
+    "FollowLeader": ["F3"],
+    "DefendBase": ["F4"]
+  },
+  "CommanderMove": {
+    "Up": ["W", "Up"],
+    "Down": ["S", "Down"],
+    "Left": ["A", "Left"],
+    "Right": ["D", "Right"]
+  },
+  "buffer_frames": 4,
+  "buffer_expiry_ms": 80.0
 }

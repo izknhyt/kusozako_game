@@ -331,11 +331,27 @@ struct RendererConfig
 
 struct InputBindings
 {
-    std::string focusBase;
+    std::string focusBase{"Tab"};
+    std::string focusCommander{"Space"};
     std::string overview;
     std::unordered_map<std::string, std::string> cameraMove;
-    std::vector<std::string> summonMode;
+    std::vector<std::string> summonMode{"1", "2", "3", "4"};
     std::string restart;
+    std::vector<std::string> commanderMoveUp{"W", "Up"};
+    std::vector<std::string> commanderMoveDown{"S", "Down"};
+    std::vector<std::string> commanderMoveLeft{"A", "Left"};
+    std::vector<std::string> commanderMoveRight{"D", "Right"};
+    std::vector<std::string> orderRushNearest{"F1"};
+    std::vector<std::string> orderPushForward{"F2"};
+    std::vector<std::string> orderFollowLeader{"F3"};
+    std::vector<std::string> orderDefendBase{"F4"};
+    std::string toggleDebugHud{"F10"};
+    std::string quit{"Escape"};
+    std::string formationPrevious{"Z"};
+    std::string formationNext{"X"};
+    std::string skillActivate{"MouseRight"};
+    int bufferFrames = 4;
+    float bufferExpiryMs = 80.0f;
 };
 
 struct AppConfig

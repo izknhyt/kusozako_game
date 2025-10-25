@@ -1,6 +1,9 @@
 #pragma once
 
+#include "input/ActionBuffer.h"
 #include "world/Entity.h"
+#include "world/LegacySimulation.h"
+#include "world/systems/SystemContext.h"
 
 #include <memory>
 #include <vector>
@@ -15,14 +18,7 @@ struct EntityStats;
 struct WallbreakerStats;
 struct MissionConfig;
 struct MissionUIState;
-struct RuntimeSkill;
-struct GateRuntime;
 struct ActiveSpawn;
-struct WallSegment;
-struct Unit;
-struct EnemyUnit;
-struct CommanderUnit;
-struct CaptureRuntime;
 struct SurvivalState;
 struct BossState;
 struct CaptureState;
@@ -40,8 +36,6 @@ namespace world
 template <typename T>
 class ComponentPool;
 
-struct LegacySimulation;
-
 namespace spawn
 {
 class WaveController;
@@ -53,6 +47,7 @@ namespace systems
 struct SystemContext;
 class JobAbilitySystem;
 class ISystem;
+class FormationSystem;
 } // namespace systems
 
 class WorldState
@@ -72,7 +67,7 @@ class WorldState
     void setWorldBounds(float width, float height);
     void configureSkills(const std::vector<SkillDef> &defs);
     void reset();
-    void step(float dt, const Vec2 &commanderInput);
+    void step(float dt, const ActionBuffer &actions);
     void issueOrder(ArmyStance stance);
     void cycleFormation(int direction);
     void selectSkillByHotkey(int hotkey);
@@ -95,7 +90,17 @@ class WorldState
     void markComponentsDirty();
     void syncComponents() const;
 
+    void clearSystems();
+    void registerSystem(systems::SystemStage stage, std::unique_ptr<systems::ISystem> system);
+    const std::vector<systems::SystemStage> &systemStageOrder() const;
+
   private:
+    struct SystemEntry
+    {
+        systems::SystemStage stage;
+        std::unique_ptr<systems::ISystem> system;
+    };
+
     std::unique_ptr<LegacySimulation> m_sim;
     mutable EntityRegistry m_registry;
     mutable std::unique_ptr<ComponentPool<Unit>> m_allies;
@@ -108,12 +113,15 @@ class WorldState
     std::shared_ptr<TelemetrySink> m_telemetry;
     std::unique_ptr<spawn::WaveController> m_waveController;
     std::unique_ptr<spawn::Spawner> m_spawner;
-    std::unique_ptr<systems::JobAbilitySystem> m_jobSystem;
-    std::vector<std::unique_ptr<systems::ISystem>> m_systems;
+    std::vector<SystemEntry> m_systems;
+    std::vector<systems::SystemStage> m_systemStageOrder;
+    systems::FormationSystem *m_cachedFormationSystem = nullptr;
 
     void rebuildMissionComponents() const;
     systems::SystemContext makeSystemContext();
     void initializeSystems();
+    void runSystemsForStage(systems::SystemStage stage, float dt, systems::SystemContext &context);
+    systems::FormationSystem *formationSystem() const;
 };
 
 } // namespace world

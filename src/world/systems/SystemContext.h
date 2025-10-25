@@ -1,13 +1,9 @@
 #pragma once
 
+#include "input/ActionBuffer.h"
 #include "world/ComponentPool.h"
+#include "world/LegacySimulation.h"
 
-#include <vector>
-
-struct Unit;
-struct EnemyUnit;
-struct WallSegment;
-struct CaptureRuntime;
 struct CommanderUnit;
 struct HUDState;
 struct MissionConfig;
@@ -19,10 +15,20 @@ struct RuntimeSkill;
 namespace world
 {
 
-struct LegacySimulation;
-
 namespace systems
 {
+
+enum class SystemStage : std::uint8_t
+{
+    InputProcessing = 0,
+    CommandAndMorale,
+    AiDecision,
+    Movement,
+    Combat,
+    StateUpdate,
+    Spawn,
+    RenderingPrep,
+};
 
 struct MissionContext
 {
@@ -38,6 +44,7 @@ struct MissionContext
 struct SystemContext
 {
     LegacySimulation &simulation;
+    EntityRegistry &registry;
     ComponentPool<Unit> &allies;
     ComponentPool<EnemyUnit> &enemies;
     ComponentPool<WallSegment> &walls;
@@ -58,7 +65,16 @@ struct SystemContext
     float &spawnSlowMultiplier;
     float &spawnSlowTimer;
 
+    std::vector<Unit> &yunaUnits;
+    std::vector<EnemyUnit> &enemyUnits;
+    std::vector<WallSegment> &wallSegments;
+    std::vector<GateRuntime> &gates;
+    std::vector<float> &yunaRespawnQueue;
+    float &commanderRespawnTimer;
+    float &commanderInvulnTimer;
+
     MissionContext mission;
+    const ActionBuffer &actions;
 };
 
 class ISystem
