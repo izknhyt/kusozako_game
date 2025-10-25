@@ -116,9 +116,10 @@ class WorldState
     std::vector<SystemEntry> m_systems;
     std::vector<systems::SystemStage> m_systemStageOrder;
     systems::FormationSystem *m_cachedFormationSystem = nullptr;
+    systems::JobAbilitySystem *m_cachedJobAbilitySystem = nullptr;
 
     void rebuildMissionComponents() const;
-    systems::SystemContext makeSystemContext();
+    systems::SystemContext makeSystemContext(const ActionBuffer &actions);
     void initializeSystems();
     void runSystemsForStage(systems::SystemStage stage, float dt, systems::SystemContext &context);
     systems::FormationSystem *formationSystem() const;
