@@ -44,6 +44,8 @@ class Spawner;
 
 namespace systems
 {
+struct SystemContext;
+class JobAbilitySystem;
 class ISystem;
 class FormationSystem;
 } // namespace systems
@@ -116,6 +118,7 @@ class WorldState
     systems::FormationSystem *m_cachedFormationSystem = nullptr;
 
     void rebuildMissionComponents() const;
+    systems::SystemContext makeSystemContext();
     void initializeSystems();
     void runSystemsForStage(systems::SystemStage stage, float dt, systems::SystemContext &context);
     systems::FormationSystem *formationSystem() const;

@@ -10,6 +10,7 @@ struct MissionConfig;
 struct MissionUIOptions;
 struct MissionFailConditions;
 enum class MissionMode;
+struct RuntimeSkill;
 
 namespace world
 {
@@ -57,6 +58,12 @@ struct SystemContext
     bool &waveScriptComplete;
     bool &spawnerIdle;
     float &timeSinceLastEnemySpawn;
+    std::vector<RuntimeSkill> &skills;
+    int &selectedSkill;
+    bool &rallyState;
+    float &spawnRateMultiplier;
+    float &spawnSlowMultiplier;
+    float &spawnSlowTimer;
 
     std::vector<Unit> &yunaUnits;
     std::vector<EnemyUnit> &enemyUnits;

@@ -19,6 +19,7 @@
 #include "world/FormationUtils.h"
 #include "world/LegacySimulation.h"
 #include "world/LegacyTypes.h"
+#include "world/SkillRuntime.h"
 #include "world/WorldState.h"
 #include "world/spawn/Spawner.h"
 #include "world/spawn/WaveController.h"
@@ -310,7 +311,7 @@ void WorldState::reset()
     markComponentsDirty();
 }
 
-void WorldState::initializeSystems()
+systems::SystemContext WorldState::makeSystemContext()
 {
     clearSystems();
 
@@ -519,7 +520,12 @@ void WorldState::selectSkillByHotkey(int hotkey)
 
 void WorldState::activateSelectedSkill(const Vec2 &worldPos)
 {
-    m_sim->activateSelectedSkill(worldPos);
+    if (m_jobSystem)
+    {
+        systems::SystemContext context = makeSystemContext();
+        systems::SkillCommand command{m_sim->selectedSkill, worldPos};
+        m_jobSystem->triggerSkill(context, command);
+    }
     markComponentsDirty();
 }
 
