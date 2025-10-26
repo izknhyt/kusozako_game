@@ -118,9 +118,17 @@ struct JobSpawnConfig
     JobSpawnPity pity{};
     int historyLimit = 32;
     int telemetryWindow = 10;
+    std::string weightsAssetPath;
+    bool hasInlineWeights = false;
 
     float weight(UnitJob job) const { return weights[unitJobIndex(job)]; }
     void setWeight(UnitJob job, float value) { weights[unitJobIndex(job)] = value; }
+};
+
+struct FormationAlignmentConfig
+{
+    float alignDuration = 0.0f;
+    float defenseMultiplier = 1.0f;
 };
 
 struct GameConfig
@@ -144,21 +152,20 @@ struct GameConfig
     int lod_threshold_entities = 0;
     int lod_skip_draw_every = 1;
     std::string mission_path;
+    std::string formations_path;
+    std::string morale_path;
+    std::string jobs_path;
+    std::string spawn_weights_path;
     RespawnSettings yuna_respawn{5.0f, 5.0f, 1.0f, 0.0f, 2.0f};
     RespawnSettings commander_respawn{8.0f, 5.0f, 2.0f, 12.0f, 2.0f};
     int commander_auto_reinforce = 0;
+    FormationAlignmentConfig formationDefaults{};
     MoraleConfig morale{};
     JobCommonConfig jobCommon{};
     WarriorJobConfig warriorJob{};
     ArcherJobConfig archerJob{};
     ShieldJobConfig shieldJob{};
     JobSpawnConfig jobSpawn{};
-};
-
-struct FormationAlignmentConfig
-{
-    float alignDuration = 0.0f;
-    float defenseMultiplier = 1.0f;
 };
 
 struct EntityStats
@@ -478,7 +485,6 @@ struct AppConfig
     RendererConfig renderer;
     InputBindings input;
     GameConfig game;
-    FormationAlignmentConfig formations;
     EntityCatalog entityCatalog;
     MapDefs mapDefs;
     TemperamentConfig temperament;

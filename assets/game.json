@@ -4,6 +4,10 @@
   "pixels_per_unit": 16,
   "camera": { "zoom_steps": [1, 2, 3], "speed_u_s": 6.0 },
   "base": { "hp": 300, "aabb_px": [32, 32] },
+  "jobs_config": "assets/jobs.json",
+  "morale_config": "assets/morale.json",
+  "formations_config": "assets/formations.json",
+  "spawn_weights": "assets/spawn_weights.json",
   "spawn": {
     "yuna_interval_s": 0.75,
     "yuna_max": 200,

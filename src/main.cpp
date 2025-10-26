@@ -2028,7 +2028,7 @@ void BattleScene::onEnter(GameApplication &app, SceneStack &stack)
     sim.commanderStats = appConfig.entityCatalog.commander;
     sim.mapDefs = appConfig.mapDefs;
     sim.spawnScript = appConfig.spawnScript;
-    sim.formationDefaults = appConfig.formations;
+    sim.formationDefaults = appConfig.game.formationDefaults;
     sim.formationAlignTimer = 0.0f;
     sim.formationDefenseMul = 1.0f;
     if (appConfig.mission && appConfig.mission->mode != MissionMode::None)
