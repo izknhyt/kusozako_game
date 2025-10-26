@@ -69,6 +69,53 @@ void JobAbilitySystem::update(float dt, SystemContext &context)
         changed = true;
     }
 
+    for (Unit &unit : context.yunaUnits)
+    {
+        JobRuntimeState &job = unit.job;
+        const float beforeCooldown = job.cooldown;
+        const float beforeEndlag = job.endlag;
+        const float beforeStumble = job.warrior.stumbleTimer;
+        const float beforeHold = job.archer.holdTimer;
+        const bool beforeFocusReady = job.archer.focusReady;
+        const float beforeTaunt = job.shield.tauntTimer;
+        const float beforeSlow = job.shield.selfSlowTimer;
+        if (job.cooldown > 0.0f)
+        {
+            job.cooldown = std::max(0.0f, job.cooldown - dt);
+        }
+        if (job.endlag > 0.0f)
+        {
+            job.endlag = std::max(0.0f, job.endlag - dt);
+        }
+        if (job.warrior.stumbleTimer > 0.0f)
+        {
+            job.warrior.stumbleTimer = std::max(0.0f, job.warrior.stumbleTimer - dt);
+        }
+        if (job.archer.holdTimer > 0.0f)
+        {
+            job.archer.holdTimer = std::max(0.0f, job.archer.holdTimer - dt);
+            if (job.archer.holdTimer <= 0.0f && job.archer.focusReady)
+            {
+                job.archer.focusReady = false;
+            }
+        }
+        if (job.shield.tauntTimer > 0.0f)
+        {
+            job.shield.tauntTimer = std::max(0.0f, job.shield.tauntTimer - dt);
+        }
+        if (job.shield.selfSlowTimer > 0.0f)
+        {
+            job.shield.selfSlowTimer = std::max(0.0f, job.shield.selfSlowTimer - dt);
+        }
+        if (job.cooldown != beforeCooldown || job.endlag != beforeEndlag ||
+            job.warrior.stumbleTimer != beforeStumble || job.archer.holdTimer != beforeHold ||
+            job.archer.focusReady != beforeFocusReady ||
+            job.shield.tauntTimer != beforeTaunt || job.shield.selfSlowTimer != beforeSlow)
+        {
+            changed = true;
+        }
+    }
+
     if (changed)
     {
         context.requestComponentSync();

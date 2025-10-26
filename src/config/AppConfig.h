@@ -1,5 +1,7 @@
 #pragma once
 
+#include <array>
+#include <cstdint>
 #include <optional>
 #include <string>
 #include <unordered_map>
@@ -36,6 +38,89 @@ struct MoraleConfig
     MoraleStateConfig shielded{};
 };
 
+enum class UnitJob : std::uint8_t
+{
+    Warrior = 0,
+    Archer = 1,
+    Shield = 2
+};
+
+constexpr std::size_t UnitJobCount = 3;
+
+inline constexpr std::array<UnitJob, UnitJobCount> AllUnitJobs{
+    UnitJob::Warrior,
+    UnitJob::Archer,
+    UnitJob::Shield};
+
+inline std::size_t unitJobIndex(UnitJob job)
+{
+    return static_cast<std::size_t>(job);
+}
+
+inline const char *unitJobToString(UnitJob job)
+{
+    switch (job)
+    {
+    case UnitJob::Warrior:
+        return "warrior";
+    case UnitJob::Archer:
+        return "archer";
+    case UnitJob::Shield:
+        return "shield";
+    }
+    return "warrior";
+}
+
+std::optional<UnitJob> unitJobFromString(const std::string &id);
+
+struct JobCommonConfig
+{
+    float fizzleChance = 0.0f;
+    float endlagSeconds = 0.0f;
+    float projectileSpeedMin = 0.0f;
+    float projectileSpeedMax = 0.0f;
+};
+
+struct WarriorJobConfig
+{
+    std::string skillId;
+    float cooldown = 0.0f;
+    float accuracyMultiplier = 1.0f;
+    float stumbleSeconds = 0.0f;
+};
+
+struct ArcherJobConfig
+{
+    std::string skillId;
+    float cooldown = 0.0f;
+    float critBonus = 0.0f;
+    float holdSeconds = 0.0f;
+};
+
+struct ShieldJobConfig
+{
+    std::string skillId;
+    float cooldown = 0.0f;
+    float radiusUnits = 0.0f;
+    float durationSeconds = 0.0f;
+    float selfSlowMultiplier = 1.0f;
+};
+
+struct JobSpawnPity
+{
+    int repeatLimit = 0;
+    float unseenBoost = 1.0f;
+};
+
+struct JobSpawnConfig
+{
+    std::array<float, UnitJobCount> weights{1.0f, 1.0f, 1.0f};
+    JobSpawnPity pity{};
+
+    float weight(UnitJob job) const { return weights[unitJobIndex(job)]; }
+    void setWeight(UnitJob job, float value) { weights[unitJobIndex(job)] = value; }
+};
+
 struct GameConfig
 {
     float fixed_dt = 1.0f / 60.0f;
@@ -61,6 +146,11 @@ struct GameConfig
     RespawnSettings commander_respawn{8.0f, 5.0f, 2.0f, 12.0f, 2.0f};
     int commander_auto_reinforce = 0;
     MoraleConfig morale{};
+    JobCommonConfig jobCommon{};
+    WarriorJobConfig warriorJob{};
+    ArcherJobConfig archerJob{};
+    ShieldJobConfig shieldJob{};
+    JobSpawnConfig jobSpawn{};
 };
 
 struct FormationAlignmentConfig

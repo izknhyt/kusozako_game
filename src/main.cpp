@@ -898,6 +898,19 @@ void renderScene(SDL_Renderer *renderer, const LegacySimulation &sim, const Form
         }
     };
 
+    auto jobRingColor = [](UnitJob job) -> SDL_Color {
+        switch (job)
+        {
+        case UnitJob::Warrior:
+            return SDL_Color{220, 80, 80, 255};
+        case UnitJob::Archer:
+            return SDL_Color{80, 200, 120, 255};
+        case UnitJob::Shield:
+            return SDL_Color{70, 130, 230, 255};
+        }
+        return SDL_Color{200, 200, 200, 255};
+    };
+
     auto drawMoraleIcon = [&](const Vec2 &worldPos, float radius, MoraleState state) {
         if (state == MoraleState::Stable)
         {
@@ -1187,12 +1200,15 @@ void renderScene(SDL_Renderer *renderer, const LegacySimulation &sim, const Form
                 SDL_SetTextureAlphaMod(atlas.texture.getRaw(), 255);
                 if (friendRing)
                 {
+                    SDL_Color ringColor = jobRingColor(yuna.job.job);
+                    SDL_SetTextureColorMod(atlas.texture.getRaw(), ringColor.r, ringColor.g, ringColor.b);
                     SDL_Rect ringDest{
                         dest.x + (dest.w - friendRing->w) / 2,
                         dest.y + dest.h - friendRing->h,
                         friendRing->w,
                         friendRing->h};
                     countedRenderCopy(renderer, atlas.texture.getRaw(), friendRing, &ringDest, stats);
+                    SDL_SetTextureColorMod(atlas.texture.getRaw(), 255, 255, 255);
                 }
                 drawTemperamentLabel(yuna, static_cast<float>(dest.y), static_cast<float>(dest.x + dest.w * 0.5f));
             }
@@ -1203,7 +1219,8 @@ void renderScene(SDL_Renderer *renderer, const LegacySimulation &sim, const Form
                     continue;
                 }
                 SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
-                SDL_SetRenderDrawColor(renderer, 240, 190, 60, yunaAlpha[sprite.index]);
+                SDL_Color unitColor = jobRingColor(yuna.job.job);
+                SDL_SetRenderDrawColor(renderer, unitColor.r, unitColor.g, unitColor.b, yunaAlpha[sprite.index]);
                 drawFilledCircle(renderer, screenPos, yuna.radius, stats);
                 SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
                 drawTemperamentLabel(yuna, screenPos.y - yuna.radius, screenPos.x);
@@ -1235,7 +1252,8 @@ void renderScene(SDL_Renderer *renderer, const LegacySimulation &sim, const Form
             }
             const Unit &yuna = sim.yunas[sprite.index];
             Vec2 screenPos = worldToScreen(yuna.pos, camera);
-            SDL_SetRenderDrawColor(renderer, 240, 190, 60, yunaAlpha[sprite.index]);
+            SDL_Color unitColor = jobRingColor(yuna.job.job);
+            SDL_SetRenderDrawColor(renderer, unitColor.r, unitColor.g, unitColor.b, yunaAlpha[sprite.index]);
             drawFilledCircle(renderer, screenPos, yuna.radius, stats);
             drawTemperamentLabel(yuna, screenPos.y - yuna.radius, screenPos.x);
             drawMoraleIcon(yuna.pos, yuna.radius, moraleStates[sprite.index]);

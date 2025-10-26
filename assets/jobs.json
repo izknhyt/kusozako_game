@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "jobsCommon": {
+    "fizzle": 0.12,
+    "endlagSec": 0.2,
+    "projSpeedMin": 4.0,
+    "projSpeedMax": 7.0
+  },
+  "jobs": {
+    "warrior": {
+      "skill": "swing_miss",
+      "cd": 9.0,
+      "accMul": 0.85,
+      "stumbleSec": 0.3
+    },
+    "archer": {
+      "skill": "focus_nextcrit",
+      "cd": 10.0,
+      "critBonus": 0.4,
+      "holdSec": 0.4
+    },
+    "shield": {
+      "skill": "mini_taunt",
+      "cd": 12.0,
+      "radius_m": 2.5,
+      "durSec": 2.0,
+      "selfSlowMul": 0.7
+    }
+  }
+}
