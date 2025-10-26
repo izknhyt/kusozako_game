@@ -391,6 +391,14 @@ void BehaviorSystem::update(float dt, SystemContext &context)
         yuna.desiredVelocity = {0.0f, 0.0f};
         yuna.hasDesiredVelocity = false;
         const float unitSpeed = yunaSpeedPx * std::max(0.01f, yuna.moraleSpeedMultiplier);
+        const bool immobilized =
+            yuna.job.endlag > 0.0f || yuna.job.warrior.stumbleTimer > 0.0f || yuna.job.archer.holdTimer > 0.0f;
+        float jobSpeedMultiplier = 1.0f;
+        if (yuna.job.shield.selfSlowTimer > 0.0f)
+        {
+            jobSpeedMultiplier *= std::clamp(sim.config.shieldJob.selfSlowMultiplier, 0.0f, 1.0f);
+        }
+        float effectiveSpeed = immobilized ? 0.0f : unitSpeed * jobSpeedMultiplier;
         Vec2 temperamentVelocity =
             computeTemperamentVelocity(sim, yuna, dt, yunaSpeedPx, nearestEnemy, raidTargets);
         Vec2 velocity{0.0f, 0.0f};
@@ -476,6 +484,24 @@ void BehaviorSystem::update(float dt, SystemContext &context)
         else
         {
             velocity = temperamentVelocity;
+        }
+
+        if (velocity.x != 0.0f || velocity.y != 0.0f)
+        {
+            if (effectiveSpeed <= 0.0f)
+            {
+                velocity = {0.0f, 0.0f};
+            }
+            else
+            {
+                const float currentSpeed = std::sqrt(lengthSq(velocity));
+                if (currentSpeed > 0.0001f)
+                {
+                    const float targetSpeed = std::min(effectiveSpeed, currentSpeed);
+                    const float scale = targetSpeed / currentSpeed;
+                    velocity *= scale;
+                }
+            }
         }
 
         if (velocity.x != 0.0f || velocity.y != 0.0f)

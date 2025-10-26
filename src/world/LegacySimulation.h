@@ -63,6 +63,33 @@ struct TemperamentState
     float chargeDashTimer = 0.0f;
 };
 
+struct WarriorJobRuntime
+{
+    float stumbleTimer = 0.0f;
+};
+
+struct ArcherJobRuntime
+{
+    bool focusReady = false;
+    float holdTimer = 0.0f;
+};
+
+struct ShieldJobRuntime
+{
+    float tauntTimer = 0.0f;
+    float selfSlowTimer = 0.0f;
+};
+
+struct JobRuntimeState
+{
+    UnitJob job = UnitJob::Warrior;
+    float cooldown = 0.0f;
+    float endlag = 0.0f;
+    WarriorJobRuntime warrior{};
+    ArcherJobRuntime archer{};
+    ShieldJobRuntime shield{};
+};
+
 struct Unit
 {
     Vec2 pos;
@@ -83,6 +110,7 @@ struct Unit
     float moraleSpeedMultiplier = 1.0f;
     float moraleAccuracyMultiplier = 1.0f;
     float moraleDefenseMultiplier = 1.0f;
+    JobRuntimeState job{};
 };
 
 struct CommanderUnit
@@ -106,6 +134,8 @@ struct EnemyUnit
     float dpsBase = 0.0f;
     float dpsWall = 0.0f;
     bool noOverlap = false;
+    Vec2 tauntTarget{0.0f, 0.0f};
+    float tauntTimer = 0.0f;
 };
 
 struct WallSegment
@@ -142,6 +172,7 @@ struct LegacySimulation
     MapDefs mapDefs;
     SpawnScript spawnScript;
     std::vector<Unit> yunas;
+    std::vector<UnitJob> jobHistory;
     std::vector<EnemyUnit> enemies;
     std::vector<WallSegment> walls;
     std::vector<GateRuntime> gates;
@@ -290,6 +321,7 @@ struct LegacySimulation
         restartCooldown = 0.0f;
         yunaSpawnTimer = 0.0f;
         yunas.clear();
+        jobHistory.clear();
         enemies.clear();
         walls.clear();
         spawnEnabled = true;
@@ -527,6 +559,112 @@ struct LegacySimulation
         unit.moraleDefenseMultiplier = std::max(config.morale.stable.defense, 0.01f);
     }
 
+    void initializeJobState(Unit &unit, UnitJob job)
+    {
+        unit.job = {};
+        unit.job.job = job;
+        float baseCooldown = 0.0f;
+        switch (job)
+        {
+        case UnitJob::Warrior:
+            baseCooldown = config.warriorJob.cooldown;
+            break;
+        case UnitJob::Archer:
+            baseCooldown = config.archerJob.cooldown;
+            break;
+        case UnitJob::Shield:
+            baseCooldown = config.shieldJob.cooldown;
+            break;
+        }
+        if (baseCooldown > 0.0f)
+        {
+            std::uniform_real_distribution<float> roll(0.0f, baseCooldown);
+            unit.job.cooldown = roll(rng);
+        }
+        else
+        {
+            unit.job.cooldown = 0.0f;
+        }
+        unit.job.endlag = 0.0f;
+    }
+
+    UnitJob chooseSpawnJob()
+    {
+        std::array<float, UnitJobCount> weights = config.jobSpawn.weights;
+        const JobSpawnPity &pity = config.jobSpawn.pity;
+        if (pity.repeatLimit > 0 && jobHistory.size() >= static_cast<std::size_t>(pity.repeatLimit))
+        {
+            const std::size_t limit = static_cast<std::size_t>(pity.repeatLimit);
+            bool allSame = true;
+            UnitJob baseline = jobHistory[jobHistory.size() - limit];
+            for (std::size_t i = jobHistory.size() - limit; i < jobHistory.size(); ++i)
+            {
+                if (jobHistory[i] != baseline)
+                {
+                    allSame = false;
+                    break;
+                }
+            }
+            if (allSame)
+            {
+                for (UnitJob job : AllUnitJobs)
+                {
+                    if (job != baseline)
+                    {
+                        weights[unitJobIndex(job)] *= pity.unseenBoost;
+                    }
+                }
+            }
+        }
+
+        float total = 0.0f;
+        for (float w : weights)
+        {
+            if (w > 0.0f)
+            {
+                total += w;
+            }
+        }
+        if (total <= 0.0f)
+        {
+            total = static_cast<float>(weights.size());
+            for (float &w : weights)
+            {
+                w = 1.0f;
+            }
+        }
+
+        std::uniform_real_distribution<float> pickDist(0.0f, total);
+        float pick = pickDist(rng);
+        UnitJob selected = UnitJob::Warrior;
+        for (UnitJob job : AllUnitJobs)
+        {
+            const float w = weights[unitJobIndex(job)];
+            if (w <= 0.0f)
+            {
+                continue;
+            }
+            if (pick <= w)
+            {
+                selected = job;
+                break;
+            }
+            pick -= w;
+        }
+
+        if (config.jobSpawn.pity.repeatLimit > 0)
+        {
+            const std::size_t limit = static_cast<std::size_t>(config.jobSpawn.pity.repeatLimit);
+            if (jobHistory.size() >= limit)
+            {
+                jobHistory.erase(jobHistory.begin());
+            }
+            jobHistory.push_back(selected);
+        }
+
+        return selected;
+    }
+
     void spawnYunaUnit()
     {
         Unit yuna;
@@ -535,6 +673,7 @@ struct LegacySimulation
         yuna.hp = yunaStats.hp;
         yuna.radius = yunaStats.radius;
         resetUnitMorale(yuna);
+        initializeJobState(yuna, chooseSpawnJob());
         yunas.push_back(yuna);
         assignTemperament(yunas.back());
         clampToWorld(yunas.back().pos, yunas.back().radius);

@@ -2,11 +2,126 @@
 
 #include <algorithm>
 #include <cmath>
+#include <random>
 #include <utility>
 #include <vector>
 
 namespace world::systems
 {
+
+namespace
+{
+
+float triggerWarriorSwing(Unit &yuna, LegacySimulation &sim)
+{
+    if (yuna.job.job != UnitJob::Warrior)
+    {
+        return 0.0f;
+    }
+    JobRuntimeState &job = yuna.job;
+    if (job.cooldown > 0.0f || job.endlag > 0.0f || job.warrior.stumbleTimer > 0.0f)
+    {
+        return 0.0f;
+    }
+    job.cooldown = std::max(0.0f, sim.config.warriorJob.cooldown);
+    job.endlag = std::max(job.endlag, sim.config.jobCommon.endlagSeconds);
+    std::uniform_real_distribution<float> dist(0.0f, 1.0f);
+    if (dist(sim.rng) < sim.config.jobCommon.fizzleChance)
+    {
+        sim.pushTelemetry("Warrior skill fizzled");
+        return 0.0f;
+    }
+    if (dist(sim.rng) <= sim.config.warriorJob.accuracyMultiplier)
+    {
+        sim.pushTelemetry("Warrior swing!");
+        return sim.yunaStats.dps;
+    }
+    job.warrior.stumbleTimer = sim.config.warriorJob.stumbleSeconds;
+    sim.pushTelemetry("Warrior stumbled");
+    return 0.0f;
+}
+
+void triggerArcherFocus(Unit &yuna, LegacySimulation &sim)
+{
+    if (yuna.job.job != UnitJob::Archer)
+    {
+        return;
+    }
+    JobRuntimeState &job = yuna.job;
+    if (job.cooldown > 0.0f || job.endlag > 0.0f || job.archer.focusReady)
+    {
+        return;
+    }
+    job.cooldown = std::max(0.0f, sim.config.archerJob.cooldown);
+    job.endlag = std::max(job.endlag, sim.config.jobCommon.endlagSeconds);
+    std::uniform_real_distribution<float> dist(0.0f, 1.0f);
+    if (dist(sim.rng) < sim.config.jobCommon.fizzleChance)
+    {
+        job.archer.focusReady = false;
+        job.archer.holdTimer = 0.0f;
+        sim.pushTelemetry("Archer focus fizzled");
+        return;
+    }
+    job.archer.focusReady = true;
+    job.archer.holdTimer = sim.config.archerJob.holdSeconds;
+    sim.pushTelemetry("Archer focus");
+}
+
+void triggerShieldTaunt(Unit &yuna, LegacySimulation &sim, std::vector<EnemyUnit> &enemies)
+{
+    if (yuna.job.job != UnitJob::Shield)
+    {
+        return;
+    }
+    JobRuntimeState &job = yuna.job;
+    if (job.cooldown > 0.0f || job.endlag > 0.0f)
+    {
+        return;
+    }
+    const float radiusUnits = sim.config.shieldJob.radiusUnits;
+    if (radiusUnits <= 0.0f)
+    {
+        return;
+    }
+    const float radiusPx = radiusUnits * sim.config.pixels_per_unit;
+    const float radiusSq = radiusPx * radiusPx;
+    std::vector<EnemyUnit *> affected;
+    affected.reserve(enemies.size());
+    for (EnemyUnit &enemy : enemies)
+    {
+        if (enemy.hp <= 0.0f)
+        {
+            continue;
+        }
+        if (lengthSq(enemy.pos - yuna.pos) <= radiusSq)
+        {
+            affected.push_back(&enemy);
+        }
+    }
+    if (affected.empty())
+    {
+        return;
+    }
+    job.cooldown = std::max(0.0f, sim.config.shieldJob.cooldown);
+    job.endlag = std::max(job.endlag, sim.config.jobCommon.endlagSeconds);
+    std::uniform_real_distribution<float> dist(0.0f, 1.0f);
+    if (dist(sim.rng) < sim.config.jobCommon.fizzleChance)
+    {
+        sim.pushTelemetry("Shield taunt fizzled");
+        return;
+    }
+    const float duration = sim.config.shieldJob.durationSeconds;
+    job.shield.tauntTimer = duration;
+    job.shield.selfSlowTimer = duration;
+    for (EnemyUnit *enemy : affected)
+    {
+        enemy->tauntTarget = yuna.pos;
+        enemy->tauntTimer = duration;
+    }
+    sim.pushTelemetry("Shield taunt");
+}
+
+} // namespace
 
 void CombatSystem::update(float dt, SystemContext &context)
 {
@@ -23,8 +138,13 @@ void CombatSystem::update(float dt, SystemContext &context)
 
     for (EnemyUnit &enemy : enemies)
     {
-        Vec2 target = sim.basePos;
-        if (enemy.type == EnemyArchetype::Wallbreaker)
+        bool taunted = enemy.tauntTimer > 0.0f;
+        if (taunted)
+        {
+            enemy.tauntTimer = std::max(0.0f, enemy.tauntTimer - dt);
+        }
+        Vec2 target = taunted ? enemy.tauntTarget : sim.basePos;
+        if (!taunted && enemy.type == EnemyArchetype::Wallbreaker)
         {
             const float preferRadius = sim.wallbreakerStats.preferWallRadiusPx;
             if (preferRadius > 0.0f)
@@ -118,13 +238,36 @@ void CombatSystem::update(float dt, SystemContext &context)
     for (std::size_t i = 0; i < yunas.size(); ++i)
     {
         Unit &yuna = yunas[i];
+        if (yuna.job.job == UnitJob::Shield)
+        {
+            triggerShieldTaunt(yuna, sim, enemies);
+        }
         for (EnemyUnit &enemy : enemies)
         {
             const float combined = yuna.radius + enemy.radius;
             if (lengthSq(yuna.pos - enemy.pos) <= combined * combined)
             {
-                const float attackDps = sim.yunaStats.dps * std::max(0.01f, yuna.moraleAccuracyMultiplier);
+                float attackDps = sim.yunaStats.dps * std::max(0.01f, yuna.moraleAccuracyMultiplier);
+                float burstDamage = 0.0f;
+                if (yuna.job.job == UnitJob::Warrior)
+                {
+                    burstDamage = triggerWarriorSwing(yuna, sim);
+                }
+                if (yuna.job.job == UnitJob::Archer)
+                {
+                    triggerArcherFocus(yuna, sim);
+                    if (yuna.job.archer.focusReady)
+                    {
+                        attackDps *= 1.0f + sim.config.archerJob.critBonus;
+                        yuna.job.archer.focusReady = false;
+                    }
+                }
+
                 enemy.hp -= attackDps * dt;
+                if (burstDamage > 0.0f)
+                {
+                    enemy.hp -= burstDamage;
+                }
                 float incoming = enemy.dpsUnit * dt * formationDamageScale;
                 incoming /= std::max(0.01f, yuna.moraleDefenseMultiplier);
                 yunaDamage[i] += incoming;

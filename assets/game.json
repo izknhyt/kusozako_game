@@ -8,7 +8,9 @@
     "yuna_interval_s": 0.75,
     "yuna_max": 200,
     "yuna_offset_px": [48, 0],
-    "yuna_scatter_y_px": 16
+    "yuna_scatter_y_px": 16,
+    "jobWeights": { "warrior": 1.2, "shield": 1.0, "archer": 1.1 },
+    "pity": { "repeatLimit": 3, "unseenBoost": 2.0 }
   },
   "respawn": {
     "chibi": { "base_s": 5, "scale_s": 5, "k": 1.0, "invuln_s": 2 },

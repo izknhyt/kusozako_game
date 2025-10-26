@@ -1,6 +1,7 @@
 #include "config/AppConfig.h"
 
 #include <algorithm>
+#include <optional>
 
 EnemyArchetype enemyTypeFromString(const std::string &typeId)
 {
@@ -13,6 +14,23 @@ EnemyArchetype enemyTypeFromString(const std::string &typeId)
         return EnemyArchetype::Boss;
     }
     return EnemyArchetype::Slime;
+}
+
+std::optional<UnitJob> unitJobFromString(const std::string &id)
+{
+    if (id == "warrior")
+    {
+        return UnitJob::Warrior;
+    }
+    if (id == "archer")
+    {
+        return UnitJob::Archer;
+    }
+    if (id == "shield")
+    {
+        return UnitJob::Shield;
+    }
+    return std::nullopt;
 }
 
 std::vector<SkillDef> buildDefaultSkills()

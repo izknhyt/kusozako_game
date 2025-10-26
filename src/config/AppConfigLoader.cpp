@@ -68,6 +68,109 @@ bool validateSchema(const json::JsonValue &root, int expected, const fs::path &p
     return true;
 }
 
+struct ParsedJobs
+{
+    JobCommonConfig common{};
+    WarriorJobConfig warrior{};
+    ArcherJobConfig archer{};
+    ShieldJobConfig shield{};
+};
+
+std::optional<ParsedJobs> parseJobsConfig(ParseContext &ctx, const std::string &path)
+{
+    AssetManager::AssetLoadStatus status;
+    auto jsonDoc = ctx.assets.acquireJson(path);
+    status = jsonDoc.status();
+    if (!jsonDoc.get())
+    {
+        auto &errors = *ctx.errors;
+        if (!status.message.empty())
+        {
+            errors.push_back({path, status.message});
+        }
+        else
+        {
+            errors.push_back({path, "Failed to load jobs config"});
+        }
+        return std::nullopt;
+    }
+    if (!status.ok && !status.message.empty())
+    {
+        ctx.errors->push_back({path, status.message});
+    }
+
+    const json::JsonValue &root = *jsonDoc.get();
+    ParsedJobs jobs;
+
+    if (const json::JsonValue *common = json::getObjectField(root, "jobsCommon"))
+    {
+        jobs.common.fizzleChance = json::getNumber(*common, "fizzle", jobs.common.fizzleChance);
+        jobs.common.endlagSeconds = json::getNumber(*common, "endlagSec", jobs.common.endlagSeconds);
+        jobs.common.projectileSpeedMin =
+            json::getNumber(*common, "projSpeedMin", jobs.common.projectileSpeedMin);
+        jobs.common.projectileSpeedMax =
+            json::getNumber(*common, "projSpeedMax", jobs.common.projectileSpeedMax);
+    }
+
+    const json::JsonValue *jobsObj = json::getObjectField(root, "jobs");
+    if (!jobsObj)
+    {
+        ctx.errors->push_back({path, "Missing jobs definitions"});
+        return std::nullopt;
+    }
+
+    if (const json::JsonValue *warrior = json::getObjectField(*jobsObj, "warrior"))
+    {
+        jobs.warrior.skillId = json::getString(*warrior, "skill", jobs.warrior.skillId);
+        jobs.warrior.cooldown = json::getNumber(*warrior, "cd", jobs.warrior.cooldown);
+        jobs.warrior.accuracyMultiplier =
+            json::getNumber(*warrior, "accMul", jobs.warrior.accuracyMultiplier);
+        jobs.warrior.stumbleSeconds =
+            json::getNumber(*warrior, "stumbleSec", jobs.warrior.stumbleSeconds);
+    }
+    else
+    {
+        ctx.errors->push_back({path, "Missing warrior job definition"});
+        return std::nullopt;
+    }
+
+    if (const json::JsonValue *archer = json::getObjectField(*jobsObj, "archer"))
+    {
+        jobs.archer.skillId = json::getString(*archer, "skill", jobs.archer.skillId);
+        jobs.archer.cooldown = json::getNumber(*archer, "cd", jobs.archer.cooldown);
+        jobs.archer.critBonus = json::getNumber(*archer, "critBonus", jobs.archer.critBonus);
+        jobs.archer.holdSeconds = json::getNumber(*archer, "holdSec", jobs.archer.holdSeconds);
+    }
+    else
+    {
+        ctx.errors->push_back({path, "Missing archer job definition"});
+        return std::nullopt;
+    }
+
+    if (const json::JsonValue *shield = json::getObjectField(*jobsObj, "shield"))
+    {
+        jobs.shield.skillId = json::getString(*shield, "skill", jobs.shield.skillId);
+        jobs.shield.cooldown = json::getNumber(*shield, "cd", jobs.shield.cooldown);
+        jobs.shield.radiusUnits = json::getNumber(*shield, "radius_m", jobs.shield.radiusUnits);
+        jobs.shield.durationSeconds =
+            json::getNumber(*shield, "durSec", jobs.shield.durationSeconds);
+        jobs.shield.selfSlowMultiplier =
+            json::getNumber(*shield, "selfSlowMul", jobs.shield.selfSlowMultiplier);
+    }
+    else
+    {
+        ctx.errors->push_back({path, "Missing shield job definition"});
+        return std::nullopt;
+    }
+
+    if (jobs.shield.selfSlowMultiplier < 0.0f)
+    {
+        jobs.shield.selfSlowMultiplier = 0.0f;
+    }
+
+    return jobs;
+}
+
 std::optional<GameConfig> parseGameConfig(ParseContext &ctx, const std::string &path)
 {
     AssetManager::AssetLoadStatus status;
@@ -119,6 +222,30 @@ std::optional<GameConfig> parseGameConfig(ParseContext &ctx, const std::string &
             cfg.yuna_offset_px = {offset[0], offset[1]};
         }
         cfg.yuna_scatter_y = json::getNumber(*spawn, "yuna_scatter_y_px", cfg.yuna_scatter_y);
+        if (const json::JsonValue *weights = json::getObjectField(*spawn, "jobWeights"))
+        {
+            for (const auto &entry : weights->object)
+            {
+                if (const auto job = unitJobFromString(entry.first))
+                {
+                    if (entry.second.type == json::JsonValue::Type::Number)
+                    {
+                        cfg.jobSpawn.setWeight(*job, static_cast<float>(entry.second.number));
+                    }
+                }
+            }
+        }
+        if (const json::JsonValue *pity = json::getObjectField(*spawn, "pity"))
+        {
+            cfg.jobSpawn.pity.repeatLimit =
+                std::max(0, json::getInt(*pity, "repeatLimit", cfg.jobSpawn.pity.repeatLimit));
+            cfg.jobSpawn.pity.unseenBoost =
+                json::getNumber(*pity, "unseenBoost", cfg.jobSpawn.pity.unseenBoost);
+            if (cfg.jobSpawn.pity.unseenBoost < 1.0f)
+            {
+                cfg.jobSpawn.pity.unseenBoost = 1.0f;
+            }
+        }
     }
     if (const json::JsonValue *respawn = json::getObjectField(jsonRoot, "respawn"))
     {
@@ -1238,6 +1365,7 @@ AppConfigLoadResult AppConfigLoader::load(AssetManager &assets)
     std::string entitiesPath = "assets/entities.json";
     std::string mapDefsPath = "assets/map_defs.json";
     std::string temperamentPath = "assets/ai_temperaments.json";
+    std::string jobsPath = "assets/jobs.json";
     std::string skillsPath = "assets/skills.json";
     std::string formationsPath = "assets/formations.json";
     std::string atlasPath = "assets/atlas.json";
@@ -1248,6 +1376,7 @@ AppConfigLoadResult AppConfigLoader::load(AssetManager &assets)
         entitiesPath = json::getString(*assetsObj, "entities", entitiesPath);
         mapDefsPath = json::getString(*assetsObj, "map_defs", mapDefsPath);
         temperamentPath = json::getString(*assetsObj, "temperaments", temperamentPath);
+        jobsPath = json::getString(*assetsObj, "jobs", jobsPath);
         skillsPath = json::getString(*assetsObj, "skills", skillsPath);
         formationsPath = json::getString(*assetsObj, "formations", formationsPath);
         atlasPath = json::getString(*assetsObj, "atlas", atlasPath);
@@ -1308,6 +1437,12 @@ AppConfigLoadResult AppConfigLoader::load(AssetManager &assets)
         result.errors = std::move(errors);
         return result;
     }
+    auto jobs = parseJobsConfig(ctx, jobsPath);
+    if (!jobs)
+    {
+        result.errors = std::move(errors);
+        return result;
+    }
     auto morale = parseMoraleConfig(ctx, moralePath);
     if (!morale)
     {
@@ -1315,6 +1450,10 @@ AppConfigLoadResult AppConfigLoader::load(AssetManager &assets)
         return result;
     }
     gameCfg->morale = *morale;
+    gameCfg->jobCommon = jobs->common;
+    gameCfg->warriorJob = jobs->warrior;
+    gameCfg->archerJob = jobs->archer;
+    gameCfg->shieldJob = jobs->shield;
 
     auto spawnScript = parseSpawnScript(ctx, gameCfg->enemy_script);
     if (!spawnScript)
@@ -1343,6 +1482,7 @@ AppConfigLoadResult AppConfigLoader::load(AssetManager &assets)
     trackFile("assets/entities", assets.resolvePath(entitiesPath));
     trackFile("assets/map_defs", assets.resolvePath(mapDefsPath));
     trackFile("assets/temperaments", assets.resolvePath(temperamentPath));
+    trackFile("assets/jobs", assets.resolvePath(jobsPath));
     trackFile("assets/spawn", assets.resolvePath(gameCfg->enemy_script));
     trackFile("assets/morale", assets.resolvePath(moralePath));
     trackFile("assets/skills", assets.resolvePath(skillsPath));
