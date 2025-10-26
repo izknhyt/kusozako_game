@@ -35,10 +35,17 @@ class FormationSystem : public ISystem
     FormationAlignmentState m_lastStateSent;
     std::size_t m_lastFollowerCount;
     float m_lastSecondsRemaining;
+    bool m_lastCountdownActive;
+    float m_lastCountdownSeconds;
+    float m_lastCountdownProgress;
+    std::size_t m_lastCountdownFollowers;
+    std::string m_lastCountdownLabel;
 
     void emitFormationChanged(Formation formation);
     void emitFormationProgress(Formation formation, FormationAlignmentState state, float progress,
                                float secondsRemaining, std::size_t followers);
+    void emitFormationCountdown(Formation formation, bool active, float secondsRemaining, float progress,
+                                std::size_t followers, const std::string &label);
 };
 
 } // namespace world::systems

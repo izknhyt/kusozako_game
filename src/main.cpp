@@ -842,7 +842,8 @@ void drawTileLayer(SDL_Renderer *renderer, const TileMap &map, const std::vector
 }
 
 void renderScene(SDL_Renderer *renderer, const LegacySimulation &sim, const FormationHudStatus *formationHud,
-                 const MoraleHudStatus *moraleHud, const Camera &camera, const TextRenderer &font,
+                 const MoraleHudStatus *moraleHud, const JobHudStatus *jobHud, const Camera &camera,
+                 const TextRenderer &font,
                  const TextRenderer &debugFont, const TileMap &map,
                  const Atlas &atlas, int screenW, int screenH, FramePerf &perf, bool showDebugHud)
 {
@@ -893,6 +894,56 @@ void renderScene(SDL_Renderer *renderer, const LegacySimulation &sim, const Form
             return SDL_Color{70, 130, 230, 255};
         }
         return SDL_Color{200, 200, 200, 255};
+    };
+
+    auto moraleDisplayName = [](MoraleState state) -> std::string {
+        std::string name{moraleStateLabel(state)};
+        if (!name.empty())
+        {
+            name[0] = static_cast<char>(std::toupper(name[0]));
+            for (std::size_t i = 1; i < name.size(); ++i)
+            {
+                if (name[i] == '_')
+                {
+                    name[i] = ' ';
+                }
+            }
+        }
+        return name;
+    };
+
+    auto jobDisplayName = [](UnitJob job) -> const char * {
+        switch (job)
+        {
+        case UnitJob::Warrior: return "Warrior";
+        case UnitJob::Archer: return "Archer";
+        case UnitJob::Shield: return "Shield";
+        }
+        return "Job";
+    };
+
+    auto jobSpecialLabel = [](UnitJob job) -> const char * {
+        switch (job)
+        {
+        case UnitJob::Warrior: return "Stumble";
+        case UnitJob::Archer: return "Focus";
+        case UnitJob::Shield: return "Guard";
+        }
+        return "Special";
+    };
+
+    auto formatSecondsShort = [](float seconds) {
+        std::ostringstream oss;
+        seconds = std::max(seconds, 0.0f);
+        if (seconds >= 10.0f)
+        {
+            oss << static_cast<int>(std::round(seconds));
+        }
+        else
+        {
+            oss << std::fixed << std::setprecision(1) << seconds;
+        }
+        return oss.str();
     };
 
     auto drawMoraleIcon = [&](const Vec2 &worldPos, float radius, MoraleState state) {
@@ -1423,34 +1474,71 @@ void renderScene(SDL_Renderer *renderer, const LegacySimulation &sim, const Form
     }
     bool alignmentActive = false;
     std::string alignmentBanner;
-    if (formationHud && formationHud->state == FormationAlignmentState::Aligning &&
-        formationHud->secondsRemaining > 0.0f)
+    float alignmentProgress = 0.0f;
+    std::size_t alignmentFollowers = 0;
+    if (formationHud && formationHud->countdown.active)
     {
-        std::ostringstream alignText;
-        alignText << std::fixed << std::setprecision(1) << std::max(formationHud->secondsRemaining, 0.0f);
-        alignmentBanner = std::string(u8"整列中 ") + alignText.str() + "s";
         alignmentActive = true;
+        alignmentProgress = std::clamp(formationHud->countdown.progress, 0.0f, 1.0f);
+        alignmentFollowers = formationHud->countdown.followers;
+        const float secondsRemaining = std::max(formationHud->countdown.secondsRemaining, 0.0f);
+        std::ostringstream banner;
+        const std::string &label = !formationHud->countdown.label.empty() ? formationHud->countdown.label : formationHud->label;
+        if (!label.empty())
+        {
+            banner << label << ' ';
+        }
+        banner << formatSecondsShort(secondsRemaining) << "s";
+        if (alignmentFollowers > 0)
+        {
+            banner << " • " << alignmentFollowers << " followers";
+        }
+        alignmentBanner = banner.str();
     }
     else if (queue.alignment.active && queue.alignment.secondsRemaining > 0.0f)
     {
-        std::ostringstream alignText;
-        alignText << std::fixed << std::setprecision(1) << std::max(queue.alignment.secondsRemaining, 0.0f);
-        alignmentBanner = std::string(u8"整列中 ") + alignText.str() + "s";
         alignmentActive = true;
+        alignmentProgress = std::clamp(queue.alignment.progress, 0.0f, 1.0f);
+        alignmentFollowers = queue.alignment.followers;
+        std::ostringstream banner;
+        if (!queue.alignment.label.empty())
+        {
+            banner << queue.alignment.label << ' ';
+        }
+        banner << formatSecondsShort(std::max(queue.alignment.secondsRemaining, 0.0f)) << "s";
+        if (alignmentFollowers > 0)
+        {
+            banner << " • " << alignmentFollowers << " followers";
+        }
+        alignmentBanner = banner.str();
     }
     if (alignmentActive && !alignmentBanner.empty())
     {
         const int padX = 16;
         const int padY = 6;
         const int textWidth = measureWithFallback(font, alignmentBanner, lineHeight);
+        const int extraHeight = alignmentProgress > 0.0f ? 6 : 0;
         SDL_Rect alignRect{screenW / 2 - (textWidth + padX * 2) / 2, topUiAnchor, textWidth + padX * 2,
-                           lineHeight + padY * 2};
+                           lineHeight + padY * 2 + extraHeight};
         SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
         SDL_SetRenderDrawColor(renderer, 0, 0, 0, 180);
         countedRenderFillRect(renderer, &alignRect, stats);
         SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
         font.drawText(renderer, alignmentBanner, alignRect.x + padX, alignRect.y + padY, &stats,
                       SDL_Color{255, 208, 144, 255});
+        if (alignmentProgress > 0.0f)
+        {
+            const int barMargin = 10;
+            SDL_Rect barBg{alignRect.x + barMargin, alignRect.y + alignRect.h - 8, alignRect.w - barMargin * 2, 4};
+            SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+            SDL_SetRenderDrawColor(renderer, 60, 40, 20, 220);
+            countedRenderFillRect(renderer, &barBg, stats);
+            SDL_Rect barFill{barBg.x, barBg.y,
+                             static_cast<int>(std::round(barBg.w * std::clamp(alignmentProgress, 0.0f, 1.0f))), barBg.h};
+            SDL_SetRenderDrawColor(renderer, 255, 208, 144, 230);
+            countedRenderFillRect(renderer, &barFill, stats);
+            SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
+        }
         topUiAnchor = alignRect.y + alignRect.h + 10;
     }
     const int baseHpInt = static_cast<int>(std::round(std::max(sim.baseHp, 0.0f)));
@@ -1485,6 +1573,163 @@ void renderScene(SDL_Renderer *renderer, const LegacySimulation &sim, const Form
         font.drawText(renderer, "Boss HP", bossBg.x, bossBg.y - lineHeight, &stats);
         infoPanelAnchor = bossBg.y + bossBg.h + 20;
     }
+
+    int hudLeftAnchor = infoPanelAnchor;
+    if (moraleHud)
+    {
+        const auto &summary = moraleHud->summary;
+        struct TextEntry
+        {
+            std::string text;
+            SDL_Color color;
+            bool bullet;
+        };
+        std::vector<TextEntry> moraleLines;
+        moraleLines.push_back({std::string("Commander: ") + moraleDisplayName(summary.commanderState),
+                               moraleColorForState(summary.commanderState), true});
+        moraleLines.push_back({"Leader down: " + formatSecondsShort(summary.leaderDownTimer) + "s",
+                               moraleColorForState(MoraleState::LeaderDown), true});
+        moraleLines.push_back({"Barrier: " + formatSecondsShort(summary.commanderBarrierTimer) + "s",
+                               moraleColorForState(MoraleState::Shielded), true});
+        moraleLines.push_back({"Panic: " + std::to_string(summary.panicCount),
+                               moraleColorForState(MoraleState::Panic), true});
+        moraleLines.push_back({"Mesomeso: " + std::to_string(summary.mesomesoCount),
+                               moraleColorForState(MoraleState::Mesomeso), true});
+
+        int moraleWidth = 0;
+        for (const auto &entry : moraleLines)
+        {
+            int width = measureWithFallback(font, entry.text, lineHeight);
+            if (entry.bullet && entry.color.a > 0 && !entry.text.empty())
+            {
+                width += 12;
+            }
+            moraleWidth = std::max(moraleWidth, width);
+        }
+        const int padX = 12;
+        const int padY = 8;
+        SDL_Rect panel{12, hudLeftAnchor, moraleWidth + padX * 2,
+                       static_cast<int>(moraleLines.size()) * lineHeight + padY * 2};
+        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+        SDL_SetRenderDrawColor(renderer, 0, 0, 0, 150);
+        countedRenderFillRect(renderer, &panel, stats);
+        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
+        int lineY = panel.y + padY;
+        for (const auto &entry : moraleLines)
+        {
+            int textX = panel.x + padX;
+            if (entry.bullet && entry.color.a > 0 && !entry.text.empty())
+            {
+                SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+                SDL_SetRenderDrawColor(renderer, entry.color.r, entry.color.g, entry.color.b, entry.color.a);
+                Vec2 bulletCenter{static_cast<float>(textX + 6), static_cast<float>(lineY + lineHeight / 2)};
+                drawFilledCircle(renderer, bulletCenter, 4.0f, stats);
+                SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
+                textX += 12;
+            }
+            font.drawText(renderer, entry.text, textX, lineY, &stats);
+            lineY += lineHeight;
+        }
+        hudLeftAnchor = panel.y + panel.h + 12;
+    }
+
+    if (jobHud && (!jobHud->jobs.empty() || !jobHud->skills.empty()))
+    {
+        struct TextEntry
+        {
+            std::string text;
+            SDL_Color color;
+            bool bullet;
+        };
+        std::vector<TextEntry> jobLines;
+        for (const JobHudEntryStatus &entry : jobHud->jobs)
+        {
+            std::ostringstream line;
+            line << jobDisplayName(entry.job) << ": " << entry.ready << '/' << entry.total;
+            if (entry.maxCooldown > 0.05f)
+            {
+                line << " CD " << formatSecondsShort(entry.maxCooldown) << 's';
+            }
+            if (entry.maxEndlag > 0.05f)
+            {
+                line << " EL " << formatSecondsShort(entry.maxEndlag) << 's';
+            }
+            if (entry.specialActive)
+            {
+                line << ' ' << jobSpecialLabel(entry.job);
+                if (entry.specialTimer > 0.05f)
+                {
+                    line << ' ' << formatSecondsShort(entry.specialTimer) << 's';
+                }
+            }
+            jobLines.push_back({line.str(), jobRingColor(entry.job), true});
+        }
+        if (!jobHud->skills.empty())
+        {
+            jobLines.push_back({std::string(), SDL_Color{0, 0, 0, 0}, false});
+            for (const JobHudSkillStatus &skill : jobHud->skills)
+            {
+                std::ostringstream line;
+                line << skill.label;
+                if (skill.toggled)
+                {
+                    line << " [ON]";
+                }
+                if (skill.cooldownRemaining > 0.05f)
+                {
+                    line << " CD " << formatSecondsShort(skill.cooldownRemaining) << 's';
+                }
+                if (skill.activeTimer > 0.05f)
+                {
+                    line << " Active " << formatSecondsShort(skill.activeTimer) << 's';
+                }
+                jobLines.push_back({line.str(), SDL_Color{220, 220, 220, 255}, false});
+            }
+        }
+
+        int jobWidth = 0;
+        for (const auto &entry : jobLines)
+        {
+            int width = measureWithFallback(font, entry.text, lineHeight);
+            if (entry.bullet && entry.color.a > 0 && !entry.text.empty())
+            {
+                width += 12;
+            }
+            jobWidth = std::max(jobWidth, width);
+        }
+        const int padX = 12;
+        const int padY = 8;
+        SDL_Rect panel{12, hudLeftAnchor, jobWidth + padX * 2,
+                       static_cast<int>(jobLines.size()) * lineHeight + padY * 2};
+        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+        SDL_SetRenderDrawColor(renderer, 0, 0, 0, 150);
+        countedRenderFillRect(renderer, &panel, stats);
+        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
+        int lineY = panel.y + padY;
+        for (const auto &entry : jobLines)
+        {
+            if (entry.text.empty())
+            {
+                lineY += lineHeight;
+                continue;
+            }
+            int textX = panel.x + padX;
+            if (entry.bullet && entry.color.a > 0)
+            {
+                SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+                SDL_SetRenderDrawColor(renderer, entry.color.r, entry.color.g, entry.color.b, entry.color.a);
+                Vec2 bulletCenter{static_cast<float>(textX + 6), static_cast<float>(lineY + lineHeight / 2)};
+                drawFilledCircle(renderer, bulletCenter, 4.0f, stats);
+                SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
+                textX += 12;
+            }
+            font.drawText(renderer, entry.text, textX, lineY, &stats);
+            lineY += lineHeight;
+        }
+        hudLeftAnchor = panel.y + panel.h + 12;
+    }
+
+    infoPanelAnchor = std::max(infoPanelAnchor, hudLeftAnchor);
 
     const int commanderHpInt = static_cast<int>(std::round(std::max(sim.commander.hp, 0.0f)));
     std::vector<std::string> infoLines;
@@ -2096,8 +2341,9 @@ void BattleScene::render(SDL_Renderer *renderer, GameApplication &app)
     m_framePerf.entities = static_cast<int>(allyPool.size() + enemyPool.size() + (sim.commander.alive ? 1 : 0));
     const FormationHudStatus &formationHud = m_ui.formationHud();
     const MoraleHudStatus &moraleHud = m_ui.moraleHud();
-    renderScene(renderer, sim, &formationHud, &moraleHud, renderCamera, m_hudFont, m_debugFont, m_tileMap, m_atlas, m_screenWidth,
-                m_screenHeight, m_framePerf, m_showDebugHud);
+    const JobHudStatus &jobHud = m_ui.jobHud();
+    renderScene(renderer, sim, &formationHud, &moraleHud, &jobHud, renderCamera, m_hudFont, m_debugFont, m_tileMap, m_atlas,
+                m_screenWidth, m_screenHeight, m_framePerf, m_showDebugHud);
     const Uint64 renderEnd = SDL_GetPerformanceCounter();
     const double renderMs = (renderEnd - renderStart) * 1000.0 / m_frequency;
     m_framePerf.msRender = static_cast<float>(renderMs);

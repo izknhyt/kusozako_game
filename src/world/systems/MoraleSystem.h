@@ -4,6 +4,7 @@
 #include "world/systems/SystemContext.h"
 
 #include <vector>
+#include <limits>
 
 namespace world::systems
 {
@@ -26,6 +27,11 @@ class MoraleSystem : public ISystem
     bool m_announcedPanic = false;
     bool m_announcedRecovery = true;
     bool m_applyReviveBarrier = false;
+    float m_lastHudLeaderDownTimer = -1.0f;
+    float m_lastHudBarrierTimer = -1.0f;
+    std::size_t m_lastHudPanic = std::numeric_limits<std::size_t>::max();
+    std::size_t m_lastHudMesomeso = std::numeric_limits<std::size_t>::max();
+    MoraleState m_lastHudCommanderState = MoraleState::Stable;
 };
 
 } // namespace world::systems

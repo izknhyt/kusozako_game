@@ -170,7 +170,16 @@ void RenderingPrepSystem::update(float, SystemContext &context)
     }
 
     queue.alignment = {};
-    if (sim.formationAlignTimer > 0.0f)
+    if (context.hud.alignment.active)
+    {
+        queue.alignment.active = true;
+        queue.alignment.secondsRemaining = std::max(context.hud.alignment.secondsRemaining, 0.0f);
+        queue.alignment.progress = std::clamp(context.hud.alignment.progress, 0.0f, 1.0f);
+        queue.alignment.followers = context.hud.alignment.followers;
+        queue.alignment.label = context.hud.alignment.label.empty() ? formationLabel(sim.formation)
+                                                                   : context.hud.alignment.label;
+    }
+    else if (sim.formationAlignTimer > 0.0f)
     {
         queue.alignment.active = true;
         queue.alignment.secondsRemaining = sim.formationAlignTimer;

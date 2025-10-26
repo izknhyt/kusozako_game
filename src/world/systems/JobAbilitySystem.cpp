@@ -1,8 +1,16 @@
 #include "world/systems/JobAbilitySystem.h"
 
 #include "world/SkillRuntime.h"
+#include "events/EventBus.h"
+#include "events/JobEvents.h"
+#include "telemetry/TelemetrySink.h"
 
 #include <algorithm>
+#include <array>
+#include <cmath>
+#include <iomanip>
+#include <sstream>
+#include <vector>
 
 namespace world::systems
 {
@@ -10,6 +18,13 @@ namespace world::systems
 void JobAbilitySystem::update(float dt, SystemContext &context)
 {
     bool changed = false;
+
+    std::array<std::size_t, UnitJobCount> totals{};
+    std::array<std::size_t, UnitJobCount> ready{};
+    std::array<float, UnitJobCount> maxCooldown{};
+    std::array<float, UnitJobCount> maxEndlag{};
+    std::array<float, UnitJobCount> specialTimer{};
+    std::array<bool, UnitJobCount> specialActive{};
 
     for (RuntimeSkill &skill : context.skills)
     {
@@ -107,6 +122,39 @@ void JobAbilitySystem::update(float dt, SystemContext &context)
         {
             job.shield.selfSlowTimer = std::max(0.0f, job.shield.selfSlowTimer - dt);
         }
+        const std::size_t jobIndex = unitJobIndex(job.job);
+        if (jobIndex < UnitJobCount)
+        {
+            ++totals[jobIndex];
+            if (job.cooldown <= 0.0f && job.endlag <= 0.0f)
+            {
+                ++ready[jobIndex];
+            }
+            maxCooldown[jobIndex] = std::max(maxCooldown[jobIndex], job.cooldown);
+            maxEndlag[jobIndex] = std::max(maxEndlag[jobIndex], job.endlag);
+            float jobSpecialTimer = 0.0f;
+            bool jobSpecialActive = false;
+            switch (job.job)
+            {
+            case UnitJob::Warrior:
+                jobSpecialTimer = job.warrior.stumbleTimer;
+                jobSpecialActive = jobSpecialTimer > 0.0f;
+                break;
+            case UnitJob::Archer:
+                jobSpecialTimer = job.archer.holdTimer;
+                jobSpecialActive = job.archer.focusReady || jobSpecialTimer > 0.0f;
+                break;
+            case UnitJob::Shield:
+                jobSpecialTimer = std::max(job.shield.tauntTimer, job.shield.selfSlowTimer);
+                jobSpecialActive = jobSpecialTimer > 0.0f;
+                break;
+            }
+            if (jobSpecialActive)
+            {
+                specialActive[jobIndex] = true;
+            }
+            specialTimer[jobIndex] = std::max(specialTimer[jobIndex], jobSpecialTimer);
+        }
         if (job.cooldown != beforeCooldown || job.endlag != beforeEndlag ||
             job.warrior.stumbleTimer != beforeStumble || job.archer.holdTimer != beforeHold ||
             job.archer.focusReady != beforeFocusReady ||
@@ -114,6 +162,139 @@ void JobAbilitySystem::update(float dt, SystemContext &context)
         {
             changed = true;
         }
+    }
+
+    std::vector<JobHudSnapshot::Skill> skillSnapshot;
+    skillSnapshot.reserve(context.skills.size());
+    for (const RuntimeSkill &skill : context.skills)
+    {
+        JobHudSnapshot::Skill snapshot;
+        snapshot.cooldown = skill.cooldownRemaining;
+        snapshot.active = skill.activeTimer;
+        snapshot.toggled = (skill.def.type == SkillType::ToggleFollow) ? context.rallyState : false;
+        skillSnapshot.push_back(snapshot);
+    }
+
+    auto floatChanged = [](float lhs, float rhs, float eps) {
+        return std::fabs(lhs - rhs) > eps;
+    };
+
+    bool hudChanged = !m_hudInitialized;
+    for (std::size_t i = 0; i < UnitJobCount; ++i)
+    {
+        if (m_lastHud.total[i] != totals[i] || m_lastHud.ready[i] != ready[i] ||
+            floatChanged(m_lastHud.maxCooldown[i], maxCooldown[i], 0.05f) ||
+            floatChanged(m_lastHud.maxEndlag[i], maxEndlag[i], 0.05f) ||
+            floatChanged(m_lastHud.specialTimer[i], specialTimer[i], 0.05f) ||
+            m_lastHud.specialActive[i] != specialActive[i])
+        {
+            hudChanged = true;
+            break;
+        }
+    }
+    if (!hudChanged)
+    {
+        if (m_lastHud.skills.size() != skillSnapshot.size())
+        {
+            hudChanged = true;
+        }
+        else
+        {
+            for (std::size_t i = 0; i < skillSnapshot.size(); ++i)
+            {
+                const auto &prev = m_lastHud.skills[i];
+                const auto &curr = skillSnapshot[i];
+                if (floatChanged(prev.cooldown, curr.cooldown, 0.05f) ||
+                    floatChanged(prev.active, curr.active, 0.05f) || prev.toggled != curr.toggled)
+                {
+                    hudChanged = true;
+                    break;
+                }
+            }
+        }
+    }
+
+    m_lastHud.total = totals;
+    m_lastHud.ready = ready;
+    m_lastHud.maxCooldown = maxCooldown;
+    m_lastHud.maxEndlag = maxEndlag;
+    m_lastHud.specialTimer = specialTimer;
+    m_lastHud.specialActive = specialActive;
+    m_lastHud.skills = skillSnapshot;
+
+    if (hudChanged)
+    {
+        if (context.eventBus)
+        {
+            JobHudSummaryEvent summaryEvent;
+            summaryEvent.jobs.reserve(UnitJobCount);
+            for (std::size_t i = 0; i < UnitJobCount; ++i)
+            {
+                JobHudSummaryEntry entry;
+                entry.job = AllUnitJobs[i];
+                entry.total = totals[i];
+                entry.ready = ready[i];
+                entry.maxCooldown = maxCooldown[i];
+                entry.maxEndlag = maxEndlag[i];
+                entry.specialActive = specialActive[i];
+                entry.specialTimer = specialTimer[i];
+                summaryEvent.jobs.push_back(entry);
+            }
+            summaryEvent.skills.reserve(context.skills.size());
+            for (std::size_t i = 0; i < context.skills.size(); ++i)
+            {
+                const RuntimeSkill &skill = context.skills[i];
+                JobHudSkillEntry entry;
+                entry.id = skill.def.id;
+                entry.label = skill.def.displayName;
+                entry.cooldownRemaining = skill.cooldownRemaining;
+                entry.activeTimer = skill.activeTimer;
+                entry.toggled = skillSnapshot[i].toggled;
+                summaryEvent.skills.push_back(std::move(entry));
+            }
+            EventContext ctxEvent;
+            ctxEvent.payload = summaryEvent;
+            context.eventBus->dispatch(JobHudSummaryEventName, ctxEvent);
+        }
+        if (context.telemetry)
+        {
+            std::ostringstream jobSummary;
+            for (std::size_t i = 0; i < UnitJobCount; ++i)
+            {
+                if (i > 0)
+                {
+                    jobSummary << ' ';
+                }
+                jobSummary << unitJobToString(AllUnitJobs[i]) << ':' << ready[i] << '/' << totals[i];
+            }
+            std::ostringstream skillSummary;
+            for (std::size_t i = 0; i < context.skills.size(); ++i)
+            {
+                if (i > 0)
+                {
+                    skillSummary << ' ';
+                }
+                const RuntimeSkill &skill = context.skills[i];
+                skillSummary << skill.def.id << '(' << std::fixed << std::setprecision(1)
+                             << std::max(skill.cooldownRemaining, 0.0f);
+                if (skillSnapshot[i].toggled)
+                {
+                    skillSummary << " toggled";
+                }
+                if (skillSnapshot[i].active > 0.0f)
+                {
+                    skillSummary << " active=" << std::fixed << std::setprecision(1) << skillSnapshot[i].active;
+                }
+                skillSummary << ')';
+            }
+            TelemetrySink::Payload payload{{"jobs", jobSummary.str()}};
+            if (!context.skills.empty())
+            {
+                payload.emplace("skills", skillSummary.str());
+            }
+            context.telemetry->recordEvent("hud.jobs", payload);
+        }
+        m_hudInitialized = true;
     }
 
     if (changed)
