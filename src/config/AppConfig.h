@@ -116,6 +116,8 @@ struct JobSpawnConfig
 {
     std::array<float, UnitJobCount> weights{1.0f, 1.0f, 1.0f};
     JobSpawnPity pity{};
+    int historyLimit = 32;
+    int telemetryWindow = 10;
 
     float weight(UnitJob job) const { return weights[unitJobIndex(job)]; }
     void setWeight(UnitJob job, float value) { weights[unitJobIndex(job)] = value; }
