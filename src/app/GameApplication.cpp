@@ -11,6 +11,7 @@
 #include "events/EventBus.h"
 #include "services/ServiceLocator.h"
 #include "telemetry/ConsoleTelemetrySink.h"
+#include "telemetry/FileTelemetrySink.h"
 
 GameApplication::GameApplication(std::shared_ptr<AppConfigLoader> configLoader)
     : m_sceneStack(*this), m_configLoader(std::move(configLoader))
@@ -77,6 +78,19 @@ void GameApplication::requestQuit()
     m_quitRequested = true;
 }
 
+void GameApplication::setTelemetryOutputDirectory(const std::filesystem::path &path)
+{
+    if (path.empty())
+    {
+        m_telemetryDirOverride.reset();
+    }
+    else
+    {
+        m_telemetryDirOverride = path;
+    }
+    applyTelemetrySettings();
+}
+
 void GameApplication::registerCoreServices()
 {
     auto &locator = ServiceLocator::instance();
@@ -86,8 +100,9 @@ void GameApplication::registerCoreServices()
 
     if (!m_telemetrySink)
     {
-        m_telemetrySink = std::make_shared<ConsoleTelemetrySink>();
+        m_telemetrySink = std::make_shared<FileTelemetrySink>();
     }
+    applyTelemetrySettings();
     locator.registerService<TelemetrySink>(m_telemetrySink);
 
     if (!m_assetManagerHandle)
@@ -273,6 +288,7 @@ bool GameApplication::initialize()
         {
             std::cerr << "[config] " << error.file << ": " << error.message << '\n';
         }
+        applyTelemetrySettings();
     }
     else
     {
@@ -291,6 +307,47 @@ bool GameApplication::initialize()
     m_sceneStack.onRendererReady();
 
     return true;
+}
+
+void GameApplication::applyTelemetrySettings()
+{
+    if (!m_telemetrySink)
+    {
+        return;
+    }
+
+    std::filesystem::path outputDir = m_defaultTelemetryDir;
+    if (!m_appConfigResult.config.telemetry.outputDirectory.empty())
+    {
+        outputDir = m_appConfigResult.config.telemetry.outputDirectory;
+    }
+    if (m_telemetryDirOverride && !m_telemetryDirOverride->empty())
+    {
+        outputDir = *m_telemetryDirOverride;
+    }
+    m_telemetrySink->setOutputDirectory(outputDir);
+
+    std::uintmax_t rotationBytes = m_appConfigResult.config.telemetry.rotationBytes;
+    if (rotationBytes == 0)
+    {
+        rotationBytes = 10ull * 1024ull * 1024ull;
+    }
+    if (m_telemetryRotationOverride)
+    {
+        rotationBytes = *m_telemetryRotationOverride;
+    }
+    m_telemetrySink->setRotationThresholdBytes(rotationBytes);
+
+    std::size_t maxFiles = m_appConfigResult.config.telemetry.maxFiles;
+    if (maxFiles == 0)
+    {
+        maxFiles = 8;
+    }
+    if (m_telemetryRetentionOverride)
+    {
+        maxFiles = *m_telemetryRetentionOverride;
+    }
+    m_telemetrySink->setMaxRetentionFiles(maxFiles);
 }
 
 void GameApplication::shutdown()

@@ -1,6 +1,7 @@
 #include "config/AppConfigLoader.h"
 
 #include <algorithm>
+#include <cstdint>
 #include <fstream>
 #include <optional>
 #include <sstream>
@@ -1496,6 +1497,36 @@ AppConfigLoadResult AppConfigLoader::load(AssetManager &assets)
         return result;
     }
 
+    TelemetryOptions telemetryOptions = result.config.telemetry;
+    if (const json::JsonValue *telemetryObj = json::getObjectField(*appJson, "telemetry"))
+    {
+        std::string output = json::getString(*telemetryObj, "output_dir", telemetryOptions.outputDirectory);
+        output = json::getString(*telemetryObj, "outputDir", output);
+        if (!output.empty())
+        {
+            telemetryOptions.outputDirectory = output;
+        }
+
+        const double rotationMb = json::getNumber(*telemetryObj, "rotation_mb", 0.0);
+        if (rotationMb > 0.0)
+        {
+            telemetryOptions.rotationBytes = static_cast<std::uintmax_t>(rotationMb * 1024.0 * 1024.0);
+        }
+        const double rotationBytesValue =
+            json::getNumber(*telemetryObj, "rotation_bytes", static_cast<double>(telemetryOptions.rotationBytes));
+        if (rotationBytesValue > 0.0)
+        {
+            telemetryOptions.rotationBytes = static_cast<std::uintmax_t>(rotationBytesValue);
+        }
+
+        int maxFiles = json::getInt(*telemetryObj, "max_files", static_cast<int>(telemetryOptions.maxFiles));
+        maxFiles = json::getInt(*telemetryObj, "maxFiles", maxFiles);
+        if (maxFiles > 0)
+        {
+            telemetryOptions.maxFiles = static_cast<std::size_t>(maxFiles);
+        }
+    }
+
     const json::JsonValue *assetsObj = json::getObjectField(*appJson, "assets");
     std::string gamePath = "assets/game.json";
     std::string entitiesPath = "assets/entities.json";
@@ -1662,6 +1693,7 @@ AppConfigLoadResult AppConfigLoader::load(AssetManager &assets)
     trackFile("assets/atlas", assets.resolvePath(atlasPath));
 
     result.config = loadFallback();
+    result.config.telemetry = telemetryOptions;
     result.config.renderer = parseRendererConfig(*rendererJson);
     result.config.input = parseInputBindings(*inputJson);
     gameCfg->jobs_path = jobsPath;

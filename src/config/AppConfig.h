@@ -1,6 +1,7 @@
 #pragma once
 
 #include <array>
+#include <cstddef>
 #include <cstdint>
 #include <optional>
 #include <string>
@@ -455,6 +456,13 @@ struct RendererConfig
     int lodSkipDrawEvery = 1;
 };
 
+struct TelemetryOptions
+{
+    std::string outputDirectory{"build/debug_dumps"};
+    std::uintmax_t rotationBytes = 10ull * 1024ull * 1024ull;
+    std::size_t maxFiles = 8;
+};
+
 struct InputBindings
 {
     std::string focusBase{"Tab"};
@@ -482,6 +490,7 @@ struct InputBindings
 
 struct AppConfig
 {
+    TelemetryOptions telemetry{};
     RendererConfig renderer;
     InputBindings input;
     GameConfig game;

@@ -34,7 +34,10 @@ add_executable(kusozako
   src/config/AppConfigLoader.cpp
   src/services/ServiceLocator.cpp
   src/scenes/SceneStack.cpp
+  src/telemetry/FileTelemetrySink.cpp
+  src/telemetry/TelemetrySink.cpp
   src/telemetry/ConsoleTelemetrySink.cpp
+  src/world/LegacySimulation.cpp
   src/world/spawn/Spawner.cpp
   src/world/spawn/WaveController.cpp
   ${WORLD_SYSTEM_SOURCES}
@@ -69,7 +72,10 @@ set(WORLD_STATE_CORE_SOURCES
   src/input/InputMapper.cpp
   src/services/ServiceLocator.cpp
   src/scenes/SceneStack.cpp
+  src/telemetry/FileTelemetrySink.cpp
+  src/telemetry/TelemetrySink.cpp
   src/telemetry/ConsoleTelemetrySink.cpp
+  src/world/LegacySimulation.cpp
   src/world/spawn/Spawner.cpp
   src/world/spawn/WaveController.cpp
   ${WORLD_SYSTEM_SOURCES}
