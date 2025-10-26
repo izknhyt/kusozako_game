@@ -11,6 +11,17 @@ else()
   add_compile_options(-Wall -Wextra -Wpedantic -Werror)
 endif()
 
+set(WORLD_SYSTEM_SOURCES
+  src/world/systems/BehaviorSystem.cpp
+  src/world/systems/CommanderInputSystem.cpp
+  src/world/systems/CombatSystem.cpp
+  src/world/systems/FormationSystem.cpp
+  src/world/systems/JobAbilitySystem.cpp
+  src/world/systems/MoraleSystem.cpp
+  src/world/systems/MovementSystem.cpp
+  src/world/systems/RenderingPrepSystem.cpp
+)
+
 add_executable(kusozako
   src/main.cpp
   src/app/GameApplication.cpp
@@ -19,10 +30,6 @@ add_executable(kusozako
   src/events/EventBus.cpp
   src/input/ActionBuffer.cpp
   src/input/InputMapper.cpp
-  src/world/systems/FormationSystem.cpp
-  src/world/systems/CommanderInputSystem.cpp
-  src/world/systems/BehaviorSystem.cpp
-  src/world/systems/MovementSystem.cpp
   src/config/AppConfig.cpp
   src/config/AppConfigLoader.cpp
   src/services/ServiceLocator.cpp
@@ -30,10 +37,7 @@ add_executable(kusozako
   src/telemetry/ConsoleTelemetrySink.cpp
   src/world/spawn/Spawner.cpp
   src/world/spawn/WaveController.cpp
-  src/world/systems/CombatSystem.cpp
-  src/world/systems/JobAbilitySystem.cpp
-  src/world/systems/MoraleSystem.cpp
-  src/world/systems/RenderingPrepSystem.cpp
+  ${WORLD_SYSTEM_SOURCES}
 )
 
 target_include_directories(kusozako PRIVATE
@@ -68,14 +72,7 @@ set(WORLD_STATE_CORE_SOURCES
   src/telemetry/ConsoleTelemetrySink.cpp
   src/world/spawn/Spawner.cpp
   src/world/spawn/WaveController.cpp
-  src/world/systems/BehaviorSystem.cpp
-  src/world/systems/CommanderInputSystem.cpp
-  src/world/systems/CombatSystem.cpp
-  src/world/systems/FormationSystem.cpp
-  src/world/systems/JobAbilitySystem.cpp
-  src/world/systems/MovementSystem.cpp
-  src/world/systems/MoraleSystem.cpp
-  src/world/systems/RenderingPrepSystem.cpp
+  ${WORLD_SYSTEM_SOURCES}
 )
 
 add_executable(config_schema_test
