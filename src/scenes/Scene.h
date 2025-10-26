@@ -15,5 +15,6 @@ class Scene
     virtual void handleEvent(const SDL_Event &event, GameApplication &app, SceneStack &stack) = 0;
     virtual void update(double deltaSeconds, GameApplication &app, SceneStack &stack) = 0;
     virtual void render(SDL_Renderer *renderer, GameApplication &app) = 0;
+    virtual void onConfigReloaded(GameApplication &, SceneStack &) {}
 };
 

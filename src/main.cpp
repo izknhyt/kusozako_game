@@ -638,6 +638,15 @@ void WorldState::setTelemetrySink(std::shared_ptr<TelemetrySink> sink)
     }
 }
 
+LegacySimulation::SpawnHistoryDumpResult WorldState::dumpSpawnHistory() const
+{
+    if (!m_sim || !m_waveController)
+    {
+        return {};
+    }
+    return m_sim->dumpSpawnHistory(*m_waveController);
+}
+
 bool WorldState::canRestart() const
 {
     return m_sim->canRestart();
@@ -1913,9 +1922,12 @@ class BattleScene : public Scene
     void handleEvent(const SDL_Event &event, GameApplication &app, SceneStack &stack) override;
     void update(double deltaSeconds, GameApplication &app, SceneStack &stack) override;
     void render(SDL_Renderer *renderer, GameApplication &app) override;
+    void onConfigReloaded(GameApplication &app, SceneStack &stack) override;
 
   private:
     void handleActionFrame(const ActionBuffer::Frame &frame, GameApplication &app);
+    void applyAppConfig(GameApplication &app);
+    void showTelemetryMessage(const std::string &message);
 
     bool m_initialized = false;
     world::WorldState m_world;
@@ -1966,138 +1978,23 @@ void BattleScene::onEnter(GameApplication &app, SceneStack &stack)
 
     m_screenWidth = app.windowWidth();
     m_screenHeight = app.windowHeight();
-    SDL_Renderer *renderer = app.renderer();
     ServiceLocator &locator = ServiceLocator::instance();
     m_telemetry = locator.getService<TelemetrySink>();
     m_eventBus = locator.getService<EventBus>();
     m_assetService = locator.getService<AssetManager>();
 
-    m_world.setTelemetrySink(m_telemetry);
-    m_world.setEventBus(m_eventBus);
-    m_ui.setTelemetrySink(m_telemetry);
-    m_ui.setEventBus(m_eventBus);
-    m_ui.bindSimulation(&m_world.legacy());
-
-    auto telemetryNotify = [this](std::string reason, std::string detail = {}) {
-        if (!m_telemetry)
-        {
-            return;
-        }
-        TelemetrySink::Payload payload{{"scene", "BattleScene"}, {"reason", std::move(reason)}};
-        if (!detail.empty())
-        {
-            payload.emplace("detail", std::move(detail));
-        }
-        m_telemetry->recordEvent("scene.warning", payload);
-    };
-
     if (!m_assetService)
     {
         std::cerr << "AssetManager service not available.\n";
-        telemetryNotify("asset_manager_missing");
+        if (m_telemetry)
+        {
+            TelemetrySink::Payload payload{{"scene", "BattleScene"}, {"reason", "asset_manager_missing"}};
+            m_telemetry->recordEvent("scene.warning", payload);
+        }
         return;
     }
 
-    AssetManager &assets = *m_assetService;
-
-    const AppConfig &appConfig = app.appConfig();
-    const AppConfigLoadResult &configResult = app.appConfigResult();
-    if (!configResult.success)
-    {
-        std::cerr << "AppConfig loaded with errors, running with fallback values.\n";
-        telemetryNotify("app_config_errors", std::to_string(configResult.errors.size()));
-    }
-
-    m_tileMap = {};
-    if (!loadTileMap(assets, appConfig.game.map_path, m_tileMap))
-    {
-        std::cerr << "Continuing without tilemap visuals.\n";
-        telemetryNotify("tilemap_missing", appConfig.game.map_path);
-    }
-
-    m_atlas = {};
-    if (!loadAtlas(assets, appConfig.atlasPath, m_atlas))
-    {
-        std::cerr << "Continuing without atlas visuals.\n";
-        telemetryNotify("atlas_missing", appConfig.atlasPath);
-    }
-
-    LegacySimulation &sim = m_world.legacy();
-    sim = {};
-    sim.config = appConfig.game;
-    sim.temperamentConfig = appConfig.temperament;
-    sim.yunaStats = appConfig.entityCatalog.yuna;
-    sim.slimeStats = appConfig.entityCatalog.slime;
-    sim.wallbreakerStats = appConfig.entityCatalog.wallbreaker;
-    sim.commanderStats = appConfig.entityCatalog.commander;
-    sim.mapDefs = appConfig.mapDefs;
-    sim.spawnScript = appConfig.spawnScript;
-    sim.formationDefaults = appConfig.game.formationDefaults;
-    sim.formationAlignTimer = 0.0f;
-    sim.formationDefenseMul = 1.0f;
-    if (appConfig.mission && appConfig.mission->mode != MissionMode::None)
-    {
-        sim.hasMission = true;
-        sim.missionConfig = *appConfig.mission;
-    }
-    else
-    {
-        sim.hasMission = false;
-    }
-
-    if (m_tileMap.width > 0 && m_tileMap.height > 0)
-    {
-        m_world.setWorldBounds(static_cast<float>(m_tileMap.width * m_tileMap.tileWidth),
-                               static_cast<float>(m_tileMap.height * m_tileMap.tileHeight));
-    }
-    else
-    {
-        m_world.setWorldBounds(static_cast<float>(m_screenWidth), static_cast<float>(m_screenHeight));
-    }
-
-    std::vector<SkillDef> skillDefs = appConfig.skills.empty() ? buildDefaultSkills() : appConfig.skills;
-    m_world.configureSkills(skillDefs);
-    m_world.reset();
-    m_actionBuffer.clear();
-    m_actionBuffer.setCapacity(static_cast<std::size_t>(std::max(1, appConfig.input.bufferFrames)));
-    m_inputSequence = 0;
-    m_haveProcessedSequence = false;
-    m_lastProcessedSequence = 0;
-
-    if (!m_hudFont.load(assets, "assets/ui/NotoSansJP-Regular.ttf", 22))
-    {
-        std::cerr << "Failed to load HUD font (NotoSansJP-Regular.ttf).\n";
-        telemetryNotify("hud_font_missing", "NotoSansJP-Regular.ttf");
-    }
-    if (!m_debugFont.load(assets, "assets/ui/NotoSansJP-Regular.ttf", 18))
-    {
-        std::cerr << "Failed to load debug font fallback, using HUD font size.\n";
-        telemetryNotify("debug_font_missing", "NotoSansJP-Regular.ttf");
-    }
-
-    m_camera = {};
-    m_baseCameraTarget = {sim.basePos.x - m_screenWidth * 0.5f, sim.basePos.y - m_screenHeight * 0.5f};
-    m_introFocus = leftmostGateWorld(sim.mapDefs);
-    m_introCameraTarget = {m_introFocus.x - m_screenWidth * 0.5f, m_introFocus.y - m_screenHeight * 0.5f};
-    m_camera.position = m_introCameraTarget;
-    m_introTimer = m_introDuration;
-    m_introActive = true;
-
-    m_accumulator = 0.0;
-    m_fpsTimer = 0.0;
-    m_frames = 0;
-    m_currentFps = 60.0f;
-    m_framePerf = {};
-    m_framePerf.fps = m_currentFps;
-    m_perfLogTimer = 0.0;
-    m_updateAccum = 0.0;
-    m_renderAccum = 0.0;
-    m_entityAccum = 0.0;
-    m_perfLogFrames = 0;
-    m_showDebugHud = false;
-    m_frequency = static_cast<double>(SDL_GetPerformanceFrequency());
-    m_lastFrameSeconds = 0.0;
-    m_lastUpdateMs = 0.0;
+    applyAppConfig(app);
 
     m_initialized = true;
 
@@ -2191,6 +2088,50 @@ void BattleScene::handleActionFrame(const ActionBuffer::Frame &frame, GameApplic
             break;
         case ActionId::ToggleDebugHud:
             m_showDebugHud = !m_showDebugHud;
+            break;
+        case ActionId::ReloadConfig:
+#if !defined(NDEBUG)
+        {
+            const bool success = app.reloadConfig();
+            const auto &result = app.appConfigResult();
+            std::string message = success ? std::string("Config reloaded") : std::string("Config reload errors");
+            if (!success && !result.errors.empty())
+            {
+                message += " (";
+                message += std::to_string(result.errors.size());
+                message += ')';
+            }
+            showTelemetryMessage(message);
+        }
+#endif
+            break;
+        case ActionId::DumpSpawnHistory:
+#if !defined(NDEBUG)
+        {
+            auto dumpResult = m_world.dumpSpawnHistory();
+            if (dumpResult.success)
+            {
+                std::string message = "Spawn history saved";
+                if (!dumpResult.path.empty())
+                {
+                    message += ": ";
+                    message += dumpResult.path.filename().string();
+                }
+                showTelemetryMessage(message);
+            }
+            else
+            {
+                std::string message = "Spawn history failed";
+                if (!dumpResult.error.empty())
+                {
+                    message += " (";
+                    message += dumpResult.error;
+                    message += ')';
+                }
+                showTelemetryMessage(message);
+            }
+        }
+#endif
             break;
         case ActionId::RestartScenario:
             if (sim.result != GameResult::Playing && m_world.canRestart())
@@ -2425,3 +2366,155 @@ int main(int argc, char **argv)
     return app.run();
 }
 #endif
+void BattleScene::applyAppConfig(GameApplication &app)
+{
+    if (!m_assetService)
+    {
+        return;
+    }
+
+    auto telemetryNotify = [this](std::string reason, std::string detail = {}) {
+        if (!m_telemetry)
+        {
+            return;
+        }
+        TelemetrySink::Payload payload{{"scene", "BattleScene"}, {"reason", std::move(reason)}};
+        if (!detail.empty())
+        {
+            payload.emplace("detail", std::move(detail));
+        }
+        m_telemetry->recordEvent("scene.warning", payload);
+    };
+
+    AssetManager &assets = *m_assetService;
+    const AppConfig &appConfig = app.appConfig();
+    const AppConfigLoadResult &configResult = app.appConfigResult();
+    if (!configResult.success)
+    {
+        std::cerr << "AppConfig loaded with errors, running with fallback values.\n";
+        telemetryNotify("app_config_errors", std::to_string(configResult.errors.size()));
+    }
+
+    m_tileMap = {};
+    if (!loadTileMap(assets, appConfig.game.map_path, m_tileMap))
+    {
+        std::cerr << "Continuing without tilemap visuals.\n";
+        telemetryNotify("tilemap_missing", appConfig.game.map_path);
+    }
+
+    m_atlas = {};
+    if (!loadAtlas(assets, appConfig.atlasPath, m_atlas))
+    {
+        std::cerr << "Continuing without atlas visuals.\n";
+        telemetryNotify("atlas_missing", appConfig.atlasPath);
+    }
+
+    LegacySimulation &sim = m_world.legacy();
+    sim = {};
+    sim.config = appConfig.game;
+    sim.temperamentConfig = appConfig.temperament;
+    sim.yunaStats = appConfig.entityCatalog.yuna;
+    sim.slimeStats = appConfig.entityCatalog.slime;
+    sim.wallbreakerStats = appConfig.entityCatalog.wallbreaker;
+    sim.commanderStats = appConfig.entityCatalog.commander;
+    sim.mapDefs = appConfig.mapDefs;
+    sim.spawnScript = appConfig.spawnScript;
+    sim.formationDefaults = appConfig.game.formationDefaults;
+    sim.formationAlignTimer = 0.0f;
+    sim.formationDefenseMul = 1.0f;
+    if (appConfig.mission && appConfig.mission->mode != MissionMode::None)
+    {
+        sim.hasMission = true;
+        sim.missionConfig = *appConfig.mission;
+    }
+    else
+    {
+        sim.hasMission = false;
+    }
+
+    m_world.setTelemetrySink(m_telemetry);
+    m_world.setEventBus(m_eventBus);
+    m_ui.setTelemetrySink(m_telemetry);
+    m_ui.setEventBus(m_eventBus);
+    m_ui.bindSimulation(&m_world.legacy());
+
+    if (m_tileMap.width > 0 && m_tileMap.height > 0)
+    {
+        m_world.setWorldBounds(static_cast<float>(m_tileMap.width * m_tileMap.tileWidth),
+                               static_cast<float>(m_tileMap.height * m_tileMap.tileHeight));
+    }
+    else
+    {
+        m_world.setWorldBounds(static_cast<float>(m_screenWidth), static_cast<float>(m_screenHeight));
+    }
+
+    std::vector<SkillDef> skillDefs = appConfig.skills.empty() ? buildDefaultSkills() : appConfig.skills;
+    m_world.configureSkills(skillDefs);
+    m_world.reset();
+
+    m_actionBuffer.clear();
+    m_actionBuffer.setCapacity(static_cast<std::size_t>(std::max(1, appConfig.input.bufferFrames)));
+    m_inputSequence = 0;
+    m_haveProcessedSequence = false;
+    m_lastProcessedSequence = 0;
+
+    if (!m_hudFont.load(assets, "assets/ui/NotoSansJP-Regular.ttf", 22))
+    {
+        std::cerr << "Failed to load HUD font (NotoSansJP-Regular.ttf).\n";
+        telemetryNotify("hud_font_missing", "NotoSansJP-Regular.ttf");
+    }
+    if (!m_debugFont.load(assets, "assets/ui/NotoSansJP-Regular.ttf", 18))
+    {
+        std::cerr << "Failed to load debug font fallback, using HUD font size.\n";
+        telemetryNotify("debug_font_missing", "NotoSansJP-Regular.ttf");
+    }
+
+    m_camera = {};
+    m_baseCameraTarget = {sim.basePos.x - m_screenWidth * 0.5f, sim.basePos.y - m_screenHeight * 0.5f};
+    m_introFocus = leftmostGateWorld(sim.mapDefs);
+    m_introCameraTarget = {m_introFocus.x - m_screenWidth * 0.5f, m_introFocus.y - m_screenHeight * 0.5f};
+    m_camera.position = m_introCameraTarget;
+    m_introTimer = m_introDuration;
+    m_introActive = true;
+
+    m_accumulator = 0.0;
+    m_fpsTimer = 0.0;
+    m_frames = 0;
+    m_currentFps = 60.0f;
+    m_framePerf = {};
+    m_framePerf.fps = m_currentFps;
+    m_perfLogTimer = 0.0;
+    m_updateAccum = 0.0;
+    m_renderAccum = 0.0;
+    m_entityAccum = 0.0;
+    m_perfLogFrames = 0;
+    if (!m_initialized)
+    {
+        m_showDebugHud = false;
+    }
+    m_frequency = static_cast<double>(SDL_GetPerformanceFrequency());
+    m_lastFrameSeconds = 0.0;
+    m_lastUpdateMs = 0.0;
+}
+
+void BattleScene::onConfigReloaded(GameApplication &app, SceneStack &stack)
+{
+    (void)stack;
+    if (!m_initialized)
+    {
+        return;
+    }
+    m_screenWidth = app.windowWidth();
+    m_screenHeight = app.windowHeight();
+    applyAppConfig(app);
+}
+
+void BattleScene::showTelemetryMessage(const std::string &message)
+{
+    if (message.empty())
+    {
+        return;
+    }
+    m_world.legacy().pushTelemetry(message);
+}
+

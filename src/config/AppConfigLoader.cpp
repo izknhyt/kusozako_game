@@ -8,6 +8,7 @@
 
 #include "assets/AssetManager.h"
 #include "json/JsonUtils.h"
+#include "input/InputMapper.h"
 
 namespace fs = std::filesystem;
 
@@ -1347,7 +1348,7 @@ RendererConfig parseRendererConfig(const json::JsonValue &root)
     return cfg;
 }
 
-InputBindings parseInputBindings(const json::JsonValue &root)
+InputBindings parseInputBindings(const json::JsonValue &root, std::vector<AppConfigLoadError> &errors, const fs::path &path)
 {
     InputBindings bindings;
     bindings.focusBase = json::getString(root, "FocusBase", bindings.focusBase);
@@ -1378,6 +1379,8 @@ InputBindings parseInputBindings(const json::JsonValue &root)
     }
     bindings.restart = json::getString(root, "Restart", bindings.restart);
     bindings.toggleDebugHud = json::getString(root, "ToggleDebugHud", bindings.toggleDebugHud);
+    bindings.reloadConfig = json::getString(root, "ReloadConfig", bindings.reloadConfig);
+    bindings.dumpSpawnHistory = json::getString(root, "DumpSpawnHistory", bindings.dumpSpawnHistory);
     bindings.quit = json::getString(root, "Quit", bindings.quit);
     bindings.formationPrevious = json::getString(root, "FormationPrevious", bindings.formationPrevious);
     bindings.formationNext = json::getString(root, "FormationNext", bindings.formationNext);
@@ -1440,6 +1443,21 @@ InputBindings parseInputBindings(const json::JsonValue &root)
     }
     bindings.bufferFrames = std::max(1, json::getInt(root, "buffer_frames", bindings.bufferFrames));
     bindings.bufferExpiryMs = static_cast<float>(json::getNumber(root, "buffer_expiry_ms", bindings.bufferExpiryMs));
+
+    auto validateKey = [&errors, &path](const std::string &value, const char *label) {
+        if (!value.empty() && !InputMapper::isValidKeyBinding(value))
+        {
+            std::string message = "Invalid ";
+            message += label;
+            message += " binding: ";
+            message += value;
+            errors.push_back(makeError(path, std::move(message)));
+        }
+    };
+
+    validateKey(bindings.reloadConfig, "ReloadConfig");
+    validateKey(bindings.dumpSpawnHistory, "DumpSpawnHistory");
+
     return bindings;
 }
 
@@ -1695,7 +1713,7 @@ AppConfigLoadResult AppConfigLoader::load(AssetManager &assets)
     result.config = loadFallback();
     result.config.telemetry = telemetryOptions;
     result.config.renderer = parseRendererConfig(*rendererJson);
-    result.config.input = parseInputBindings(*inputJson);
+    result.config.input = parseInputBindings(*inputJson, errors, inputPath);
     gameCfg->jobs_path = jobsPath;
     gameCfg->morale_path = moralePath;
     gameCfg->formations_path = formationsPath;

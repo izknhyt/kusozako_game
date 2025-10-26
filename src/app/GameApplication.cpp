@@ -91,6 +91,26 @@ void GameApplication::setTelemetryOutputDirectory(const std::filesystem::path &p
     applyTelemetrySettings();
 }
 
+bool GameApplication::reloadConfig()
+{
+    if (!m_configLoader)
+    {
+        return false;
+    }
+
+    AppConfigLoadResult result = m_configLoader->load(m_assetManager);
+    for (const auto &error : result.errors)
+    {
+        std::cerr << "[config] " << error.file << ": " << error.message << '\n';
+    }
+
+    m_appConfigResult = std::move(result);
+    applyTelemetrySettings();
+    m_inputMapper.configure(m_appConfigResult.config.input);
+    m_sceneStack.notifyConfigReloaded();
+    return m_appConfigResult.success;
+}
+
 void GameApplication::registerCoreServices()
 {
     auto &locator = ServiceLocator::instance();

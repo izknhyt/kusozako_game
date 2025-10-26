@@ -101,6 +101,19 @@ void SceneStack::onRendererReady()
     activatePendingScenes();
 }
 
+void SceneStack::notifyConfigReloaded()
+{
+    activatePendingScenes();
+    if (m_scenes.empty())
+    {
+        return;
+    }
+    if (auto &scene = m_scenes.back())
+    {
+        scene->onConfigReloaded(m_app, *this);
+    }
+}
+
 void SceneStack::activatePendingScenes()
 {
     if (!m_app.isRendererReady())

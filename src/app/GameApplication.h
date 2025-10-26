@@ -47,6 +47,8 @@ class GameApplication
 
     void setTelemetryOutputDirectory(const std::filesystem::path &path);
 
+    bool reloadConfig();
+
   private:
     bool initialize();
     void shutdown();

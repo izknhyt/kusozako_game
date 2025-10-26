@@ -1,12 +1,16 @@
 #include "world/LegacySimulation.h"
 
+#include <chrono>
 #include <filesystem>
 #include <fstream>
 #include <iomanip>
 #include <sstream>
 #include <string>
+#include <ctime>
+#include <utility>
 
 #include "telemetry/TelemetrySink.h"
+#include "world/spawn/WaveController.h"
 
 namespace
 {
@@ -31,6 +35,32 @@ std::string formatFloat(float value, int precision = 3)
 std::string boolString(bool value)
 {
     return value ? "true" : "false";
+}
+
+std::string sanitizeForTsv(std::string value)
+{
+    for (char &ch : value)
+    {
+        if (ch == '\t' || ch == '\n' || ch == '\r')
+        {
+            ch = ' ';
+        }
+    }
+    return value;
+}
+
+std::string formatTimestamp(const std::chrono::system_clock::time_point &tp)
+{
+    std::time_t raw = std::chrono::system_clock::to_time_t(tp);
+    std::tm tm{};
+#if defined(_WIN32)
+    localtime_s(&tm, &raw);
+#else
+    localtime_r(&raw, &tm);
+#endif
+    std::ostringstream oss;
+    oss << std::put_time(&tm, "%Y-%m-%d %H:%M:%S");
+    return oss.str();
 }
 } // namespace
 
@@ -182,6 +212,89 @@ void LegacySimulation::captureFrameSnapshot(TelemetrySink &sink)
         payload.emplace("bytes", std::to_string(size));
     }
     sink.recordEvent("world.frame_capture.saved", payload);
+}
+
+LegacySimulation::SpawnHistoryDumpResult LegacySimulation::dumpSpawnHistory(const spawn::WaveController &controller) const
+{
+    SpawnHistoryDumpResult result;
+    const auto history = controller.historySnapshot();
+    if (history.empty())
+    {
+        result.error = "no_history";
+        return result;
+    }
+
+    namespace fs = std::filesystem;
+    fs::path baseDir;
+    if (auto sink = telemetry.lock())
+    {
+        baseDir = telemetryDebugDirectory(*sink);
+    }
+    else
+    {
+        baseDir = fs::path("build") / "debug_dumps";
+    }
+
+    std::error_code dirEc;
+    fs::create_directories(baseDir, dirEc);
+    if (dirEc)
+    {
+        result.error = dirEc.message();
+        return result;
+    }
+
+    const auto now = std::chrono::system_clock::now();
+    std::time_t fileTime = std::chrono::system_clock::to_time_t(now);
+    std::tm fileTm{};
+#if defined(_WIN32)
+    localtime_s(&fileTm, &fileTime);
+#else
+    localtime_r(&fileTime, &fileTm);
+#endif
+    std::ostringstream filename;
+    filename << "spawn_history_" << std::put_time(&fileTm, "%Y%m%d_%H%M%S") << ".tsv";
+    fs::path filePath = baseDir / filename.str();
+
+    std::ofstream stream(filePath, std::ios::out | std::ios::binary | std::ios::trunc);
+    if (!stream.is_open())
+    {
+        result.error = "open_failed";
+        return result;
+    }
+
+    stream << "wall_time\tsim_time\twave_index\tscheduled_time\tset_index\tgate\tenemy_type\tenemy_type_id\tcount\tinterval\ttelemetry\n";
+
+    for (const auto &entry : history)
+    {
+        const std::string wallTime = formatTimestamp(entry.wallClock);
+        const std::string telemetryText = sanitizeForTsv(entry.telemetry);
+        if (entry.sets.empty())
+        {
+            stream << wallTime << '\t' << formatFloat(entry.triggerTime) << '\t' << entry.index << '\t' << formatFloat(entry.scheduledTime)
+                   << '\t' << -1 << '\t' << "\t\t\t\t" << telemetryText << '\n';
+            continue;
+        }
+        for (std::size_t i = 0; i < entry.sets.size(); ++i)
+        {
+            const SpawnSet &set = entry.sets[i];
+            stream << wallTime << '\t' << formatFloat(entry.triggerTime) << '\t' << entry.index << '\t' << formatFloat(entry.scheduledTime)
+                   << '\t' << i << '\t' << sanitizeForTsv(set.gate) << '\t' << enemyTypeLabel(set.type) << '\t'
+                   << sanitizeForTsv(set.typeId) << '\t' << set.count << '\t' << formatFloat(set.interval)
+                   << '\t' << telemetryText << '\n';
+        }
+    }
+
+    stream.flush();
+    if (!stream.good())
+    {
+        result.error = "write_failed";
+        return result;
+    }
+
+    stream.close();
+    result.success = true;
+    result.path = std::move(filePath);
+    return result;
 }
 
 } // namespace world

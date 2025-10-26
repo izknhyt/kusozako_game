@@ -76,6 +76,8 @@ class WorldState
     void setEventBus(std::shared_ptr<EventBus> bus);
     void setTelemetrySink(std::shared_ptr<TelemetrySink> sink);
 
+    LegacySimulation::SpawnHistoryDumpResult dumpSpawnHistory() const;
+
     bool canRestart() const;
 
     ComponentPool<Unit> &allies();

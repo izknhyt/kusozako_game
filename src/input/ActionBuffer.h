@@ -27,6 +27,8 @@ enum class ActionId : std::uint16_t
     CycleFormationPrevious,
     CycleFormationNext,
     ToggleDebugHud,
+    ReloadConfig,
+    DumpSpawnHistory,
     RestartScenario,
     SelectSkill1,
     SelectSkill2,
