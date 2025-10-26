@@ -5,6 +5,7 @@
     "entities": "assets/entities.json",
     "map_defs": "assets/map_defs.json",
     "temperaments": "assets/ai_temperaments.json",
+    "morale": "assets/morale.json",
     "skills": "assets/skills.json",
     "formations": "assets/formations.json",
     "atlas": "assets/atlas.json"

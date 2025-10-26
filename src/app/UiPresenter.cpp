@@ -1,6 +1,7 @@
 #include "app/UiPresenter.h"
 
 #include "events/EventBus.h"
+#include "events/MoraleEvents.h"
 #include "telemetry/TelemetrySink.h"
 #include "world/LegacySimulation.h"
 
@@ -55,6 +56,13 @@ void UiPresenter::subscribe()
             handleFormationProgress(*payload);
         }
     });
+
+    m_moraleHandler = m_eventBus->subscribe(MoraleUpdateEventName, [this](const EventContext &ctx) {
+        if (const auto *payload = std::any_cast<MoraleUpdateEvent>(&ctx.payload))
+        {
+            handleMoraleUpdate(*payload);
+        }
+    });
 }
 
 void UiPresenter::unsubscribe()
@@ -63,6 +71,7 @@ void UiPresenter::unsubscribe()
     {
         m_changedHandler = 0;
         m_progressHandler = 0;
+        m_moraleHandler = 0;
         return;
     }
     if (m_changedHandler != 0)
@@ -74,6 +83,11 @@ void UiPresenter::unsubscribe()
     {
         m_eventBus->unsubscribe(FormationProgressEventName, m_progressHandler);
         m_progressHandler = 0;
+    }
+    if (m_moraleHandler != 0)
+    {
+        m_eventBus->unsubscribe(MoraleUpdateEventName, m_moraleHandler);
+        m_moraleHandler = 0;
     }
 }
 
@@ -102,6 +116,26 @@ void UiPresenter::handleFormationProgress(const FormationProgressEvent &event)
     m_formationHud.progress = event.progress;
     m_formationHud.secondsRemaining = event.secondsRemaining;
     m_formationHud.followers = event.followers;
+}
+
+void UiPresenter::handleMoraleUpdate(const MoraleUpdateEvent &event)
+{
+    m_moraleHud.icons = event.icons;
+    m_moraleHud.panicCount = event.panicCount;
+    m_moraleHud.mesomesoCount = event.mesomesoCount;
+
+    if (!event.telemetry.empty())
+    {
+        updateTelemetryText(event.telemetry);
+        if (m_telemetry)
+        {
+            TelemetrySink::Payload payload{{"type", "morale"},
+                                           {"message", event.telemetry},
+                                           {"panic", std::to_string(event.panicCount)},
+                                           {"mesomeso", std::to_string(event.mesomesoCount)}};
+            m_telemetry->recordEvent("hud.telemetry", payload);
+        }
+    }
 }
 
 void UiPresenter::updateTelemetryText(const std::string &text)

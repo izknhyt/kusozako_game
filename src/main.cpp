@@ -19,6 +19,7 @@
 #include "world/FormationUtils.h"
 #include "world/LegacySimulation.h"
 #include "world/LegacyTypes.h"
+#include "world/MoraleTypes.h"
 #include "world/SkillRuntime.h"
 #include "world/WorldState.h"
 #include "world/spawn/Spawner.h"
@@ -364,6 +365,8 @@ systems::SystemContext WorldState::makeSystemContext(const ActionBuffer &actions
         m_sim->commanderInvulnTimer,
         missionContext,
         actions,
+        m_eventBus,
+        m_telemetry,
         false};
     return context;
 }
@@ -836,7 +839,8 @@ void drawTileLayer(SDL_Renderer *renderer, const TileMap &map, const std::vector
 }
 
 void renderScene(SDL_Renderer *renderer, const LegacySimulation &sim, const FormationHudStatus *formationHud,
-                 const Camera &camera, const TextRenderer &font, const TextRenderer &debugFont, const TileMap &map,
+                 const MoraleHudStatus *moraleHud, const Camera &camera, const TextRenderer &font,
+                 const TextRenderer &debugFont, const TileMap &map,
                  const Atlas &atlas, int screenW, int screenH, FramePerf &perf, bool showDebugHud)
 {
     RenderStats stats;
@@ -856,6 +860,57 @@ void renderScene(SDL_Renderer *renderer, const LegacySimulation &sim, const Form
         }
         const int approxWidth = std::max(approxHeight / 2, 8);
         return static_cast<int>(text.size()) * approxWidth;
+    };
+
+    std::vector<MoraleState> moraleStates(sim.yunas.size(), MoraleState::Stable);
+    MoraleState commanderMorale = MoraleState::Stable;
+    if (moraleHud)
+    {
+        for (const MoraleHudIcon &icon : moraleHud->icons)
+        {
+            if (icon.commander)
+            {
+                commanderMorale = icon.state;
+            }
+            else if (icon.unitIndex < moraleStates.size())
+            {
+                moraleStates[icon.unitIndex] = icon.state;
+            }
+        }
+    }
+
+    auto moraleColorForState = [](MoraleState state) -> SDL_Color {
+        switch (state)
+        {
+        case MoraleState::LeaderDown:
+            return SDL_Color{255, 160, 60, 220};
+        case MoraleState::Panic:
+            return SDL_Color{235, 70, 85, 230};
+        case MoraleState::Mesomeso:
+            return SDL_Color{130, 120, 255, 230};
+        case MoraleState::Recovering:
+            return SDL_Color{110, 200, 255, 220};
+        case MoraleState::Shielded:
+            return SDL_Color{80, 220, 180, 230};
+        case MoraleState::Stable:
+        default:
+            return SDL_Color{255, 255, 255, 0};
+        }
+    };
+
+    auto drawMoraleIcon = [&](const Vec2 &worldPos, float radius, MoraleState state) {
+        if (state == MoraleState::Stable)
+        {
+            return;
+        }
+        SDL_Color color = moraleColorForState(state);
+        Vec2 screen = worldToScreen(worldPos, camera);
+        const float iconRadius = std::max(4.0f, radius * 0.5f);
+        Vec2 iconCenter{screen.x, screen.y - radius - iconRadius - 4.0f};
+        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+        SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, color.a);
+        drawFilledCircle(renderer, iconCenter, iconRadius, stats);
+        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
     };
 
     auto temperamentColorForBehavior = [](TemperamentBehavior behavior) -> SDL_Color {
@@ -1114,6 +1169,7 @@ void renderScene(SDL_Renderer *renderer, const LegacySimulation &sim, const Form
                     SDL_SetRenderDrawColor(renderer, 200, 220, 255, 255);
                     drawFilledCircle(renderer, commanderScreen, sim.commander.radius, stats);
                 }
+                drawMoraleIcon(sim.commander.pos, sim.commander.radius, commanderMorale);
                 continue;
             }
 
@@ -1152,6 +1208,7 @@ void renderScene(SDL_Renderer *renderer, const LegacySimulation &sim, const Form
                 SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
                 drawTemperamentLabel(yuna, screenPos.y - yuna.radius, screenPos.x);
             }
+            drawMoraleIcon(yuna.pos, yuna.radius, moraleStates[sprite.index]);
         }
         SDL_SetTextureAlphaMod(atlas.texture.getRaw(), 255);
     }
@@ -1169,6 +1226,7 @@ void renderScene(SDL_Renderer *renderer, const LegacySimulation &sim, const Form
                 Vec2 commanderScreen = worldToScreen(sim.commander.pos, camera);
                 SDL_SetRenderDrawColor(renderer, 200, 220, 255, 255);
                 drawFilledCircle(renderer, commanderScreen, sim.commander.radius, stats);
+                drawMoraleIcon(sim.commander.pos, sim.commander.radius, commanderMorale);
                 continue;
             }
             if (skipActors)
@@ -1180,6 +1238,7 @@ void renderScene(SDL_Renderer *renderer, const LegacySimulation &sim, const Form
             SDL_SetRenderDrawColor(renderer, 240, 190, 60, yunaAlpha[sprite.index]);
             drawFilledCircle(renderer, screenPos, yuna.radius, stats);
             drawTemperamentLabel(yuna, screenPos.y - yuna.radius, screenPos.x);
+            drawMoraleIcon(yuna.pos, yuna.radius, moraleStates[sprite.index]);
         }
         SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
     }
@@ -2050,7 +2109,8 @@ void BattleScene::render(SDL_Renderer *renderer, GameApplication &app)
     const auto &enemyPool = m_world.enemies();
     m_framePerf.entities = static_cast<int>(allyPool.size() + enemyPool.size() + (sim.commander.alive ? 1 : 0));
     const FormationHudStatus &formationHud = m_ui.formationHud();
-    renderScene(renderer, sim, &formationHud, renderCamera, m_hudFont, m_debugFont, m_tileMap, m_atlas, m_screenWidth,
+    const MoraleHudStatus &moraleHud = m_ui.moraleHud();
+    renderScene(renderer, sim, &formationHud, &moraleHud, renderCamera, m_hudFont, m_debugFont, m_tileMap, m_atlas, m_screenWidth,
                 m_screenHeight, m_framePerf, m_showDebugHud);
     const Uint64 renderEnd = SDL_GetPerformanceCounter();
     const double renderMs = (renderEnd - renderStart) * 1000.0 / m_frequency;
