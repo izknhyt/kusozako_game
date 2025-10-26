@@ -123,8 +123,11 @@ void CombatSystem::update(float dt, SystemContext &context)
             const float combined = yuna.radius + enemy.radius;
             if (lengthSq(yuna.pos - enemy.pos) <= combined * combined)
             {
-                enemy.hp -= sim.yunaStats.dps * dt;
-                yunaDamage[i] += enemy.dpsUnit * dt * formationDamageScale;
+                const float attackDps = sim.yunaStats.dps * std::max(0.01f, yuna.moraleAccuracyMultiplier);
+                enemy.hp -= attackDps * dt;
+                float incoming = enemy.dpsUnit * dt * formationDamageScale;
+                incoming /= std::max(0.01f, yuna.moraleDefenseMultiplier);
+                yunaDamage[i] += incoming;
             }
         }
         for (GateRuntime &gate : gates)
@@ -136,7 +139,8 @@ void CombatSystem::update(float dt, SystemContext &context)
             const float combined = yuna.radius + gate.radius;
             if (lengthSq(yuna.pos - gate.pos) <= combined * combined)
             {
-                gate.hp = std::max(0.0f, gate.hp - sim.yunaStats.dps * dt);
+                const float attackDps = sim.yunaStats.dps * std::max(0.01f, yuna.moraleAccuracyMultiplier);
+                gate.hp = std::max(0.0f, gate.hp - attackDps * dt);
                 if (gate.hp <= 0.0f)
                 {
                     sim.destroyGate(gate);

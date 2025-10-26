@@ -16,6 +16,7 @@ namespace
 constexpr int kAppSchemaVersion = 1;
 constexpr int kInputSchemaVersion = 1;
 constexpr int kRendererSchemaVersion = 1;
+constexpr int kMoraleSchemaVersion = 1;
 
 struct ParseContext
 {
@@ -160,6 +161,88 @@ std::optional<GameConfig> parseGameConfig(ParseContext &ctx, const std::string &
     }
     cfg.mission_path = json::getString(jsonRoot, "mission", cfg.mission_path);
     return cfg;
+}
+
+std::optional<MoraleConfig> parseMoraleConfig(ParseContext &ctx, const std::string &path)
+{
+    AssetManager::AssetLoadStatus status;
+    auto jsonDoc = ctx.assets.acquireJson(path);
+    status = jsonDoc.status();
+    if (!jsonDoc.get())
+    {
+        auto &errors = *ctx.errors;
+        if (!status.message.empty())
+        {
+            errors.push_back({path, status.message});
+        }
+        else
+        {
+            errors.push_back({path, "Failed to load morale config"});
+        }
+        return std::nullopt;
+    }
+    if (!status.ok && !status.message.empty())
+    {
+        ctx.errors->push_back({path, status.message});
+    }
+
+    const json::JsonValue &root = *jsonDoc.get();
+    fs::path resolved = ctx.assets.resolvePath(path);
+    if (!validateSchema(root, kMoraleSchemaVersion, resolved, *ctx.errors))
+    {
+        return std::nullopt;
+    }
+
+    auto readModifiers = [](const json::JsonValue &obj, MoraleModifiers modifiers) {
+        modifiers.speed = json::getNumber(obj, "speed", modifiers.speed);
+        modifiers.accuracy = json::getNumber(obj, "accuracy", modifiers.accuracy);
+        modifiers.defense = json::getNumber(obj, "defense", modifiers.defense);
+        if (modifiers.speed <= 0.0f) modifiers.speed = 0.01f;
+        if (modifiers.accuracy <= 0.0f) modifiers.accuracy = 0.01f;
+        if (modifiers.defense <= 0.0f) modifiers.defense = 0.01f;
+        return modifiers;
+    };
+
+    auto readState = [&](const json::JsonValue &obj, MoraleStateConfig state) {
+        state.duration = json::getNumber(obj, "duration_s", state.duration);
+        state.modifiers = readModifiers(obj, state.modifiers);
+        return state;
+    };
+
+    MoraleConfig config;
+    config.leaderDownWindow = json::getNumber(root, "leader_down_window_s", config.leaderDownWindow);
+    config.comfortZoneRadius = json::getNumber(root, "comfort_zone_radius_px", config.comfortZoneRadius);
+    config.reviveBarrier = json::getNumber(root, "revive_barrier_s", config.reviveBarrier);
+
+    if (const json::JsonValue *stable = json::getObjectField(root, "stable"))
+    {
+        config.stable = readModifiers(*stable, config.stable);
+    }
+    if (const json::JsonValue *leader = json::getObjectField(root, "leader_down"))
+    {
+        config.leaderDown = readModifiers(*leader, config.leaderDown);
+    }
+    if (const json::JsonValue *states = json::getObjectField(root, "states"))
+    {
+        if (const json::JsonValue *panic = json::getObjectField(*states, "panic"))
+        {
+            config.panic = readState(*panic, config.panic);
+        }
+        if (const json::JsonValue *meso = json::getObjectField(*states, "mesomeso"))
+        {
+            config.mesomeso = readState(*meso, config.mesomeso);
+        }
+        if (const json::JsonValue *recovering = json::getObjectField(*states, "recovering"))
+        {
+            config.recovering = readState(*recovering, config.recovering);
+        }
+        if (const json::JsonValue *shielded = json::getObjectField(*states, "shielded"))
+        {
+            config.shielded = readState(*shielded, config.shielded);
+        }
+    }
+
+    return config;
 }
 
 std::optional<FormationAlignmentConfig> parseFormationConfig(ParseContext &ctx, const std::string &path)
@@ -1158,6 +1241,7 @@ AppConfigLoadResult AppConfigLoader::load(AssetManager &assets)
     std::string skillsPath = "assets/skills.json";
     std::string formationsPath = "assets/formations.json";
     std::string atlasPath = "assets/atlas.json";
+    std::string moralePath = "assets/morale.json";
     if (assetsObj)
     {
         gamePath = json::getString(*assetsObj, "game", gamePath);
@@ -1167,6 +1251,7 @@ AppConfigLoadResult AppConfigLoader::load(AssetManager &assets)
         skillsPath = json::getString(*assetsObj, "skills", skillsPath);
         formationsPath = json::getString(*assetsObj, "formations", formationsPath);
         atlasPath = json::getString(*assetsObj, "atlas", atlasPath);
+        moralePath = json::getString(*assetsObj, "morale", moralePath);
     }
 
     const fs::path rendererPath = m_configRoot / "renderer.json";
@@ -1223,6 +1308,14 @@ AppConfigLoadResult AppConfigLoader::load(AssetManager &assets)
         result.errors = std::move(errors);
         return result;
     }
+    auto morale = parseMoraleConfig(ctx, moralePath);
+    if (!morale)
+    {
+        result.errors = std::move(errors);
+        return result;
+    }
+    gameCfg->morale = *morale;
+
     auto spawnScript = parseSpawnScript(ctx, gameCfg->enemy_script);
     if (!spawnScript)
     {
@@ -1251,6 +1344,7 @@ AppConfigLoadResult AppConfigLoader::load(AssetManager &assets)
     trackFile("assets/map_defs", assets.resolvePath(mapDefsPath));
     trackFile("assets/temperaments", assets.resolvePath(temperamentPath));
     trackFile("assets/spawn", assets.resolvePath(gameCfg->enemy_script));
+    trackFile("assets/morale", assets.resolvePath(moralePath));
     trackFile("assets/skills", assets.resolvePath(skillsPath));
     trackFile("assets/formations", assets.resolvePath(formationsPath));
     if (!gameCfg->mission_path.empty())
@@ -1267,6 +1361,7 @@ AppConfigLoadResult AppConfigLoader::load(AssetManager &assets)
     result.config.mapDefs = *mapDefs;
     result.config.temperament = *temperament;
     result.config.spawnScript = *spawnScript;
+    result.config.game.morale = *morale;
     result.config.mission = mission;
     result.config.skills = *skills;
     if (formations)

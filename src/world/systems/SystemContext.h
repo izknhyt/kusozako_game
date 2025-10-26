@@ -4,6 +4,8 @@
 #include "world/ComponentPool.h"
 #include "world/LegacySimulation.h"
 
+#include <memory>
+
 struct CommanderUnit;
 struct HUDState;
 struct MissionConfig;
@@ -11,6 +13,8 @@ struct MissionUIOptions;
 struct MissionFailConditions;
 enum class MissionMode;
 struct RuntimeSkill;
+class EventBus;
+class TelemetrySink;
 
 namespace world
 {
@@ -75,6 +79,8 @@ struct SystemContext
 
     MissionContext mission;
     const ActionBuffer &actions;
+    std::shared_ptr<EventBus> eventBus;
+    std::shared_ptr<TelemetrySink> telemetry;
     bool componentsDirty = false;
 
     void requestComponentSync()

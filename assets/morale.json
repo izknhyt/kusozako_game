@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "leader_down_window_s": 4.0,
+  "comfort_zone_radius_px": 160.0,
+  "revive_barrier_s": 6.0,
+  "stable": {
+    "speed": 1.0,
+    "accuracy": 1.0,
+    "defense": 1.0
+  },
+  "leader_down": {
+    "speed": 0.9,
+    "accuracy": 0.9,
+    "defense": 0.9
+  },
+  "states": {
+    "panic": {
+      "duration_s": 8.0,
+      "speed": 0.6,
+      "accuracy": 0.65,
+      "defense": 0.5
+    },
+    "mesomeso": {
+      "duration_s": 10.0,
+      "speed": 0.55,
+      "accuracy": 0.6,
+      "defense": 0.75
+    },
+    "recovering": {
+      "duration_s": 6.0,
+      "speed": 0.9,
+      "accuracy": 0.95,
+      "defense": 1.0
+    },
+    "shielded": {
+      "duration_s": 6.0,
+      "speed": 1.1,
+      "accuracy": 1.05,
+      "defense": 1.3
+    }
+  }
+}

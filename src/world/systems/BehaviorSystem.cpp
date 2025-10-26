@@ -30,6 +30,9 @@ Vec2 computeTemperamentVelocity(LegacySimulation &sim,
     }
     const TemperamentDefinition &def = *state.definition;
 
+    const float moraleMultiplier = std::max(0.01f, yuna.moraleSpeedMultiplier);
+    const float effectiveBaseSpeed = baseSpeed * moraleMultiplier;
+
     TemperamentConfig &temperamentConfig = sim.temperamentConfig;
     CommanderUnit &commander = sim.commander;
     const Vec2 &basePos = sim.basePos;
@@ -173,12 +176,12 @@ Vec2 computeTemperamentVelocity(LegacySimulation &sim,
             Vec2 dir = normalize(yuna.pos - threat->pos);
             if (lengthSq(dir) > 0.0f)
             {
-                return dir * baseSpeed;
+                return dir * effectiveBaseSpeed;
             }
         }
     }
 
-    float speed = baseSpeed;
+    float speed = effectiveBaseSpeed;
     auto ensureWander = [&]() {
         if (state.wanderTimer <= 0.0f || lengthSq(state.wanderDirection) < 0.0001f)
         {
@@ -387,6 +390,7 @@ void BehaviorSystem::update(float dt, SystemContext &context)
         Unit &yuna = yunas[i];
         yuna.desiredVelocity = {0.0f, 0.0f};
         yuna.hasDesiredVelocity = false;
+        const float unitSpeed = yunaSpeedPx * std::max(0.01f, yuna.moraleSpeedMultiplier);
         Vec2 temperamentVelocity =
             computeTemperamentVelocity(sim, yuna, dt, yunaSpeedPx, nearestEnemy, raidTargets);
         Vec2 velocity{0.0f, 0.0f};
@@ -402,7 +406,7 @@ void BehaviorSystem::update(float dt, SystemContext &context)
             Vec2 toTarget = desiredPos - yuna.pos;
             if (lengthSq(toTarget) > followerSnapDistSq)
             {
-                velocity = normalize(toTarget) * yunaSpeedPx;
+                velocity = normalize(toTarget) * unitSpeed;
             }
             else
             {
@@ -417,7 +421,7 @@ void BehaviorSystem::update(float dt, SystemContext &context)
             {
                 if (EnemyUnit *target = nearestEnemy(yuna.pos))
                 {
-                    velocity = normalize(target->pos - yuna.pos) * yunaSpeedPx;
+                    velocity = normalize(target->pos - yuna.pos) * unitSpeed;
                 }
                 else
                 {
@@ -429,7 +433,7 @@ void BehaviorSystem::update(float dt, SystemContext &context)
             {
                 Vec2 target = sim.basePos;
                 target.x += 512.0f;
-                velocity = normalize(target - yuna.pos) * yunaSpeedPx;
+                velocity = normalize(target - yuna.pos) * unitSpeed;
                 break;
             }
             case ArmyStance::FollowLeader:
@@ -449,11 +453,11 @@ void BehaviorSystem::update(float dt, SystemContext &context)
                         Vec2 ringTarget{sim.basePos.x + std::cos(angle) * 72.0f,
                                         sim.basePos.y + std::sin(angle) * 48.0f};
                         ++supportIndex;
-                        velocity = normalize(ringTarget - yuna.pos) * yunaSpeedPx;
+                        velocity = normalize(ringTarget - yuna.pos) * unitSpeed;
                     }
                     else
                     {
-                        velocity = normalize(target->pos - yuna.pos) * yunaSpeedPx;
+                        velocity = normalize(target->pos - yuna.pos) * unitSpeed;
                     }
                 }
                 else
@@ -463,7 +467,7 @@ void BehaviorSystem::update(float dt, SystemContext &context)
                     Vec2 ringTarget{sim.basePos.x + std::cos(angle) * 120.0f,
                                     sim.basePos.y + std::sin(angle) * 80.0f};
                     ++defendIndex;
-                    velocity = normalize(ringTarget - yuna.pos) * yunaSpeedPx;
+                    velocity = normalize(ringTarget - yuna.pos) * unitSpeed;
                 }
                 break;
             }
