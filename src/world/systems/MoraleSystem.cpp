@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <cmath>
 #include <numeric>
+#include <sstream>
 #include <vector>
 
 namespace world::systems
@@ -540,6 +541,49 @@ void MoraleSystem::update(float dt, SystemContext &context)
     m_knownUnits = yunas.size();
     m_lastCommanderState = commanderState;
     m_applyReviveBarrier = false;
+
+    const float hudLeaderTimer = std::max(m_leaderDownTimer, 0.0f);
+    const float hudBarrierTimer = std::max(m_commanderBarrierTimer, 0.0f);
+    const bool statusChanged = std::fabs(m_lastHudLeaderDownTimer - hudLeaderTimer) > 0.05f ||
+                               std::fabs(m_lastHudBarrierTimer - hudBarrierTimer) > 0.05f ||
+                               m_lastHudCommanderState != commanderState ||
+                               m_lastHudPanic != panicCount ||
+                               m_lastHudMesomeso != mesomesoCount;
+    if (statusChanged)
+    {
+        m_lastHudLeaderDownTimer = hudLeaderTimer;
+        m_lastHudBarrierTimer = hudBarrierTimer;
+        m_lastHudCommanderState = commanderState;
+        m_lastHudPanic = panicCount;
+        m_lastHudMesomeso = mesomesoCount;
+
+        MoraleStatusEvent statusEvent;
+        statusEvent.commanderState = commanderState;
+        statusEvent.leaderDownTimer = hudLeaderTimer;
+        statusEvent.commanderBarrierTimer = hudBarrierTimer;
+        statusEvent.panicCount = panicCount;
+        statusEvent.mesomesoCount = mesomesoCount;
+
+        if (context.eventBus)
+        {
+            EventContext statusCtx;
+            statusCtx.payload = statusEvent;
+            context.eventBus->dispatch(MoraleStatusEventName, statusCtx);
+        }
+        if (context.telemetry)
+        {
+            std::ostringstream leaderStream;
+            leaderStream << std::fixed << std::setprecision(2) << hudLeaderTimer;
+            std::ostringstream barrierStream;
+            barrierStream << std::fixed << std::setprecision(2) << hudBarrierTimer;
+            TelemetrySink::Payload payload{{"commander_state", std::string(moraleStateLabel(commanderState))},
+                                           {"panic", std::to_string(panicCount)},
+                                           {"mesomeso", std::to_string(mesomesoCount)},
+                                           {"leader_down_s", leaderStream.str()},
+                                           {"barrier_s", barrierStream.str()}};
+            context.telemetry->recordEvent("hud.morale_status", payload);
+        }
+    }
 
     if (moraleChanged)
     {

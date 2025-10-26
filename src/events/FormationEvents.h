@@ -14,6 +14,7 @@ enum class FormationAlignmentState
 
 inline constexpr char FormationChangedEventName[] = "formation.changed";
 inline constexpr char FormationProgressEventName[] = "formation.progress";
+inline constexpr char FormationCountdownEventName[] = "formation.countdown";
 
 struct FormationChangedEvent
 {
@@ -27,6 +28,15 @@ struct FormationProgressEvent
     FormationAlignmentState state = FormationAlignmentState::Idle;
     float progress = 0.0f;
     float secondsRemaining = 0.0f;
+    std::size_t followers = 0;
+};
+
+struct FormationCountdownEvent
+{
+    bool active = false;
+    std::string label;
+    float secondsRemaining = 0.0f;
+    float progress = 0.0f;
     std::size_t followers = 0;
 };
 

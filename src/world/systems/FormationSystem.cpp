@@ -71,7 +71,11 @@ FormationSystem::FormationSystem()
       m_lastProgressSent(-1.0f),
       m_lastStateSent(FormationAlignmentState::Idle),
       m_lastFollowerCount(0),
-      m_lastSecondsRemaining(-1.0f)
+      m_lastSecondsRemaining(-1.0f),
+      m_lastCountdownActive(false),
+      m_lastCountdownSeconds(-1.0f),
+      m_lastCountdownProgress(-1.0f),
+      m_lastCountdownFollowers(0)
 {
 }
 
@@ -145,6 +149,11 @@ void FormationSystem::reset(const LegacySimulation &simulation)
     m_lastStateSent = FormationAlignmentState::Idle;
     m_lastFollowerCount = 0;
     m_lastSecondsRemaining = simulation.formationAlignTimer;
+    m_lastCountdownActive = false;
+    m_lastCountdownSeconds = simulation.formationAlignTimer;
+    m_lastCountdownProgress = 0.0f;
+    m_lastCountdownFollowers = 0;
+    m_lastCountdownLabel.clear();
 }
 
 void FormationSystem::update(float dt, SystemContext &context)
@@ -295,6 +304,7 @@ void FormationSystem::emitFormationProgress(Formation formation, FormationAlignm
     payload.progress = std::clamp(progress, 0.0f, 1.0f);
     payload.secondsRemaining = std::max(secondsRemaining, 0.0f);
     payload.followers = followers;
+    const std::string label = formationLabel(formation);
     if (auto bus = m_eventBus.lock())
     {
         EventContext ctx;
@@ -303,7 +313,7 @@ void FormationSystem::emitFormationProgress(Formation formation, FormationAlignm
     }
     if (auto telemetry = m_telemetry.lock())
     {
-        TelemetrySink::Payload data{{"formation", formationLabel(formation)}, {"state", alignmentStateLabel(state)}};
+        TelemetrySink::Payload data{{"formation", label}, {"state", alignmentStateLabel(state)}};
         std::ostringstream progressStream;
         progressStream << std::fixed << std::setprecision(2) << payload.progress;
         data.emplace("progress", progressStream.str());
@@ -312,6 +322,57 @@ void FormationSystem::emitFormationProgress(Formation formation, FormationAlignm
         data.emplace("remaining_s", timerStream.str());
         data.emplace("followers", std::to_string(payload.followers));
         telemetry->recordEvent("formation.progress", data);
+    }
+
+    const bool active = state == FormationAlignmentState::Aligning && payload.secondsRemaining > 0.0f;
+    emitFormationCountdown(formation, active, payload.secondsRemaining, payload.progress, payload.followers, label);
+}
+
+void FormationSystem::emitFormationCountdown(Formation formation, bool active, float secondsRemaining, float progress,
+                                            std::size_t followers, const std::string &label)
+{
+    const float clampedSeconds = std::max(secondsRemaining, 0.0f);
+    const float clampedProgress = std::clamp(progress, 0.0f, 1.0f);
+    const bool changed = m_lastCountdownActive != active ||
+                         std::fabs(m_lastCountdownSeconds - clampedSeconds) > 0.05f ||
+                         std::fabs(m_lastCountdownProgress - clampedProgress) > 0.01f ||
+                         m_lastCountdownFollowers != followers ||
+                         m_lastCountdownLabel != label;
+    if (!changed)
+    {
+        return;
+    }
+
+    m_lastCountdownActive = active;
+    m_lastCountdownSeconds = clampedSeconds;
+    m_lastCountdownProgress = clampedProgress;
+    m_lastCountdownFollowers = followers;
+    m_lastCountdownLabel = label;
+
+    FormationCountdownEvent countdown;
+    countdown.active = active;
+    countdown.label = label;
+    countdown.secondsRemaining = clampedSeconds;
+    countdown.progress = clampedProgress;
+    countdown.followers = followers;
+
+    if (auto bus = m_eventBus.lock())
+    {
+        EventContext ctx;
+        ctx.payload = countdown;
+        bus->dispatch(FormationCountdownEventName, ctx);
+    }
+    if (auto telemetry = m_telemetry.lock())
+    {
+        TelemetrySink::Payload payload{{"formation", label}, {"active", active ? "true" : "false"}};
+        std::ostringstream timerStream;
+        timerStream << std::fixed << std::setprecision(2) << clampedSeconds;
+        payload.emplace("remaining_s", timerStream.str());
+        std::ostringstream progressStream;
+        progressStream << std::fixed << std::setprecision(2) << clampedProgress;
+        payload.emplace("progress", progressStream.str());
+        payload.emplace("followers", std::to_string(followers));
+        telemetry->recordEvent("hud.alignment", payload);
     }
 }
 
