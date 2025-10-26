@@ -172,6 +172,12 @@ int GameApplication::run()
 
         m_sceneStack.update(deltaSeconds);
 
+        if (m_eventBus)
+        {
+            m_eventBus->pump();
+            m_eventBus->advanceFrame();
+        }
+
         if (m_quitRequested)
         {
             break;

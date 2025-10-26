@@ -28,6 +28,7 @@ void UiPresenter::setEventBus(std::shared_ptr<EventBus> bus)
     unsubscribe();
     m_eventBus = std::move(bus);
     subscribe();
+    updateUnconsumedEvents();
 }
 
 void UiPresenter::setTelemetrySink(std::shared_ptr<TelemetrySink> sink)
@@ -38,6 +39,7 @@ void UiPresenter::setTelemetrySink(std::shared_ptr<TelemetrySink> sink)
 void UiPresenter::bindSimulation(world::LegacySimulation *simulation)
 {
     m_simulation = simulation;
+    updateUnconsumedEvents();
 }
 
 void UiPresenter::subscribe()
@@ -52,6 +54,7 @@ void UiPresenter::subscribe()
         {
             handleFormationChanged(*payload);
         }
+        updateUnconsumedEvents();
     });
 
     m_progressHandler = m_eventBus->subscribe(FormationProgressEventName, [this](const EventContext &ctx) {
@@ -59,6 +62,7 @@ void UiPresenter::subscribe()
         {
             handleFormationProgress(*payload);
         }
+        updateUnconsumedEvents();
     });
 
     m_countdownHandler = m_eventBus->subscribe(FormationCountdownEventName, [this](const EventContext &ctx) {
@@ -66,6 +70,7 @@ void UiPresenter::subscribe()
         {
             handleFormationCountdown(*payload);
         }
+        updateUnconsumedEvents();
     });
 
     m_moraleHandler = m_eventBus->subscribe(MoraleUpdateEventName, [this](const EventContext &ctx) {
@@ -73,6 +78,7 @@ void UiPresenter::subscribe()
         {
             handleMoraleUpdate(*payload);
         }
+        updateUnconsumedEvents();
     });
 
     m_moraleStatusHandler = m_eventBus->subscribe(MoraleStatusEventName, [this](const EventContext &ctx) {
@@ -80,6 +86,7 @@ void UiPresenter::subscribe()
         {
             handleMoraleStatus(*payload);
         }
+        updateUnconsumedEvents();
     });
 
     m_jobSummaryHandler = m_eventBus->subscribe(JobHudSummaryEventName, [this](const EventContext &ctx) {
@@ -87,50 +94,33 @@ void UiPresenter::subscribe()
         {
             handleJobSummary(*payload);
         }
+        updateUnconsumedEvents();
     });
 }
 
 void UiPresenter::unsubscribe()
 {
-    if (!m_eventBus)
+    m_changedHandler.reset();
+    m_progressHandler.reset();
+    m_moraleHandler.reset();
+    m_countdownHandler.reset();
+    m_moraleStatusHandler.reset();
+    m_jobSummaryHandler.reset();
+}
+
+void UiPresenter::updateUnconsumedEvents()
+{
+    if (!m_simulation)
     {
-        m_changedHandler = 0;
-        m_progressHandler = 0;
-        m_moraleHandler = 0;
-        m_countdownHandler = 0;
-        m_moraleStatusHandler = 0;
-        m_jobSummaryHandler = 0;
         return;
     }
-    if (m_changedHandler != 0)
+    if (m_eventBus)
     {
-        m_eventBus->unsubscribe(FormationChangedEventName, m_changedHandler);
-        m_changedHandler = 0;
+        m_simulation->hud.unconsumedEvents = m_eventBus->unconsumedCount();
     }
-    if (m_progressHandler != 0)
+    else
     {
-        m_eventBus->unsubscribe(FormationProgressEventName, m_progressHandler);
-        m_progressHandler = 0;
-    }
-    if (m_moraleHandler != 0)
-    {
-        m_eventBus->unsubscribe(MoraleUpdateEventName, m_moraleHandler);
-        m_moraleHandler = 0;
-    }
-    if (m_countdownHandler != 0)
-    {
-        m_eventBus->unsubscribe(FormationCountdownEventName, m_countdownHandler);
-        m_countdownHandler = 0;
-    }
-    if (m_moraleStatusHandler != 0)
-    {
-        m_eventBus->unsubscribe(MoraleStatusEventName, m_moraleStatusHandler);
-        m_moraleStatusHandler = 0;
-    }
-    if (m_jobSummaryHandler != 0)
-    {
-        m_eventBus->unsubscribe(JobHudSummaryEventName, m_jobSummaryHandler);
-        m_jobSummaryHandler = 0;
+        m_simulation->hud.unconsumedEvents = 0;
     }
 }
 

@@ -149,3 +149,16 @@ target_compile_definitions(job_ability_system_test PRIVATE KUSOZAKO_SKIP_APP_MAI
 target_link_libraries(job_ability_system_test PRIVATE SDL2::SDL2 SDL2_image::SDL2_image SDL2_ttf::SDL2_ttf)
 
 add_test(NAME job_ability_system COMMAND job_ability_system_test)
+
+add_executable(event_bus_test
+  tests/EventBusTest.cpp
+  src/events/EventBus.cpp
+  src/telemetry/TelemetrySink.cpp
+)
+
+target_include_directories(event_bus_test PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}/src
+  ${CMAKE_CURRENT_SOURCE_DIR}/tests
+)
+
+add_test(NAME event_bus COMMAND event_bus_test)
