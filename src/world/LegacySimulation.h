@@ -3,6 +3,7 @@
 #include "config/AppConfig.h"
 #include "core/Vec2.h"
 #include "world/LegacyTypes.h"
+#include "world/MoraleTypes.h"
 
 #include <algorithm>
 #include <array>
@@ -74,6 +75,14 @@ struct Unit
     Vec2 desiredVelocity{0.0f, 0.0f};
     bool hasDesiredVelocity = false;
     TemperamentState temperament;
+    MoraleState moraleState = MoraleState::Stable;
+    float moraleTimer = 0.0f;
+    float moraleImmunityTimer = 0.0f;
+    bool moraleComfortShield = false;
+    bool moraleBarrierActive = false;
+    float moraleSpeedMultiplier = 1.0f;
+    float moraleAccuracyMultiplier = 1.0f;
+    float moraleDefenseMultiplier = 1.0f;
 };
 
 struct CommanderUnit
@@ -210,6 +219,16 @@ struct LegacySimulation
     float spawnRateMultiplier = 1.0f;
     float spawnSlowMultiplier = 1.0f;
     float spawnSlowTimer = 0.0f;
+    struct MoraleSummary
+    {
+        float averageSpeedMul = 1.0f;
+        float averageAccuracyMul = 1.0f;
+        float averageDefenseMul = 1.0f;
+        std::size_t panicCount = 0;
+        std::size_t mesomesoCount = 0;
+        MoraleState commanderState = MoraleState::Stable;
+        bool rallySuppressed = false;
+    } moraleSummary;
     float commanderRespawnTimer = 0.0f;
     float commanderInvulnTimer = 0.0f;
     int reinforcementQueue = 0;
@@ -302,6 +321,7 @@ struct LegacySimulation
         formationAlignTimer = 0.0f;
         formationDefenseMul = 1.0f;
         selectedSkill = 0;
+        moraleSummary = {};
         for (RuntimeSkill &skill : skills)
         {
             skill.cooldownRemaining = 0.0f;
@@ -495,6 +515,18 @@ struct LegacySimulation
         state.chargeDashTimer = state.currentBehavior == TemperamentBehavior::ChargeNearest ? temperamentConfig.chargeDash.duration : 0.0f;
     }
 
+    void resetUnitMorale(Unit &unit)
+    {
+        unit.moraleState = MoraleState::Stable;
+        unit.moraleTimer = 0.0f;
+        unit.moraleImmunityTimer = 0.0f;
+        unit.moraleComfortShield = false;
+        unit.moraleBarrierActive = false;
+        unit.moraleSpeedMultiplier = std::max(config.morale.stable.speed, 0.01f);
+        unit.moraleAccuracyMultiplier = std::max(config.morale.stable.accuracy, 0.01f);
+        unit.moraleDefenseMultiplier = std::max(config.morale.stable.defense, 0.01f);
+    }
+
     void spawnYunaUnit()
     {
         Unit yuna;
@@ -502,6 +534,7 @@ struct LegacySimulation
         yuna.pos.y += scatterY(rng);
         yuna.hp = yunaStats.hp;
         yuna.radius = yunaStats.radius;
+        resetUnitMorale(yuna);
         yunas.push_back(yuna);
         assignTemperament(yunas.back());
         clampToWorld(yunas.back().pos, yunas.back().radius);

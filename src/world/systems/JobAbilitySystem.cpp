@@ -63,6 +63,12 @@ void JobAbilitySystem::update(float dt, SystemContext &context)
         }
     }
 
+    if (context.rallyState && context.simulation.moraleSummary.rallySuppressed)
+    {
+        context.rallyState = false;
+        changed = true;
+    }
+
     if (changed)
     {
         context.requestComponentSync();
@@ -105,6 +111,11 @@ void JobAbilitySystem::triggerSkill(SystemContext &context, const SkillCommand &
 
 void JobAbilitySystem::toggleRally(SystemContext &context, RuntimeSkill &skill, const SkillCommand &command)
 {
+    if (context.simulation.moraleSummary.rallySuppressed)
+    {
+        context.simulation.pushTelemetry("Allies are panicking! Rally unavailable.");
+        return;
+    }
     const bool newState = !context.rallyState;
     context.simulation.applyRallyState(newState, skill.def, command.worldTarget);
     context.rallyState = newState;

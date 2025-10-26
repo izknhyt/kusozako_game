@@ -6,6 +6,7 @@
 #include <vector>
 
 #include "core/Vec2.h"
+#include "world/MoraleTypes.h"
 
 struct RespawnSettings
 {
@@ -14,6 +15,25 @@ struct RespawnSettings
     float k = 1.0f;
     float floor = 0.0f;
     float invuln = 0.0f;
+};
+
+struct MoraleStateConfig
+{
+    float duration = 0.0f;
+    MoraleModifiers modifiers{};
+};
+
+struct MoraleConfig
+{
+    float leaderDownWindow = 3.0f;
+    float comfortZoneRadius = 96.0f;
+    float reviveBarrier = 4.0f;
+    MoraleModifiers stable{};
+    MoraleModifiers leaderDown{};
+    MoraleStateConfig panic{};
+    MoraleStateConfig mesomeso{};
+    MoraleStateConfig recovering{};
+    MoraleStateConfig shielded{};
 };
 
 struct GameConfig
@@ -40,6 +60,7 @@ struct GameConfig
     RespawnSettings yuna_respawn{5.0f, 5.0f, 1.0f, 0.0f, 2.0f};
     RespawnSettings commander_respawn{8.0f, 5.0f, 2.0f, 12.0f, 2.0f};
     int commander_auto_reinforce = 0;
+    MoraleConfig morale{};
 };
 
 struct FormationAlignmentConfig
