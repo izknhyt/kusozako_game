@@ -192,6 +192,34 @@ int main()
         }
     }
 
+    {
+        world::WorldState world;
+        world::LegacySimulation &sim = world.legacy();
+        sim.yunas.clear();
+        Unit yuna;
+        yuna.pos = {10.0f, 20.0f};
+        yuna.radius = 4.0f;
+        sim.yunas.push_back(yuna);
+        sim.hud.telemetryText = "QueueCheck";
+        sim.hud.telemetryTimer = 1.0f;
+
+        ActionBuffer actions;
+        world.markComponentsDirty();
+        world.step(0.016f, actions);
+
+        const auto &queue = sim.renderQueue;
+        if (queue.allies.empty())
+        {
+            std::cerr << "RenderingPrep queue missing allies" << '\n';
+            success = false;
+        }
+        if (queue.telemetryText != "QueueCheck")
+        {
+            std::cerr << "RenderingPrep telemetry mismatch" << '\n';
+            success = false;
+        }
+    }
+
     return success ? 0 : 1;
 }
 

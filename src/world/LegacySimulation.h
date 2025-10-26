@@ -11,6 +11,7 @@
 #include <deque>
 #include <cmath>
 #include <cstddef>
+#include <cstdint>
 #include <functional>
 #include <memory>
 #include <limits>
@@ -246,6 +247,82 @@ struct LegacySimulation
     std::vector<CaptureRuntime> captureZones;
     int capturedZones = 0;
     int captureGoal = 0;
+
+    struct RenderColor
+    {
+        std::uint8_t r = 255;
+        std::uint8_t g = 255;
+        std::uint8_t b = 255;
+        std::uint8_t a = 255;
+    };
+
+    struct RenderQueue
+    {
+        struct AllySprite
+        {
+            Vec2 position{0.0f, 0.0f};
+            float radius = 0.0f;
+            bool commander = false;
+            UnitJob job = UnitJob::Warrior;
+            std::uint8_t alpha = 255;
+            MoraleState morale = MoraleState::Stable;
+            const TemperamentDefinition *temperamentDefinition = nullptr;
+            TemperamentBehavior temperamentBehavior = TemperamentBehavior::Wander;
+            bool temperamentMimicActive = false;
+            TemperamentBehavior temperamentMimicBehavior = TemperamentBehavior::Wander;
+            std::size_t unitIndex = 0;
+            bool hasUnitIndex = false;
+        };
+
+        struct EnemySprite
+        {
+            Vec2 position{0.0f, 0.0f};
+            float radius = 0.0f;
+            EnemyArchetype type = EnemyArchetype::Slime;
+        };
+
+        struct WallSprite
+        {
+            Vec2 position{0.0f, 0.0f};
+            float radius = 0.0f;
+        };
+
+        struct AlignmentHud
+        {
+            bool active = false;
+            float secondsRemaining = 0.0f;
+            float progress = 0.0f;
+            std::size_t followers = 0;
+            std::string label;
+        } alignment;
+
+        struct MoraleIcon
+        {
+            Vec2 position{0.0f, 0.0f};
+            float radius = 0.0f;
+            MoraleState state = MoraleState::Stable;
+            bool commander = false;
+            std::size_t unitIndex = 0;
+        };
+
+        bool lodActive = false;
+        bool skipActors = false;
+        int lodFrameCounter = 0;
+        std::vector<AllySprite> allies;
+        std::vector<EnemySprite> enemies;
+        std::vector<WallSprite> walls;
+        std::vector<MoraleIcon> moraleIcons;
+        std::string telemetryText;
+        float telemetryTimer = 0.0f;
+
+        void clearDynamic()
+        {
+            allies.clear();
+            enemies.clear();
+            walls.clear();
+            moraleIcons.clear();
+        }
+    } renderQueue;
 
     struct SurvivalRuntime
     {

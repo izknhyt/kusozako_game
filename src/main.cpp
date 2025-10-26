@@ -47,7 +47,6 @@
 #include <iostream>
 #include <limits>
 #include <memory>
-#include <numeric>
 #include <optional>
 #include <random>
 #include <sstream>
@@ -848,11 +847,9 @@ void renderScene(SDL_Renderer *renderer, const LegacySimulation &sim, const Form
                  const Atlas &atlas, int screenW, int screenH, FramePerf &perf, bool showDebugHud)
 {
     RenderStats stats;
-    static int lodFrameCounter = 0;
-    ++lodFrameCounter;
-    const bool lodActive = sim.config.lod_threshold_entities > 0 && perf.entities >= sim.config.lod_threshold_entities;
-    const bool skipActors = lodActive && sim.config.lod_skip_draw_every > 1 &&
-                            (lodFrameCounter % sim.config.lod_skip_draw_every != 0);
+    const LegacySimulation::RenderQueue &queue = sim.renderQueue;
+    const bool lodActive = queue.lodActive;
+    const bool skipActors = queue.skipActors;
     const int lineHeight = std::max(font.getLineHeight(), 18);
     const int debugLineHeight = std::max(debugFont.isLoaded() ? debugFont.getLineHeight() : lineHeight, 14);
 
@@ -865,23 +862,6 @@ void renderScene(SDL_Renderer *renderer, const LegacySimulation &sim, const Form
         const int approxWidth = std::max(approxHeight / 2, 8);
         return static_cast<int>(text.size()) * approxWidth;
     };
-
-    std::vector<MoraleState> moraleStates(sim.yunas.size(), MoraleState::Stable);
-    MoraleState commanderMorale = MoraleState::Stable;
-    if (moraleHud)
-    {
-        for (const MoraleHudIcon &icon : moraleHud->icons)
-        {
-            if (icon.commander)
-            {
-                commanderMorale = icon.state;
-            }
-            else if (icon.unitIndex < moraleStates.size())
-            {
-                moraleStates[icon.unitIndex] = icon.state;
-            }
-        }
-    }
 
     auto moraleColorForState = [](MoraleState state) -> SDL_Color {
         switch (state)
@@ -947,16 +927,16 @@ void renderScene(SDL_Renderer *renderer, const LegacySimulation &sim, const Form
         return SDL_Color{240, 240, 240, 255};
     };
 
-    auto drawTemperamentLabel = [&](const Unit &yuna, float spriteTopY, float centerX) {
-        if (!debugFont.isLoaded() || !yuna.temperament.definition)
+    auto drawTemperamentLabel = [&](const LegacySimulation::RenderQueue::AllySprite &ally, float spriteTopY, float centerX) {
+        if (!debugFont.isLoaded() || !ally.temperamentDefinition)
         {
             return;
         }
-        std::string label = yuna.temperament.definition->label.empty() ? yuna.temperament.definition->id : yuna.temperament.definition->label;
-        if (yuna.temperament.definition->behavior == TemperamentBehavior::Mimic && yuna.temperament.mimicActive)
+        std::string label = ally.temperamentDefinition->label.empty() ? ally.temperamentDefinition->id : ally.temperamentDefinition->label;
+        if (ally.temperamentDefinition->behavior == TemperamentBehavior::Mimic && ally.temperamentMimicActive)
         {
             label += " -> ";
-            label += temperamentBehaviorName(yuna.temperament.mimicBehavior);
+            label += temperamentBehaviorName(ally.temperamentMimicBehavior);
         }
         const int textWidth = measureWithFallback(debugFont, label, debugLineHeight);
         const int padX = 4;
@@ -974,9 +954,37 @@ void renderScene(SDL_Renderer *renderer, const LegacySimulation &sim, const Form
         SDL_SetRenderDrawColor(renderer, 0, 0, 0, 170);
         countedRenderFillRect(renderer, &bg, stats);
         SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
-        SDL_Color color = temperamentColorForBehavior(yuna.temperament.currentBehavior);
+        SDL_Color color = temperamentColorForBehavior(ally.temperamentBehavior);
         debugFont.drawText(renderer, label, bg.x + padX, bg.y + padY, &stats, color);
     };
+
+    MoraleState commanderMorale = sim.moraleSummary.commanderState;
+    std::vector<MoraleState> moraleStates(sim.yunas.size(), MoraleState::Stable);
+    for (const LegacySimulation::RenderQueue::AllySprite &ally : queue.allies)
+    {
+        if (ally.commander)
+        {
+            commanderMorale = ally.morale;
+        }
+        else if (ally.hasUnitIndex && ally.unitIndex < moraleStates.size())
+        {
+            moraleStates[ally.unitIndex] = ally.morale;
+        }
+    }
+    if (moraleHud)
+    {
+        for (const MoraleHudIcon &icon : moraleHud->icons)
+        {
+            if (icon.commander)
+            {
+                commanderMorale = icon.state;
+            }
+            else if (icon.unitIndex < moraleStates.size())
+            {
+                moraleStates[icon.unitIndex] = icon.state;
+            }
+        }
+    }
 
     SDL_SetRenderDrawColor(renderer, 26, 32, 38, 255);
     countedRenderClear(renderer, stats);
@@ -1108,66 +1116,23 @@ void renderScene(SDL_Renderer *renderer, const LegacySimulation &sim, const Form
     const SDL_Rect *friendRing = atlas.getFrame("ring_friend");
     const SDL_Rect *enemyRing = atlas.getFrame("ring_enemy");
 
-    struct FriendlySprite
-    {
-        float y = 0.0f;
-        bool commander = false;
-        std::size_t index = 0;
-    };
-
-    std::vector<Uint8> yunaAlpha(sim.yunas.size(), 255);
-    const float crowdRadiusSq = 32.0f * 32.0f;
-    for (std::size_t i = 0; i < sim.yunas.size(); ++i)
-    {
-        int neighbors = 0;
-        for (std::size_t j = 0; j < sim.yunas.size(); ++j)
-        {
-            if (i == j)
-            {
-                continue;
-            }
-            if (lengthSq(sim.yunas[i].pos - sim.yunas[j].pos) <= crowdRadiusSq)
-            {
-                ++neighbors;
-                if (neighbors >= 4)
-                {
-                    yunaAlpha[i] = static_cast<Uint8>(255 * 0.3f);
-                    break;
-                }
-            }
-        }
-    }
-
-    std::vector<FriendlySprite> friendSprites;
-    friendSprites.reserve(sim.yunas.size() + (sim.commander.alive ? 1 : 0));
-    if (sim.commander.alive)
-    {
-        friendSprites.push_back(FriendlySprite{sim.commander.pos.y, true, 0});
-    }
-    for (std::size_t i = 0; i < sim.yunas.size(); ++i)
-    {
-        friendSprites.push_back(FriendlySprite{sim.yunas[i].pos.y, false, i});
-    }
-    std::sort(friendSprites.begin(), friendSprites.end(), [](const FriendlySprite &a, const FriendlySprite &b) {
-        return a.y < b.y;
-    });
-
     if (atlas.texture.get())
     {
-        for (const FriendlySprite &sprite : friendSprites)
+        for (const LegacySimulation::RenderQueue::AllySprite &ally : queue.allies)
         {
-            if (skipActors && !sprite.commander)
+            if (skipActors && !ally.commander)
             {
                 continue;
             }
-            if (sprite.commander)
+
+            Vec2 screenPos = worldToScreen(ally.position, camera);
+            if (ally.commander)
             {
-                Vec2 commanderScreen = worldToScreen(sim.commander.pos, camera);
                 if (commanderFrame)
                 {
                     SDL_Rect dest{
-                        static_cast<int>(commanderScreen.x - commanderFrame->w * 0.5f),
-                        static_cast<int>(commanderScreen.y - commanderFrame->h * 0.5f),
+                        static_cast<int>(screenPos.x - commanderFrame->w * 0.5f),
+                        static_cast<int>(screenPos.y - commanderFrame->h * 0.5f),
                         commanderFrame->w,
                         commanderFrame->h};
                     countedRenderCopy(renderer, atlas.texture.getRaw(), commanderFrame, &dest, stats);
@@ -1184,17 +1149,15 @@ void renderScene(SDL_Renderer *renderer, const LegacySimulation &sim, const Form
                 else
                 {
                     SDL_SetRenderDrawColor(renderer, 200, 220, 255, 255);
-                    drawFilledCircle(renderer, commanderScreen, sim.commander.radius, stats);
+                    drawFilledCircle(renderer, screenPos, ally.radius, stats);
                 }
-                drawMoraleIcon(sim.commander.pos, sim.commander.radius, commanderMorale);
+                drawMoraleIcon(ally.position, ally.radius, commanderMorale);
                 continue;
             }
 
-            const Unit &yuna = sim.yunas[sprite.index];
-            Vec2 screenPos = worldToScreen(yuna.pos, camera);
             if (yunaFrame)
             {
-                SDL_SetTextureAlphaMod(atlas.texture.getRaw(), yunaAlpha[sprite.index]);
+                SDL_SetTextureAlphaMod(atlas.texture.getRaw(), ally.alpha);
                 SDL_Rect dest{
                     static_cast<int>(screenPos.x - yunaFrame->w * 0.5f),
                     static_cast<int>(screenPos.y - yunaFrame->h * 0.5f),
@@ -1204,7 +1167,7 @@ void renderScene(SDL_Renderer *renderer, const LegacySimulation &sim, const Form
                 SDL_SetTextureAlphaMod(atlas.texture.getRaw(), 255);
                 if (friendRing)
                 {
-                    SDL_Color ringColor = jobRingColor(yuna.job.job);
+                    SDL_Color ringColor = jobRingColor(ally.job);
                     SDL_SetTextureColorMod(atlas.texture.getRaw(), ringColor.r, ringColor.g, ringColor.b);
                     SDL_Rect ringDest{
                         dest.x + (dest.w - friendRing->w) / 2,
@@ -1214,85 +1177,74 @@ void renderScene(SDL_Renderer *renderer, const LegacySimulation &sim, const Form
                     countedRenderCopy(renderer, atlas.texture.getRaw(), friendRing, &ringDest, stats);
                     SDL_SetTextureColorMod(atlas.texture.getRaw(), 255, 255, 255);
                 }
-                drawTemperamentLabel(yuna, static_cast<float>(dest.y), static_cast<float>(dest.x + dest.w * 0.5f));
+                drawTemperamentLabel(ally, static_cast<float>(dest.y), static_cast<float>(dest.x + dest.w * 0.5f));
             }
             else
             {
-                if (skipActors)
-                {
-                    continue;
-                }
                 SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
-                SDL_Color unitColor = jobRingColor(yuna.job.job);
-                SDL_SetRenderDrawColor(renderer, unitColor.r, unitColor.g, unitColor.b, yunaAlpha[sprite.index]);
-                drawFilledCircle(renderer, screenPos, yuna.radius, stats);
+                SDL_Color unitColor = jobRingColor(ally.job);
+                SDL_SetRenderDrawColor(renderer, unitColor.r, unitColor.g, unitColor.b, ally.alpha);
+                drawFilledCircle(renderer, screenPos, ally.radius, stats);
                 SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
-                drawTemperamentLabel(yuna, screenPos.y - yuna.radius, screenPos.x);
+                drawTemperamentLabel(ally, screenPos.y - ally.radius, screenPos.x);
             }
-            drawMoraleIcon(yuna.pos, yuna.radius, moraleStates[sprite.index]);
+
+            MoraleState state = (ally.hasUnitIndex && ally.unitIndex < moraleStates.size()) ? moraleStates[ally.unitIndex]
+                                                                                            : ally.morale;
+            drawMoraleIcon(ally.position, ally.radius, state);
         }
         SDL_SetTextureAlphaMod(atlas.texture.getRaw(), 255);
     }
     else
     {
         SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
-        for (const FriendlySprite &sprite : friendSprites)
+        for (const LegacySimulation::RenderQueue::AllySprite &ally : queue.allies)
         {
-            if (skipActors && !sprite.commander)
+            if (skipActors && !ally.commander)
             {
                 continue;
             }
-            if (sprite.commander)
+            Vec2 screenPos = worldToScreen(ally.position, camera);
+            if (ally.commander)
             {
-                Vec2 commanderScreen = worldToScreen(sim.commander.pos, camera);
                 SDL_SetRenderDrawColor(renderer, 200, 220, 255, 255);
-                drawFilledCircle(renderer, commanderScreen, sim.commander.radius, stats);
-                drawMoraleIcon(sim.commander.pos, sim.commander.radius, commanderMorale);
+                drawFilledCircle(renderer, screenPos, ally.radius, stats);
+                drawMoraleIcon(ally.position, ally.radius, commanderMorale);
                 continue;
             }
-            if (skipActors)
-            {
-                continue;
-            }
-            const Unit &yuna = sim.yunas[sprite.index];
-            Vec2 screenPos = worldToScreen(yuna.pos, camera);
-            SDL_Color unitColor = jobRingColor(yuna.job.job);
-            SDL_SetRenderDrawColor(renderer, unitColor.r, unitColor.g, unitColor.b, yunaAlpha[sprite.index]);
-            drawFilledCircle(renderer, screenPos, yuna.radius, stats);
-            drawTemperamentLabel(yuna, screenPos.y - yuna.radius, screenPos.x);
-            drawMoraleIcon(yuna.pos, yuna.radius, moraleStates[sprite.index]);
+
+            SDL_Color unitColor = jobRingColor(ally.job);
+            SDL_SetRenderDrawColor(renderer, unitColor.r, unitColor.g, unitColor.b, ally.alpha);
+            drawFilledCircle(renderer, screenPos, ally.radius, stats);
+            drawTemperamentLabel(ally, screenPos.y - ally.radius, screenPos.x);
+            MoraleState state = (ally.hasUnitIndex && ally.unitIndex < moraleStates.size()) ? moraleStates[ally.unitIndex]
+                                                                                            : ally.morale;
+            drawMoraleIcon(ally.position, ally.radius, state);
         }
         SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
     }
 
     SDL_SetRenderDrawColor(renderer, 120, 150, 200, 255);
-    for (const WallSegment &wall : sim.walls)
+    for (const LegacySimulation::RenderQueue::WallSprite &wall : queue.walls)
     {
         if (skipActors)
         {
             continue;
         }
-        Vec2 screenPos = worldToScreen(wall.pos, camera);
+        Vec2 screenPos = worldToScreen(wall.position, camera);
         drawFilledCircle(renderer, screenPos, wall.radius, stats);
     }
 
-    std::vector<std::size_t> enemyOrder(sim.enemies.size());
-    std::iota(enemyOrder.begin(), enemyOrder.end(), 0);
-    std::sort(enemyOrder.begin(), enemyOrder.end(), [&](std::size_t a, std::size_t b) {
-        return sim.enemies[a].pos.y < sim.enemies[b].pos.y;
-    });
-
     if (atlas.texture.get())
     {
-        for (std::size_t idx : enemyOrder)
+        for (const LegacySimulation::RenderQueue::EnemySprite &enemy : queue.enemies)
         {
-            const EnemyUnit &enemy = sim.enemies[idx];
             if (skipActors && enemy.type != EnemyArchetype::Boss)
             {
                 continue;
             }
             const SDL_Rect *frame = enemy.type == EnemyArchetype::Wallbreaker ? wallbreakerFrame : enemyFrame;
-            Vec2 screenPos = worldToScreen(enemy.pos, camera);
+            Vec2 screenPos = worldToScreen(enemy.position, camera);
             if (enemy.type == EnemyArchetype::Boss)
             {
                 SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
@@ -1359,14 +1311,13 @@ void renderScene(SDL_Renderer *renderer, const LegacySimulation &sim, const Form
     }
     else
     {
-        for (std::size_t idx : enemyOrder)
+        for (const LegacySimulation::RenderQueue::EnemySprite &enemy : queue.enemies)
         {
-            const EnemyUnit &enemy = sim.enemies[idx];
             if (skipActors && enemy.type != EnemyArchetype::Boss)
             {
                 continue;
             }
-            Vec2 screenPos = worldToScreen(enemy.pos, camera);
+            Vec2 screenPos = worldToScreen(enemy.position, camera);
             if (enemy.type == EnemyArchetype::Boss)
             {
                 SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
@@ -1470,22 +1421,35 @@ void renderScene(SDL_Renderer *renderer, const LegacySimulation &sim, const Form
                       SDL_Color{255, 220, 120, 255});
         topUiAnchor = bannerRect.y + bannerRect.h + 12;
     }
+    bool alignmentActive = false;
+    std::string alignmentBanner;
     if (formationHud && formationHud->state == FormationAlignmentState::Aligning &&
         formationHud->secondsRemaining > 0.0f)
     {
         std::ostringstream alignText;
         alignText << std::fixed << std::setprecision(1) << std::max(formationHud->secondsRemaining, 0.0f);
-        const std::string bannerText = std::string(u8"整列中 ") + alignText.str() + "s";
+        alignmentBanner = std::string(u8"整列中 ") + alignText.str() + "s";
+        alignmentActive = true;
+    }
+    else if (queue.alignment.active && queue.alignment.secondsRemaining > 0.0f)
+    {
+        std::ostringstream alignText;
+        alignText << std::fixed << std::setprecision(1) << std::max(queue.alignment.secondsRemaining, 0.0f);
+        alignmentBanner = std::string(u8"整列中 ") + alignText.str() + "s";
+        alignmentActive = true;
+    }
+    if (alignmentActive && !alignmentBanner.empty())
+    {
         const int padX = 16;
         const int padY = 6;
-        const int textWidth = measureWithFallback(font, bannerText, lineHeight);
+        const int textWidth = measureWithFallback(font, alignmentBanner, lineHeight);
         SDL_Rect alignRect{screenW / 2 - (textWidth + padX * 2) / 2, topUiAnchor, textWidth + padX * 2,
                            lineHeight + padY * 2};
         SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
         SDL_SetRenderDrawColor(renderer, 0, 0, 0, 180);
         countedRenderFillRect(renderer, &alignRect, stats);
         SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
-        font.drawText(renderer, bannerText, alignRect.x + padX, alignRect.y + padY, &stats,
+        font.drawText(renderer, alignmentBanner, alignRect.x + padX, alignRect.y + padY, &stats,
                       SDL_Color{255, 208, 144, 255});
         topUiAnchor = alignRect.y + alignRect.h + 10;
     }
@@ -1656,18 +1620,18 @@ void renderScene(SDL_Renderer *renderer, const LegacySimulation &sim, const Form
         topRightAnchorY += debugPanel.h + 12;
     }
 
-    if (!sim.hud.telemetryText.empty() && sim.hud.telemetryTimer > 0.0f)
+    if (!queue.telemetryText.empty() && queue.telemetryTimer > 0.0f)
     {
         const int telePadX = 12;
         const int telePadY = 6;
-        const int textWidth = measureWithFallback(font, sim.hud.telemetryText, lineHeight);
+        const int textWidth = measureWithFallback(font, queue.telemetryText, lineHeight);
         SDL_Rect telePanel{screenW - (textWidth + telePadX * 2) - 12, topRightAnchorY,
                            textWidth + telePadX * 2, lineHeight + telePadY * 2};
         SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
         SDL_SetRenderDrawColor(renderer, 0, 0, 0, 180);
         countedRenderFillRect(renderer, &telePanel, stats);
         SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
-        font.drawText(renderer, sim.hud.telemetryText, telePanel.x + telePadX, telePanel.y + telePadY, &stats);
+        font.drawText(renderer, queue.telemetryText, telePanel.x + telePadX, telePanel.y + telePadY, &stats);
         topRightAnchorY += telePanel.h + 12;
     }
     if (!sim.hud.resultText.empty() && sim.hud.resultTimer > 0.0f)
