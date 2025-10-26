@@ -107,6 +107,44 @@ bool testEventTtlExpiry()
     return true;
 }
 
+bool testLateSubscriptionBeforeExpiry()
+{
+    BasicEventBus bus;
+
+    EventContext ctx;
+    bus.dispatch("late_subscriber", ctx);
+    bus.pump();
+
+    // Age the event but keep it within the TTL window.
+    bus.advanceFrame();
+
+    bool handled = false;
+    auto token = bus.subscribe("late_subscriber", [&](const EventContext &) { handled = true; });
+    bus.pump();
+
+    if (!handled)
+    {
+        std::cerr << "Late subscriber did not receive pending event" << '\n';
+        return false;
+    }
+
+    if (bus.unconsumedCount() != 0)
+    {
+        std::cerr << "Unconsumed count incremented for delivered event" << '\n';
+        return false;
+    }
+
+    bus.advanceFrame();
+
+    if (bus.unconsumedCount() != 0)
+    {
+        std::cerr << "Unconsumed count changed after delivering event" << '\n';
+        return false;
+    }
+
+    return true;
+}
+
 } // namespace
 
 int main()
@@ -117,6 +155,10 @@ int main()
         success = false;
     }
     if (!testEventTtlExpiry())
+    {
+        success = false;
+    }
+    if (!testLateSubscriptionBeforeExpiry())
     {
         success = false;
     }
