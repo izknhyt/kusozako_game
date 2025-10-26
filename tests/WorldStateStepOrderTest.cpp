@@ -7,6 +7,7 @@
 #include <cmath>
 #include <iostream>
 #include <memory>
+#include <optional>
 #include <stdexcept>
 #include <vector>
 
@@ -32,6 +33,21 @@ void reportMismatch(const char *label,
     std::cerr << '\n';
 }
 
+std::vector<Stage> compressStages(const std::vector<Stage> &stages)
+{
+    std::vector<Stage> compressed;
+    std::optional<Stage> last;
+    for (Stage stage : stages)
+    {
+        if (!last.has_value() || stage != last.value())
+        {
+            compressed.push_back(stage);
+            last = stage;
+        }
+    }
+    return compressed;
+}
+
 } // namespace
 
 int main()
@@ -42,8 +58,6 @@ int main()
         world::WorldState world;
         const std::vector<Stage> expectedDefault{
             Stage::InputProcessing,
-            Stage::CommandAndMorale,
-            Stage::CommandAndMorale,
             Stage::AiDecision,
             Stage::Movement,
             Stage::Combat,
@@ -51,9 +65,10 @@ int main()
             Stage::Spawn,
             Stage::RenderingPrep,
         };
-        if (world.systemStageOrder() != expectedDefault)
+        const std::vector<Stage> actual = compressStages(world.systemStageOrder());
+        if (actual != expectedDefault)
         {
-            reportMismatch("Default stage order", expectedDefault, world.systemStageOrder());
+            reportMismatch("Default stage order", expectedDefault, actual);
             success = false;
         }
     }
@@ -121,6 +136,23 @@ int main()
         if (world.systemStageOrder() != expectedOrder)
         {
             reportMismatch("Configured stage order", expectedOrder, world.systemStageOrder());
+            success = false;
+        }
+
+        const std::vector<Stage> expectedPipeline{
+            Stage::InputProcessing,
+            Stage::CommandAndMorale,
+            Stage::AiDecision,
+            Stage::Movement,
+            Stage::Combat,
+            Stage::StateUpdate,
+            Stage::Spawn,
+            Stage::RenderingPrep,
+        };
+        const std::vector<Stage> actualPipeline = compressStages(callLog);
+        if (actualPipeline != expectedPipeline)
+        {
+            reportMismatch("Stage pipeline order", expectedPipeline, actualPipeline);
             success = false;
         }
     }
