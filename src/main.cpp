@@ -1842,6 +1842,9 @@ void renderScene(SDL_Renderer *renderer, const LegacySimulation &sim, const Form
         std::ostringstream line3;
         line3 << "Draw " << perf.drawCalls;
         perfLines.push_back(line3.str());
+        std::ostringstream line4;
+        line4 << "Events lost " << sim.hud.unconsumedEvents;
+        perfLines.push_back(line4.str());
 
         int debugWidth = 0;
         for (const std::string &line : perfLines)
@@ -2318,6 +2321,15 @@ void BattleScene::update(double deltaSeconds, GameApplication &app, SceneStack &
                           sim.commander.pos.y - m_screenHeight * 0.5f};
         const float followFactor = std::clamp(frameSeconds * 6.0f, 0.0f, 1.0f);
         m_camera.position = lerp(m_camera.position, targetCamera, followFactor);
+    }
+
+    if (m_eventBus)
+    {
+        sim.hud.unconsumedEvents = m_eventBus->unconsumedCount();
+    }
+    else
+    {
+        sim.hud.unconsumedEvents = 0;
     }
 
     m_framePerf.fps = m_currentFps;

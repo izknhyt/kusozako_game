@@ -92,6 +92,7 @@ class UiPresenter
   private:
     void subscribe();
     void unsubscribe();
+    void updateUnconsumedEvents();
 
     void handleFormationChanged(const FormationChangedEvent &event);
     void handleFormationProgress(const FormationProgressEvent &event);
@@ -107,11 +108,11 @@ class UiPresenter
     FormationHudStatus m_formationHud;
     MoraleHudStatus m_moraleHud;
     JobHudStatus m_jobHud;
-    EventBus::HandlerId m_changedHandler = 0;
-    EventBus::HandlerId m_progressHandler = 0;
-    EventBus::HandlerId m_moraleHandler = 0;
-    EventBus::HandlerId m_countdownHandler = 0;
-    EventBus::HandlerId m_moraleStatusHandler = 0;
-    EventBus::HandlerId m_jobSummaryHandler = 0;
+    EventBus::SubscriptionToken m_changedHandler;
+    EventBus::SubscriptionToken m_progressHandler;
+    EventBus::SubscriptionToken m_moraleHandler;
+    EventBus::SubscriptionToken m_countdownHandler;
+    EventBus::SubscriptionToken m_moraleStatusHandler;
+    EventBus::SubscriptionToken m_jobSummaryHandler;
 };
 

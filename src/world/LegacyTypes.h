@@ -13,6 +13,7 @@ struct HUDState
     float telemetryTimer = 0.0f;
     std::string resultText;
     float resultTimer = 0.0f;
+    std::size_t unconsumedEvents = 0;
 
     struct AlignmentCountdown
     {
