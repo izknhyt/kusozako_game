@@ -1,10 +1,63 @@
 #include "input/InputMapper.h"
 
 #include <algorithm>
+#include <array>
 #include <cctype>
+#include <sstream>
+#include <vector>
 
 namespace
 {
+
+constexpr char kModifierDelimiter = '+';
+
+std::string trimCopy(const std::string &text)
+{
+    const auto first = std::find_if_not(text.begin(), text.end(), [](unsigned char ch) { return std::isspace(ch) != 0; });
+    if (first == text.end())
+    {
+        return std::string();
+    }
+    const auto last = std::find_if_not(text.rbegin(), text.rend(), [](unsigned char ch) { return std::isspace(ch) != 0; }).base();
+    return std::string(first, last);
+}
+
+std::string toLowerCopy(const std::string &text)
+{
+    std::string lowered;
+    lowered.reserve(text.size());
+    for (unsigned char ch : text)
+    {
+        lowered.push_back(static_cast<char>(std::tolower(ch)));
+    }
+    return lowered;
+}
+
+bool appendModifier(const std::string &token, SDL_Keymod &modifiers)
+{
+    const std::string lowered = toLowerCopy(token);
+    if (lowered == "shift")
+    {
+        modifiers = static_cast<SDL_Keymod>(modifiers | KMOD_SHIFT);
+        return true;
+    }
+    if (lowered == "ctrl" || lowered == "control")
+    {
+        modifiers = static_cast<SDL_Keymod>(modifiers | KMOD_CTRL);
+        return true;
+    }
+    if (lowered == "alt")
+    {
+        modifiers = static_cast<SDL_Keymod>(modifiers | KMOD_ALT);
+        return true;
+    }
+    if (lowered == "gui" || lowered == "meta" || lowered == "super" || lowered == "cmd" || lowered == "win")
+    {
+        modifiers = static_cast<SDL_Keymod>(modifiers | KMOD_GUI);
+        return true;
+    }
+    return token.empty();
+}
 
 ActionId skillActionId(std::size_t index)
 {
@@ -26,12 +79,7 @@ ActionId skillActionId(std::size_t index)
 
 Uint8 pointerButtonFromString(const std::string &name)
 {
-    std::string normalized;
-    normalized.reserve(name.size());
-    for (char ch : name)
-    {
-        normalized.push_back(static_cast<char>(std::tolower(static_cast<unsigned char>(ch))));
-    }
+    std::string normalized = toLowerCopy(name);
     if (normalized == "mouseleft")
     {
         return SDL_BUTTON_LEFT;
@@ -116,6 +164,14 @@ void InputMapper::configure(const InputBindings &bindings)
     {
         bindKey(bindings.toggleDebugHud, ActionId::ToggleDebugHud);
     }
+    if (!bindings.reloadConfig.empty())
+    {
+        bindKey(bindings.reloadConfig, ActionId::ReloadConfig);
+    }
+    if (!bindings.dumpSpawnHistory.empty())
+    {
+        bindKey(bindings.dumpSpawnHistory, ActionId::DumpSpawnHistory);
+    }
     if (!bindings.quit.empty())
     {
         bindKey(bindings.quit, ActionId::QuitGame);
@@ -176,10 +232,15 @@ void InputMapper::handleEvent(const SDL_Event &event)
             auto it = m_pressBindings.find(sc);
             if (it != m_pressBindings.end())
             {
-                for (ActionId action : it->second)
+                const SDL_Keymod mods = normalizeModifiers(static_cast<SDL_Keymod>(event.key.keysym.mod));
+                for (const PressBinding &binding : it->second)
                 {
+                    if (mods != binding.modifiers)
+                    {
+                        continue;
+                    }
                     ActionEvent evt;
-                    evt.id = action;
+                    evt.id = binding.action;
                     evt.value = 1.0f;
                     evt.pressed = true;
                     m_pendingEvents.push_back(evt);
@@ -304,9 +365,20 @@ void InputMapper::bindKey(const std::string &name, ActionId action)
     {
         return;
     }
-    if (SDL_Scancode sc = scancodeFromName(name); sc != SDL_SCANCODE_UNKNOWN)
+    if (action == ActionId::Count)
     {
-        m_pressBindings[sc].push_back(action);
+        return;
+    }
+
+    if (auto binding = parseKeyBinding(name))
+    {
+        if (binding->valid())
+        {
+            PressBinding press;
+            press.modifiers = normalizeModifiers(binding->modifiers);
+            press.action = action;
+            m_pressBindings[binding->scancode].push_back(press);
+        }
     }
 }
 
@@ -336,5 +408,78 @@ void InputMapper::enqueuePointerEvent(ActionId action, bool pressed, bool releas
     payload.released = released;
     evt.pointer = payload;
     m_pendingEvents.push_back(evt);
+}
+
+std::optional<InputMapper::KeyBinding> InputMapper::parseKeyBinding(const std::string &name)
+{
+    KeyBinding binding;
+    if (name.empty())
+    {
+        return std::nullopt;
+    }
+
+    std::vector<std::string> tokens;
+    std::string current;
+    std::stringstream stream(name);
+    while (std::getline(stream, current, kModifierDelimiter))
+    {
+        std::string trimmed = trimCopy(current);
+        if (!trimmed.empty())
+        {
+            tokens.push_back(std::move(trimmed));
+        }
+    }
+
+    if (tokens.empty())
+    {
+        return std::nullopt;
+    }
+
+    const std::string keyName = tokens.back();
+    binding.scancode = scancodeFromName(keyName);
+    if (binding.scancode == SDL_SCANCODE_UNKNOWN)
+    {
+        return std::nullopt;
+    }
+
+    tokens.pop_back();
+    SDL_Keymod modifiers = KMOD_NONE;
+    for (const std::string &token : tokens)
+    {
+        if (!appendModifier(token, modifiers))
+        {
+            return std::nullopt;
+        }
+    }
+    binding.modifiers = normalizeModifiers(modifiers);
+    return binding;
+}
+
+bool InputMapper::isValidKeyBinding(const std::string &name)
+{
+    auto parsed = parseKeyBinding(name);
+    return parsed.has_value() && parsed->valid();
+}
+
+SDL_Keymod InputMapper::normalizeModifiers(SDL_Keymod mods)
+{
+    SDL_Keymod normalized = KMOD_NONE;
+    if (mods & (KMOD_LSHIFT | KMOD_RSHIFT | KMOD_SHIFT))
+    {
+        normalized = static_cast<SDL_Keymod>(normalized | KMOD_SHIFT);
+    }
+    if (mods & (KMOD_LCTRL | KMOD_RCTRL | KMOD_CTRL))
+    {
+        normalized = static_cast<SDL_Keymod>(normalized | KMOD_CTRL);
+    }
+    if (mods & (KMOD_LALT | KMOD_RALT | KMOD_ALT))
+    {
+        normalized = static_cast<SDL_Keymod>(normalized | KMOD_ALT);
+    }
+    if (mods & (KMOD_LGUI | KMOD_RGUI | KMOD_GUI))
+    {
+        normalized = static_cast<SDL_Keymod>(normalized | KMOD_GUI);
+    }
+    return normalized;
 }
 

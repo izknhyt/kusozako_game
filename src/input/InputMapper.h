@@ -30,6 +30,8 @@ class InputMapper
                      std::uint64_t frameSequence,
                      ActionBuffer &buffer);
 
+    static bool isValidKeyBinding(const std::string &name);
+
   private:
     using AxisList = std::vector<SDL_Scancode>;
 
@@ -46,7 +48,21 @@ class InputMapper
     AxisList m_movePositiveY;
     AxisList m_moveNegativeY;
 
-    std::unordered_map<SDL_Scancode, std::vector<ActionId>> m_pressBindings;
+    struct KeyBinding
+    {
+        SDL_Scancode scancode = SDL_SCANCODE_UNKNOWN;
+        SDL_Keymod modifiers = KMOD_NONE;
+
+        bool valid() const { return scancode != SDL_SCANCODE_UNKNOWN; }
+    };
+
+    struct PressBinding
+    {
+        SDL_Keymod modifiers = KMOD_NONE;
+        ActionId action = ActionId::Count;
+    };
+
+    std::unordered_map<SDL_Scancode, std::vector<PressBinding>> m_pressBindings;
     std::array<ActionId, 8> m_skillBindings{};
 
     PointerBinding m_pointerActivate;
@@ -57,7 +73,9 @@ class InputMapper
     std::size_t m_bufferFrames;
     double m_bufferExpiryMs;
 
+    static std::optional<KeyBinding> parseKeyBinding(const std::string &name);
     static SDL_Scancode scancodeFromName(const std::string &name);
+    static SDL_Keymod normalizeModifiers(SDL_Keymod mods);
     static float axisValue(const AxisList &positive, const AxisList &negative, const Uint8 *keyboardState);
 
     void bindKeys(const std::vector<std::string> &names, ActionId action);

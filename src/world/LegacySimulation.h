@@ -40,6 +40,11 @@ Vec2 tileToWorld(const Vec2 &tile, int tileSize);
 std::vector<Vec2> computeFormationOffsets(Formation formation, std::size_t count);
 const char *stanceLabel(ArmyStance stance);
 
+namespace world::spawn
+{
+class WaveController;
+}
+
 struct RuntimeSkill
 {
     SkillDef def;
@@ -377,6 +382,15 @@ struct LegacySimulation
 
     void captureFrameSnapshot(TelemetrySink &sink);
     std::filesystem::path telemetryDebugDirectory(const TelemetrySink &sink) const;
+
+    struct SpawnHistoryDumpResult
+    {
+        bool success = false;
+        std::filesystem::path path;
+        std::string error;
+    };
+
+    SpawnHistoryDumpResult dumpSpawnHistory(const spawn::WaveController &controller) const;
 
     void setWorldBounds(float width, float height)
     {

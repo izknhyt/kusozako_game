@@ -28,6 +28,8 @@ class SceneStack
 
     void onRendererReady();
 
+    void notifyConfigReloaded();
+
   private:
     void activatePendingScenes();
 

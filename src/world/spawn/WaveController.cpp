@@ -42,6 +42,7 @@ void WaveController::setSpawnScript(const SpawnScript &script, const MapDefs &ma
 void WaveController::reset()
 {
     m_nextWave = 0;
+    m_history.clear();
 }
 
 std::vector<std::string> WaveController::advance(float currentTime)
@@ -76,6 +77,7 @@ std::vector<std::string> WaveController::advance(float currentTime)
         {
             announcements.push_back(wave.telemetry);
         }
+        recordHistory(m_nextWave, wave, currentTime);
         notifyWave(m_nextWave, wave);
         ++m_nextWave;
     }
@@ -123,6 +125,46 @@ void WaveController::notifyWave(std::size_t index, const Wave &wave) const
             payload.emplace("telemetry", wave.telemetry);
         }
         telemetry->recordEvent("world.wave.started", payload);
+    }
+}
+
+std::vector<WaveController::WaveHistoryEntry> WaveController::historySnapshot() const
+{
+    return std::vector<WaveHistoryEntry>(m_history.begin(), m_history.end());
+}
+
+void WaveController::setHistoryLimit(std::size_t limit)
+{
+    m_historyLimit = limit == 0 ? 0 : limit;
+    if (m_historyLimit == 0)
+    {
+        m_history.clear();
+        return;
+    }
+    while (m_history.size() > m_historyLimit)
+    {
+        m_history.pop_front();
+    }
+}
+
+void WaveController::recordHistory(std::size_t index, const Wave &wave, float triggerTime)
+{
+    if (m_historyLimit == 0)
+    {
+        return;
+    }
+
+    WaveHistoryEntry entry;
+    entry.index = index;
+    entry.scheduledTime = wave.time;
+    entry.triggerTime = triggerTime;
+    entry.wallClock = std::chrono::system_clock::now();
+    entry.telemetry = wave.telemetry;
+    entry.sets = wave.sets;
+    m_history.push_back(std::move(entry));
+    while (m_history.size() > m_historyLimit)
+    {
+        m_history.pop_front();
     }
 }
 
