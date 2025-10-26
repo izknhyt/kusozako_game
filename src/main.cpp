@@ -48,6 +48,7 @@
 #include <limits>
 #include <memory>
 #include <optional>
+#include <string_view>
 #include <random>
 #include <sstream>
 #include <stdexcept>
@@ -2387,11 +2388,27 @@ void BattleScene::render(SDL_Renderer *renderer, GameApplication &app)
 #ifndef KUSOZAKO_SKIP_APP_MAIN
 int main(int argc, char **argv)
 {
-    (void)argc;
-    (void)argv;
+    std::optional<std::filesystem::path> telemetryDir;
+    constexpr std::string_view kTelemetryPrefix{"--telemetry-dir="};
+    for (int i = 1; i < argc; ++i)
+    {
+        std::string_view arg(argv[i]);
+        if (arg == "--telemetry-dir" && i + 1 < argc)
+        {
+            telemetryDir = std::filesystem::path(argv[++i]);
+        }
+        else if (arg.substr(0, kTelemetryPrefix.size()) == kTelemetryPrefix)
+        {
+            telemetryDir = std::filesystem::path(std::string(arg.substr(kTelemetryPrefix.size())));
+        }
+    }
 
     auto configLoader = std::make_shared<AppConfigLoader>(std::filesystem::absolute("config"));
     GameApplication app(std::move(configLoader));
+    if (telemetryDir)
+    {
+        app.setTelemetryOutputDirectory(*telemetryDir);
+    }
     app.sceneStack().push(std::make_unique<BattleScene>());
     return app.run();
 }

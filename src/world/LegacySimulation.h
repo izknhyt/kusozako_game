@@ -12,6 +12,7 @@
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <filesystem>
 #include <functional>
 #include <memory>
 #include <limits>
@@ -368,6 +369,14 @@ struct LegacySimulation
 
     Vec2 basePos;
     Vec2 yunaSpawnPos;
+
+    std::uint64_t frameCounter = 0;
+    std::size_t frameCapturePending = 0;
+    std::uint64_t frameCaptureBatch = 0;
+    std::size_t frameCaptureIndex = 0;
+
+    void captureFrameSnapshot(TelemetrySink &sink);
+    std::filesystem::path telemetryDebugDirectory(const TelemetrySink &sink) const;
 
     void setWorldBounds(float width, float height)
     {
@@ -1584,6 +1593,15 @@ struct LegacySimulation
 
     void update(float dt)
     {
+        auto sink = telemetry.lock();
+        if (sink && sink->consumeFrameCaptureRequest())
+        {
+            frameCapturePending = 5;
+            ++frameCaptureBatch;
+            frameCaptureIndex = 0;
+        }
+
+        ++frameCounter;
         simTime += dt;
         if (timeSinceLastEnemySpawn < 10000.0f)
         {
@@ -1599,6 +1617,26 @@ struct LegacySimulation
         updateCommanderRespawn(dt);
         updateWalls(dt);
         updateMission(dt);
+
+        if (frameCapturePending > 0)
+        {
+            if (!sink)
+            {
+                sink = telemetry.lock();
+            }
+            if (sink)
+            {
+                captureFrameSnapshot(*sink);
+                if (frameCapturePending > 0)
+                {
+                    --frameCapturePending;
+                }
+            }
+            else
+            {
+                frameCapturePending = 0;
+            }
+        }
     }
 
     void spawnOneEnemy(Vec2 gatePos, EnemyArchetype type)

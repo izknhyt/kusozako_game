@@ -1,6 +1,10 @@
 #pragma once
 
+#include <cstddef>
+#include <cstdint>
+#include <filesystem>
 #include <memory>
+#include <optional>
 #include <string>
 
 #include <SDL.h>
@@ -41,11 +45,14 @@ class GameApplication
 
     void requestQuit();
 
+    void setTelemetryOutputDirectory(const std::filesystem::path &path);
+
   private:
     bool initialize();
     void shutdown();
     void registerCoreServices();
     void unregisterCoreServices();
+    void applyTelemetrySettings();
 
     SDL_Window *m_window = nullptr;
     SDL_Renderer *m_renderer = nullptr;
@@ -66,5 +73,9 @@ class GameApplication
     std::shared_ptr<EventBus> m_eventBus;
     std::shared_ptr<AssetManager> m_assetManagerHandle;
     InputMapper m_inputMapper;
+    std::filesystem::path m_defaultTelemetryDir{std::filesystem::path("build") / "debug_dumps"};
+    std::optional<std::filesystem::path> m_telemetryDirOverride;
+    std::optional<std::uintmax_t> m_telemetryRotationOverride;
+    std::optional<std::size_t> m_telemetryRetentionOverride;
 };
 
