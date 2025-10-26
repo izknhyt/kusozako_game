@@ -1455,6 +1455,7 @@ InputBindings parseInputBindings(const json::JsonValue &root, std::vector<AppCon
         }
     };
 
+    validateKey(bindings.toggleDebugHud, "ToggleDebugHud");
     validateKey(bindings.reloadConfig, "ReloadConfig");
     validateKey(bindings.dumpSpawnHistory, "DumpSpawnHistory");
 
