@@ -2,16 +2,20 @@
 
 #include "config/AppConfig.h"
 #include "core/Vec2.h"
+#include "telemetry/TelemetrySink.h"
 #include "world/LegacyTypes.h"
 #include "world/MoraleTypes.h"
 
 #include <algorithm>
 #include <array>
+#include <deque>
 #include <cmath>
 #include <cstddef>
 #include <functional>
+#include <memory>
 #include <limits>
 #include <random>
+#include <sstream>
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
@@ -161,7 +165,19 @@ namespace world
 
 struct LegacySimulation
 {
-{
+    enum class SpawnOrigin
+    {
+        Natural,
+        Respawn,
+        Reinforcement
+    };
+
+    struct PendingRespawn
+    {
+        float timer = 0.0f;
+        UnitJob job = UnitJob::Warrior;
+    };
+
     GameConfig config;
     TemperamentConfig temperamentConfig;
     EntityStats yunaStats;
@@ -172,7 +188,14 @@ struct LegacySimulation
     MapDefs mapDefs;
     SpawnScript spawnScript;
     std::vector<Unit> yunas;
-    std::vector<UnitJob> jobHistory;
+    std::deque<UnitJob> jobHistory;
+    std::size_t jobHistoryLimit = 32;
+    std::vector<PendingRespawn> yunaRespawns;
+    std::deque<UnitJob> reinforcementJobs;
+    std::deque<UnitJob> spawnTelemetryWindow;
+    std::array<std::uint64_t, UnitJobCount> spawnTelemetryTotals{};
+    std::uint64_t spawnTelemetryTotal = 0;
+    std::weak_ptr<TelemetrySink> telemetry;
     std::vector<EnemyUnit> enemies;
     std::vector<WallSegment> walls;
     std::vector<GateRuntime> gates;
@@ -262,14 +285,12 @@ struct LegacySimulation
     } moraleSummary;
     float commanderRespawnTimer = 0.0f;
     float commanderInvulnTimer = 0.0f;
-    int reinforcementQueue = 0;
 
     bool waveScriptComplete = false;
     bool spawnerIdle = true;
 
     Vec2 basePos;
     Vec2 yunaSpawnPos;
-    std::vector<float> yunaRespawnTimers;
 
     void setWorldBounds(float width, float height)
     {
@@ -314,6 +335,11 @@ struct LegacySimulation
         selectedSkill = 0;
     }
 
+    void setTelemetrySink(std::weak_ptr<TelemetrySink> sink)
+    {
+        telemetry = std::move(sink);
+    }
+
     void reset()
     {
         simTime = 0.0f;
@@ -322,6 +348,13 @@ struct LegacySimulation
         yunaSpawnTimer = 0.0f;
         yunas.clear();
         jobHistory.clear();
+        const int desiredHistory = std::max(config.jobSpawn.historyLimit, config.jobSpawn.pity.repeatLimit);
+        jobHistoryLimit = desiredHistory > 0 ? static_cast<std::size_t>(desiredHistory) : 1;
+        yunaRespawns.clear();
+        reinforcementJobs.clear();
+        spawnTelemetryWindow.clear();
+        spawnTelemetryTotals.fill(0);
+        spawnTelemetryTotal = 0;
         enemies.clear();
         walls.clear();
         spawnEnabled = true;
@@ -343,7 +376,6 @@ struct LegacySimulation
         commander.alive = true;
         commanderRespawnTimer = 0.0f;
         commanderInvulnTimer = 0.0f;
-        reinforcementQueue = 0;
         spawnRateMultiplier = 1.0f;
         spawnSlowMultiplier = 1.0f;
         spawnSlowTimer = 0.0f;
@@ -359,7 +391,6 @@ struct LegacySimulation
             skill.cooldownRemaining = 0.0f;
             skill.activeTimer = 0.0f;
         }
-        yunaRespawnTimers.clear();
         waveScriptComplete = false;
         spawnerIdle = true;
         rebuildGates();
@@ -393,7 +424,10 @@ struct LegacySimulation
 
     void enqueueYunaRespawn(float overkillRatio)
     {
-        yunaRespawnTimers.push_back(computeChibiRespawnTime(overkillRatio));
+        PendingRespawn pending;
+        pending.timer = computeChibiRespawnTime(overkillRatio);
+        pending.job = chooseSpawnJob();
+        yunaRespawns.push_back(pending);
     }
 
     void updateSkillTimers(float dt)
@@ -588,6 +622,125 @@ struct LegacySimulation
         unit.job.endlag = 0.0f;
     }
 
+    void recordSpawnSelection(UnitJob job)
+    {
+        if (jobHistoryLimit == 0)
+        {
+            return;
+        }
+        jobHistory.push_back(job);
+        while (jobHistory.size() > jobHistoryLimit)
+        {
+            jobHistory.pop_front();
+        }
+    }
+
+    const char *spawnOriginLabel(SpawnOrigin origin) const
+    {
+        switch (origin)
+        {
+        case SpawnOrigin::Natural:
+            return "natural";
+        case SpawnOrigin::Respawn:
+            return "respawn";
+        case SpawnOrigin::Reinforcement:
+            return "reinforcement";
+        }
+        return "natural";
+    }
+
+    void emitSpawnDistributionTelemetry()
+    {
+        if (spawnTelemetryTotal == 0)
+        {
+            return;
+        }
+
+        TelemetrySink::Payload payload;
+        payload.emplace("total_spawns", std::to_string(spawnTelemetryTotal));
+        for (UnitJob job : AllUnitJobs)
+        {
+            payload.emplace(std::string("total_") + unitJobToString(job),
+                            std::to_string(spawnTelemetryTotals[unitJobIndex(job)]));
+        }
+
+        std::array<std::uint64_t, UnitJobCount> windowCounts{};
+        bool haveWindow = false;
+        const int windowSize = config.jobSpawn.telemetryWindow;
+        if (windowSize > 0 && !spawnTelemetryWindow.empty())
+        {
+            haveWindow = true;
+            for (UnitJob recent : spawnTelemetryWindow)
+            {
+                windowCounts[unitJobIndex(recent)] += 1;
+            }
+            payload.emplace("window",
+                            std::to_string(std::min<std::size_t>(spawnTelemetryWindow.size(),
+                                                                 static_cast<std::size_t>(windowSize))));
+            for (UnitJob job : AllUnitJobs)
+            {
+                payload.emplace(std::string("window_") + unitJobToString(job),
+                                std::to_string(windowCounts[unitJobIndex(job)]));
+            }
+        }
+
+        bool emitted = false;
+        if (auto sink = telemetry.lock())
+        {
+            sink->recordEvent("world.spawn.distribution", payload);
+            emitted = true;
+        }
+
+        if (!emitted && haveWindow)
+        {
+            std::ostringstream oss;
+            oss << "Spawn mix (" << spawnTelemetryWindow.size() << ") ";
+            bool first = true;
+            for (UnitJob job : AllUnitJobs)
+            {
+                if (!first)
+                {
+                    oss << ", ";
+                }
+                first = false;
+                oss << unitJobToString(job) << ':' << windowCounts[unitJobIndex(job)];
+            }
+            pushTelemetry(oss.str());
+        }
+    }
+
+    void recordSpawnTelemetry(UnitJob job, SpawnOrigin origin)
+    {
+        spawnTelemetryTotals[unitJobIndex(job)] += 1;
+        ++spawnTelemetryTotal;
+
+        const int windowSize = config.jobSpawn.telemetryWindow;
+        if (windowSize > 0)
+        {
+            spawnTelemetryWindow.push_back(job);
+            while (spawnTelemetryWindow.size() > static_cast<std::size_t>(windowSize))
+            {
+                spawnTelemetryWindow.pop_front();
+            }
+        }
+
+        if (auto sink = telemetry.lock())
+        {
+            TelemetrySink::Payload payload;
+            payload.emplace("job", unitJobToString(job));
+            payload.emplace("origin", spawnOriginLabel(origin));
+            payload.emplace("total_spawns", std::to_string(spawnTelemetryTotal));
+            sink->recordEvent("world.spawn.job", payload);
+        }
+
+        if (windowSize <= 0 ||
+            (windowSize > 0 &&
+             spawnTelemetryTotal % static_cast<std::uint64_t>(windowSize) == 0))
+        {
+            emitSpawnDistributionTelemetry();
+        }
+    }
+
     UnitJob chooseSpawnJob()
     {
         std::array<float, UnitJobCount> weights = config.jobSpawn.weights;
@@ -595,9 +748,10 @@ struct LegacySimulation
         if (pity.repeatLimit > 0 && jobHistory.size() >= static_cast<std::size_t>(pity.repeatLimit))
         {
             const std::size_t limit = static_cast<std::size_t>(pity.repeatLimit);
+            const std::size_t start = jobHistory.size() - limit;
             bool allSame = true;
-            UnitJob baseline = jobHistory[jobHistory.size() - limit];
-            for (std::size_t i = jobHistory.size() - limit; i < jobHistory.size(); ++i)
+            UnitJob baseline = jobHistory.back();
+            for (std::size_t i = start; i < jobHistory.size(); ++i)
             {
                 if (jobHistory[i] != baseline)
                 {
@@ -652,20 +806,11 @@ struct LegacySimulation
             pick -= w;
         }
 
-        if (config.jobSpawn.pity.repeatLimit > 0)
-        {
-            const std::size_t limit = static_cast<std::size_t>(config.jobSpawn.pity.repeatLimit);
-            if (jobHistory.size() >= limit)
-            {
-                jobHistory.erase(jobHistory.begin());
-            }
-            jobHistory.push_back(selected);
-        }
-
+        recordSpawnSelection(selected);
         return selected;
     }
 
-    void spawnYunaUnit()
+    void spawnYunaUnit(UnitJob job, SpawnOrigin origin)
     {
         Unit yuna;
         yuna.pos = yunaSpawnPos;
@@ -673,10 +818,11 @@ struct LegacySimulation
         yuna.hp = yunaStats.hp;
         yuna.radius = yunaStats.radius;
         resetUnitMorale(yuna);
-        initializeJobState(yuna, chooseSpawnJob());
+        initializeJobState(yuna, job);
         yunas.push_back(yuna);
         assignTemperament(yunas.back());
         clampToWorld(yunas.back().pos, yunas.back().radius);
+        recordSpawnTelemetry(job, origin);
     }
 
     GateRuntime *findGate(const std::string &id)
@@ -1130,7 +1276,13 @@ struct LegacySimulation
         respawnTime = std::max(config.commander_respawn.floor, respawnTime * penalty - bonus);
         commanderRespawnTimer = respawnTime;
         commanderInvulnTimer = 0.0f;
-        reinforcementQueue += config.commander_auto_reinforce;
+        if (config.commander_auto_reinforce > 0)
+        {
+            for (int i = 0; i < config.commander_auto_reinforce; ++i)
+            {
+                reinforcementJobs.push_back(chooseSpawnJob());
+            }
+        }
         rallyState = false;
         for (Unit &yuna : yunas)
         {
@@ -1426,7 +1578,7 @@ struct LegacySimulation
         {
             if (static_cast<int>(yunas.size()) < config.yuna_max)
             {
-                spawnYunaUnit();
+                spawnYunaUnit(chooseSpawnJob(), SpawnOrigin::Natural);
                 yunaSpawnTimer += spawnInterval;
             }
             else
@@ -1437,29 +1589,34 @@ struct LegacySimulation
         }
 
         const float respawnRate = rateMultiplier / slowMultiplier;
-        for (float &timer : yunaRespawnTimers)
+        for (PendingRespawn &pending : yunaRespawns)
         {
-            timer -= dt * respawnRate;
+            pending.timer -= dt * respawnRate;
         }
-        std::vector<float> remainingRespawns;
-        remainingRespawns.reserve(yunaRespawnTimers.size());
-        for (float timer : yunaRespawnTimers)
+        std::vector<PendingRespawn> remainingRespawns;
+        remainingRespawns.reserve(yunaRespawns.size());
+        for (PendingRespawn &pending : yunaRespawns)
         {
-            if (timer <= 0.0f && static_cast<int>(yunas.size()) < config.yuna_max)
+            if (pending.timer <= 0.0f && static_cast<int>(yunas.size()) < config.yuna_max)
             {
-                spawnYunaUnit();
+                spawnYunaUnit(pending.job, SpawnOrigin::Respawn);
             }
             else
             {
-                remainingRespawns.push_back(std::max(timer, 0.0f));
+                if (pending.timer < 0.0f)
+                {
+                    pending.timer = 0.0f;
+                }
+                remainingRespawns.push_back(pending);
             }
         }
-        yunaRespawnTimers.swap(remainingRespawns);
+        yunaRespawns.swap(remainingRespawns);
 
-        while (reinforcementQueue > 0 && static_cast<int>(yunas.size()) < config.yuna_max)
+        while (!reinforcementJobs.empty() && static_cast<int>(yunas.size()) < config.yuna_max)
         {
-            spawnYunaUnit();
-            --reinforcementQueue;
+            UnitJob job = reinforcementJobs.front();
+            reinforcementJobs.pop_front();
+            spawnYunaUnit(job, SpawnOrigin::Reinforcement);
         }
     }
 

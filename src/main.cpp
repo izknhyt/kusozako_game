@@ -360,7 +360,7 @@ systems::SystemContext WorldState::makeSystemContext(const ActionBuffer &actions
         m_sim->enemies,
         m_sim->walls,
         m_sim->gates,
-        m_sim->yunaRespawnTimers,
+        m_sim->yunaRespawns,
         m_sim->commanderRespawnTimer,
         m_sim->commanderInvulnTimer,
         missionContext,
@@ -624,6 +624,10 @@ void WorldState::setEventBus(std::shared_ptr<EventBus> bus)
 void WorldState::setTelemetrySink(std::shared_ptr<TelemetrySink> sink)
 {
     m_telemetry = std::move(sink);
+    if (m_sim)
+    {
+        m_sim->setTelemetrySink(std::weak_ptr<TelemetrySink>(m_telemetry));
+    }
     if (m_waveController)
     {
         m_waveController->setTelemetrySink(m_telemetry);

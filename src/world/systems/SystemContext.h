@@ -73,7 +73,7 @@ struct SystemContext
     std::vector<EnemyUnit> &enemyUnits;
     std::vector<WallSegment> &wallSegments;
     std::vector<GateRuntime> &gates;
-    std::vector<float> &yunaRespawnQueue;
+    std::vector<LegacySimulation::PendingRespawn> &yunaRespawnQueue;
     float &commanderRespawnTimer;
     float &commanderInvulnTimer;
 

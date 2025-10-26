@@ -212,7 +212,8 @@ std::optional<GameConfig> parseGameConfig(ParseContext &ctx, const std::string &
         cfg.gate_radius = json::getNumber(*gates, "radius_px", cfg.gate_radius);
         cfg.gate_hp = json::getNumber(*gates, "hp", cfg.gate_hp);
     }
-    if (const json::JsonValue *spawn = json::getObjectField(jsonRoot, "spawn"))
+    const json::JsonValue *spawn = json::getObjectField(jsonRoot, "spawn");
+    if (spawn)
     {
         cfg.yuna_interval = json::getNumber(*spawn, "yuna_interval_s", cfg.yuna_interval);
         cfg.yuna_max = json::getInt(*spawn, "yuna_max", cfg.yuna_max);
@@ -222,20 +223,43 @@ std::optional<GameConfig> parseGameConfig(ParseContext &ctx, const std::string &
             cfg.yuna_offset_px = {offset[0], offset[1]};
         }
         cfg.yuna_scatter_y = json::getNumber(*spawn, "yuna_scatter_y_px", cfg.yuna_scatter_y);
-        if (const json::JsonValue *weights = json::getObjectField(*spawn, "jobWeights"))
+    }
+
+    auto applyJobWeights = [&](const json::JsonValue &weights) {
+        if (weights.type != json::JsonValue::Type::Object)
         {
-            for (const auto &entry : weights->object)
+            return false;
+        }
+        bool any = false;
+        for (const auto &entry : weights.object)
+        {
+            if (const auto job = unitJobFromString(entry.first))
             {
-                if (const auto job = unitJobFromString(entry.first))
+                if (entry.second.type == json::JsonValue::Type::Number)
                 {
-                    if (entry.second.type == json::JsonValue::Type::Number)
-                    {
-                        cfg.jobSpawn.setWeight(*job, static_cast<float>(entry.second.number));
-                    }
+                    cfg.jobSpawn.setWeight(*job, static_cast<float>(entry.second.number));
+                    any = true;
                 }
             }
         }
-        if (const json::JsonValue *pity = json::getObjectField(*spawn, "pity"))
+        return any;
+    };
+
+    auto parseJobSpawnSection = [&](const json::JsonValue &section, bool allowInlineWeights) {
+        bool parsed = false;
+        if (const json::JsonValue *weights = json::getObjectField(section, "weights"))
+        {
+            parsed = applyJobWeights(*weights) || parsed;
+        }
+        if (const json::JsonValue *weights = json::getObjectField(section, "jobWeights"))
+        {
+            parsed = applyJobWeights(*weights) || parsed;
+        }
+        if (allowInlineWeights && section.type == json::JsonValue::Type::Object)
+        {
+            parsed = applyJobWeights(section) || parsed;
+        }
+        if (const json::JsonValue *pity = json::getObjectField(section, "pity"))
         {
             cfg.jobSpawn.pity.repeatLimit =
                 std::max(0, json::getInt(*pity, "repeatLimit", cfg.jobSpawn.pity.repeatLimit));
@@ -245,7 +269,52 @@ std::optional<GameConfig> parseGameConfig(ParseContext &ctx, const std::string &
             {
                 cfg.jobSpawn.pity.unseenBoost = 1.0f;
             }
+            parsed = true;
         }
+
+        int history = cfg.jobSpawn.historyLimit;
+        history = json::getInt(section, "history_limit", history);
+        history = json::getInt(section, "historyLimit", history);
+        history = json::getInt(section, "jobHistoryLimit", history);
+        cfg.jobSpawn.historyLimit = history;
+
+        int telemetry = cfg.jobSpawn.telemetryWindow;
+        telemetry = json::getInt(section, "telemetry_window", telemetry);
+        telemetry = json::getInt(section, "telemetryWindow", telemetry);
+        telemetry = json::getInt(section, "jobTelemetryWindow", telemetry);
+        cfg.jobSpawn.telemetryWindow = telemetry;
+
+        return parsed;
+    };
+
+    if (spawn)
+    {
+        parseJobSpawnSection(*spawn, false);
+        if (const json::JsonValue *jobs = json::getObjectField(*spawn, "jobs"))
+        {
+            parseJobSpawnSection(*jobs, true);
+        }
+    }
+    if (const json::JsonValue *jobSection = json::getObjectField(jsonRoot, "spawn_config"))
+    {
+        parseJobSpawnSection(*jobSection, true);
+    }
+    if (const json::JsonValue *jobSection = json::getObjectField(jsonRoot, "spawn_jobs"))
+    {
+        parseJobSpawnSection(*jobSection, true);
+    }
+
+    if (cfg.jobSpawn.historyLimit < 0)
+    {
+        cfg.jobSpawn.historyLimit = 0;
+    }
+    if (cfg.jobSpawn.pity.repeatLimit > 0 && cfg.jobSpawn.historyLimit < cfg.jobSpawn.pity.repeatLimit)
+    {
+        cfg.jobSpawn.historyLimit = cfg.jobSpawn.pity.repeatLimit;
+    }
+    if (cfg.jobSpawn.telemetryWindow < 0)
+    {
+        cfg.jobSpawn.telemetryWindow = 0;
     }
     if (const json::JsonValue *respawn = json::getObjectField(jsonRoot, "respawn"))
     {
