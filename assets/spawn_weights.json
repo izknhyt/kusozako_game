@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "weights": {
+    "warrior": 1.2,
+    "shield": 1.0,
+    "archer": 1.1
+  },
+  "pity": {
+    "repeatLimit": 3,
+    "unseenBoost": 2.0
+  },
+  "history_limit": 18,
+  "telemetry_window": 12
+}

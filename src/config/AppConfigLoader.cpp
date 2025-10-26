@@ -17,6 +17,9 @@ constexpr int kAppSchemaVersion = 1;
 constexpr int kInputSchemaVersion = 1;
 constexpr int kRendererSchemaVersion = 1;
 constexpr int kMoraleSchemaVersion = 1;
+constexpr int kJobsSchemaVersion = 1;
+constexpr int kFormationsSchemaVersion = 1;
+constexpr int kSpawnWeightsSchemaVersion = 1;
 
 struct ParseContext
 {
@@ -102,6 +105,12 @@ std::optional<ParsedJobs> parseJobsConfig(ParseContext &ctx, const std::string &
     const json::JsonValue &root = *jsonDoc.get();
     ParsedJobs jobs;
 
+    auto resolvedPath = fs::path(ctx.assets.resolvePath(path));
+    if (!validateSchema(root, kJobsSchemaVersion, resolvedPath, *ctx.errors))
+    {
+        return std::nullopt;
+    }
+
     if (const json::JsonValue *common = json::getObjectField(root, "jobsCommon"))
     {
         jobs.common.fizzleChance = json::getNumber(*common, "fizzle", jobs.common.fizzleChance);
@@ -171,6 +180,69 @@ std::optional<ParsedJobs> parseJobsConfig(ParseContext &ctx, const std::string &
     return jobs;
 }
 
+bool applyJobSpawnWeights(const json::JsonValue &weights, JobSpawnConfig &config)
+{
+    if (weights.type != json::JsonValue::Type::Object)
+    {
+        return false;
+    }
+    bool any = false;
+    for (const auto &entry : weights.object)
+    {
+        if (const auto job = unitJobFromString(entry.first))
+        {
+            if (entry.second.type == json::JsonValue::Type::Number)
+            {
+                config.setWeight(*job, static_cast<float>(entry.second.number));
+                any = true;
+            }
+        }
+    }
+    return any;
+}
+
+bool parseJobSpawnSection(const json::JsonValue &section, JobSpawnConfig &config, bool allowInlineWeights)
+{
+    bool parsed = false;
+    if (const json::JsonValue *weights = json::getObjectField(section, "weights"))
+    {
+        parsed = applyJobSpawnWeights(*weights, config) || parsed;
+    }
+    if (const json::JsonValue *weights = json::getObjectField(section, "jobWeights"))
+    {
+        parsed = applyJobSpawnWeights(*weights, config) || parsed;
+    }
+    if (allowInlineWeights && section.type == json::JsonValue::Type::Object)
+    {
+        parsed = applyJobSpawnWeights(section, config) || parsed;
+    }
+    if (const json::JsonValue *pity = json::getObjectField(section, "pity"))
+    {
+        config.pity.repeatLimit =
+            std::max(0, json::getInt(*pity, "repeatLimit", config.pity.repeatLimit));
+        config.pity.unseenBoost = json::getNumber(*pity, "unseenBoost", config.pity.unseenBoost);
+        if (config.pity.unseenBoost < 1.0f)
+        {
+            config.pity.unseenBoost = 1.0f;
+        }
+        parsed = true;
+    }
+
+    int history = config.historyLimit;
+    history = json::getInt(section, "history_limit", history);
+    history = json::getInt(section, "historyLimit", history);
+    history = json::getInt(section, "jobHistoryLimit", history);
+    config.historyLimit = history;
+
+    int telemetry = config.telemetryWindow;
+    telemetry = json::getInt(section, "telemetry_window", telemetry);
+    telemetry = json::getInt(section, "telemetryWindow", telemetry);
+    telemetry = json::getInt(section, "jobTelemetryWindow", telemetry);
+    config.telemetryWindow = telemetry;
+
+    return parsed;
+}
+
 std::optional<GameConfig> parseGameConfig(ParseContext &ctx, const std::string &path)
 {
     AssetManager::AssetLoadStatus status;
@@ -225,84 +297,29 @@ std::optional<GameConfig> parseGameConfig(ParseContext &ctx, const std::string &
         cfg.yuna_scatter_y = json::getNumber(*spawn, "yuna_scatter_y_px", cfg.yuna_scatter_y);
     }
 
-    auto applyJobWeights = [&](const json::JsonValue &weights) {
-        if (weights.type != json::JsonValue::Type::Object)
-        {
-            return false;
-        }
-        bool any = false;
-        for (const auto &entry : weights.object)
-        {
-            if (const auto job = unitJobFromString(entry.first))
-            {
-                if (entry.second.type == json::JsonValue::Type::Number)
-                {
-                    cfg.jobSpawn.setWeight(*job, static_cast<float>(entry.second.number));
-                    any = true;
-                }
-            }
-        }
-        return any;
-    };
-
-    auto parseJobSpawnSection = [&](const json::JsonValue &section, bool allowInlineWeights) {
-        bool parsed = false;
-        if (const json::JsonValue *weights = json::getObjectField(section, "weights"))
-        {
-            parsed = applyJobWeights(*weights) || parsed;
-        }
-        if (const json::JsonValue *weights = json::getObjectField(section, "jobWeights"))
-        {
-            parsed = applyJobWeights(*weights) || parsed;
-        }
-        if (allowInlineWeights && section.type == json::JsonValue::Type::Object)
-        {
-            parsed = applyJobWeights(section) || parsed;
-        }
-        if (const json::JsonValue *pity = json::getObjectField(section, "pity"))
-        {
-            cfg.jobSpawn.pity.repeatLimit =
-                std::max(0, json::getInt(*pity, "repeatLimit", cfg.jobSpawn.pity.repeatLimit));
-            cfg.jobSpawn.pity.unseenBoost =
-                json::getNumber(*pity, "unseenBoost", cfg.jobSpawn.pity.unseenBoost);
-            if (cfg.jobSpawn.pity.unseenBoost < 1.0f)
-            {
-                cfg.jobSpawn.pity.unseenBoost = 1.0f;
-            }
-            parsed = true;
-        }
-
-        int history = cfg.jobSpawn.historyLimit;
-        history = json::getInt(section, "history_limit", history);
-        history = json::getInt(section, "historyLimit", history);
-        history = json::getInt(section, "jobHistoryLimit", history);
-        cfg.jobSpawn.historyLimit = history;
-
-        int telemetry = cfg.jobSpawn.telemetryWindow;
-        telemetry = json::getInt(section, "telemetry_window", telemetry);
-        telemetry = json::getInt(section, "telemetryWindow", telemetry);
-        telemetry = json::getInt(section, "jobTelemetryWindow", telemetry);
-        cfg.jobSpawn.telemetryWindow = telemetry;
-
-        return parsed;
-    };
-
+    bool hasInlineSpawnWeights = false;
     if (spawn)
     {
-        parseJobSpawnSection(*spawn, false);
+        hasInlineSpawnWeights = parseJobSpawnSection(*spawn, cfg.jobSpawn, false) || hasInlineSpawnWeights;
         if (const json::JsonValue *jobs = json::getObjectField(*spawn, "jobs"))
         {
-            parseJobSpawnSection(*jobs, true);
+            hasInlineSpawnWeights =
+                parseJobSpawnSection(*jobs, cfg.jobSpawn, true) || hasInlineSpawnWeights;
         }
+        cfg.jobSpawn.weightsAssetPath =
+            json::getString(*spawn, "weights_path", cfg.jobSpawn.weightsAssetPath);
+        cfg.spawn_weights_path = json::getString(*spawn, "weights_path", cfg.spawn_weights_path);
     }
     if (const json::JsonValue *jobSection = json::getObjectField(jsonRoot, "spawn_config"))
     {
-        parseJobSpawnSection(*jobSection, true);
+        hasInlineSpawnWeights = parseJobSpawnSection(*jobSection, cfg.jobSpawn, true) || hasInlineSpawnWeights;
     }
     if (const json::JsonValue *jobSection = json::getObjectField(jsonRoot, "spawn_jobs"))
     {
-        parseJobSpawnSection(*jobSection, true);
+        hasInlineSpawnWeights = parseJobSpawnSection(*jobSection, cfg.jobSpawn, true) || hasInlineSpawnWeights;
     }
+    cfg.spawn_weights_path = json::getString(jsonRoot, "spawn_weights", cfg.spawn_weights_path);
+    cfg.jobSpawn.hasInlineWeights = hasInlineSpawnWeights;
 
     if (cfg.jobSpawn.historyLimit < 0)
     {
@@ -356,6 +373,9 @@ std::optional<GameConfig> parseGameConfig(ParseContext &ctx, const std::string &
         cfg.lod_skip_draw_every = std::max(1, json::getInt(*lod, "skip_draw_every", cfg.lod_skip_draw_every));
     }
     cfg.mission_path = json::getString(jsonRoot, "mission", cfg.mission_path);
+    cfg.formations_path = json::getString(jsonRoot, "formations_config", cfg.formations_path);
+    cfg.morale_path = json::getString(jsonRoot, "morale_config", cfg.morale_path);
+    cfg.jobs_path = json::getString(jsonRoot, "jobs_config", cfg.jobs_path);
     return cfg;
 }
 
@@ -466,12 +486,59 @@ std::optional<FormationAlignmentConfig> parseFormationConfig(ParseContext &ctx, 
 
     FormationAlignmentConfig config;
     const json::JsonValue &root = *jsonDoc.get();
+    fs::path resolved = ctx.assets.resolvePath(path);
+    if (!validateSchema(root, kFormationsSchemaVersion, resolved, *ctx.errors))
+    {
+        return std::nullopt;
+    }
     config.alignDuration = std::max(0.0f, json::getNumber(root, "align_duration_s", config.alignDuration));
     config.defenseMultiplier = json::getNumber(root, "defense_multiplier", config.defenseMultiplier);
     if (config.defenseMultiplier <= 0.0f)
     {
         config.defenseMultiplier = 1.0f;
     }
+    return config;
+}
+
+std::optional<JobSpawnConfig> parseSpawnWeights(ParseContext &ctx, const std::string &path,
+                                                const JobSpawnConfig &defaults)
+{
+    if (path.empty())
+    {
+        return defaults;
+    }
+
+    AssetManager::AssetLoadStatus status;
+    auto jsonDoc = ctx.assets.acquireJson(path);
+    status = jsonDoc.status();
+    if (!jsonDoc.get())
+    {
+        auto &errors = *ctx.errors;
+        if (!status.message.empty())
+        {
+            errors.push_back({path, status.message});
+        }
+        else
+        {
+            errors.push_back({path, "Failed to load spawn weights"});
+        }
+        return std::nullopt;
+    }
+    if (!status.ok && !status.message.empty())
+    {
+        ctx.errors->push_back({path, status.message});
+    }
+
+    const json::JsonValue &root = *jsonDoc.get();
+    fs::path resolved = ctx.assets.resolvePath(path);
+    if (!validateSchema(root, kSpawnWeightsSchemaVersion, resolved, *ctx.errors))
+    {
+        return std::nullopt;
+    }
+
+    JobSpawnConfig config = defaults;
+    parseJobSpawnSection(root, config, true);
+    config.weightsAssetPath = path;
     return config;
 }
 
@@ -1439,6 +1506,7 @@ AppConfigLoadResult AppConfigLoader::load(AssetManager &assets)
     std::string formationsPath = "assets/formations.json";
     std::string atlasPath = "assets/atlas.json";
     std::string moralePath = "assets/morale.json";
+    std::string spawnWeightsPath = "assets/spawn_weights.json";
     if (assetsObj)
     {
         gamePath = json::getString(*assetsObj, "game", gamePath);
@@ -1450,6 +1518,7 @@ AppConfigLoadResult AppConfigLoader::load(AssetManager &assets)
         formationsPath = json::getString(*assetsObj, "formations", formationsPath);
         atlasPath = json::getString(*assetsObj, "atlas", atlasPath);
         moralePath = json::getString(*assetsObj, "morale", moralePath);
+        spawnWeightsPath = json::getString(*assetsObj, "spawn_weights", spawnWeightsPath);
     }
 
     const fs::path rendererPath = m_configRoot / "renderer.json";
@@ -1519,6 +1588,26 @@ AppConfigLoadResult AppConfigLoader::load(AssetManager &assets)
         return result;
     }
     gameCfg->morale = *morale;
+    auto spawnWeights = parseSpawnWeights(ctx, spawnWeightsPath, gameCfg->jobSpawn);
+    if (!spawnWeights)
+    {
+        result.errors = std::move(errors);
+        return result;
+    }
+    gameCfg->jobSpawn = *spawnWeights;
+    if (gameCfg->jobSpawn.historyLimit < 0)
+    {
+        gameCfg->jobSpawn.historyLimit = 0;
+    }
+    if (gameCfg->jobSpawn.pity.repeatLimit > 0 &&
+        gameCfg->jobSpawn.historyLimit < gameCfg->jobSpawn.pity.repeatLimit)
+    {
+        gameCfg->jobSpawn.historyLimit = gameCfg->jobSpawn.pity.repeatLimit;
+    }
+    if (gameCfg->jobSpawn.telemetryWindow < 0)
+    {
+        gameCfg->jobSpawn.telemetryWindow = 0;
+    }
     gameCfg->jobCommon = jobs->common;
     gameCfg->warriorJob = jobs->warrior;
     gameCfg->archerJob = jobs->archer;
@@ -1546,6 +1635,12 @@ AppConfigLoadResult AppConfigLoader::load(AssetManager &assets)
         errors.push_back({skillsPath, "Failed to parse skills, using defaults"});
     }
     auto formations = parseFormationConfig(ctx, formationsPath);
+    if (!formations)
+    {
+        result.errors = std::move(errors);
+        return result;
+    }
+    gameCfg->formationDefaults = *formations;
 
     trackFile("assets/game", assets.resolvePath(gamePath));
     trackFile("assets/entities", assets.resolvePath(entitiesPath));
@@ -1556,6 +1651,10 @@ AppConfigLoadResult AppConfigLoader::load(AssetManager &assets)
     trackFile("assets/morale", assets.resolvePath(moralePath));
     trackFile("assets/skills", assets.resolvePath(skillsPath));
     trackFile("assets/formations", assets.resolvePath(formationsPath));
+    if (!spawnWeightsPath.empty())
+    {
+        trackFile("assets/spawn_weights", assets.resolvePath(spawnWeightsPath));
+    }
     if (!gameCfg->mission_path.empty())
     {
         trackFile("assets/mission", assets.resolvePath(gameCfg->mission_path));
@@ -1565,6 +1664,14 @@ AppConfigLoadResult AppConfigLoader::load(AssetManager &assets)
     result.config = loadFallback();
     result.config.renderer = parseRendererConfig(*rendererJson);
     result.config.input = parseInputBindings(*inputJson);
+    gameCfg->jobs_path = jobsPath;
+    gameCfg->morale_path = moralePath;
+    gameCfg->formations_path = formationsPath;
+    gameCfg->spawn_weights_path = spawnWeightsPath;
+    if (gameCfg->jobSpawn.weightsAssetPath.empty())
+    {
+        gameCfg->jobSpawn.weightsAssetPath = spawnWeightsPath;
+    }
     result.config.game = *gameCfg;
     result.config.entityCatalog = *entities;
     result.config.mapDefs = *mapDefs;
@@ -1573,10 +1680,6 @@ AppConfigLoadResult AppConfigLoader::load(AssetManager &assets)
     result.config.game.morale = *morale;
     result.config.mission = mission;
     result.config.skills = *skills;
-    if (formations)
-    {
-        result.config.formations = *formations;
-    }
     result.config.atlasPath = atlasPath;
 
     result.errors = std::move(errors);

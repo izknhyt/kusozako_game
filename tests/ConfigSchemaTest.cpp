@@ -25,5 +25,16 @@ int main()
         }
         return 1;
     }
+    const GameConfig &game = result.config.game;
+    if (game.jobs_path.empty() || game.morale_path.empty() || game.formations_path.empty())
+    {
+        std::cerr << "Config missing referenced asset paths in game config.\n";
+        return 1;
+    }
+    if (game.spawn_weights_path.empty() || game.jobSpawn.weightsAssetPath.empty())
+    {
+        std::cerr << "Spawn weighting configuration not resolved.\n";
+        return 1;
+    }
     return 0;
 }

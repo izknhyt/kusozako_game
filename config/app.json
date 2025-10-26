@@ -7,6 +7,7 @@
     "temperaments": "assets/ai_temperaments.json",
     "jobs": "assets/jobs.json",
     "morale": "assets/morale.json",
+    "spawn_weights": "assets/spawn_weights.json",
     "skills": "assets/skills.json",
     "formations": "assets/formations.json",
     "atlas": "assets/atlas.json"
