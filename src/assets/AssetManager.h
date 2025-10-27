@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cstdint>
+#include <functional>
 #include <memory>
 #include <optional>
 #include <string>
@@ -146,6 +148,16 @@ class AssetManager
     void release(const AssetHandle &handle);
     void clear();
 
+    using TextureLoadFunc = std::function<TexturePtr(SDL_Renderer *, const std::string &)>;
+    using TextureQueryFunc = std::function<int(SDL_Texture *, Uint32 *, int *, int *, int *)>;
+
+    void setTextureLoadCallback(TextureLoadFunc loader);
+    void setTextureQueryCallback(TextureQueryFunc query);
+
+    void setTextureMemoryWarningThreshold(std::uintmax_t bytes);
+    std::uintmax_t textureMemoryWarningThreshold() const { return m_textureWarningThresholdBytes; }
+    std::uintmax_t totalTextureBytes() const { return m_totalTextureBytes; }
+
   private:
     struct AssetRequest
     {
@@ -160,6 +172,9 @@ class AssetManager
         std::string resolvedPath;
         std::variant<std::monostate, TexturePtr, FontPtr, JsonPtr> resource;
         int refCount = 0;
+        int width = 0;
+        int height = 0;
+        std::uintmax_t byteSize = 0;
     };
 
     AssetLoadStatus requestLoad(const AssetRequest &request);
@@ -180,5 +195,14 @@ class AssetManager
     TexturePtr m_fallbackTexture;
     FontPtr m_fallbackFont;
     JsonPtr m_fallbackJson;
+
+    TextureLoadFunc m_textureLoader;
+    TextureQueryFunc m_textureQuery;
+    std::uintmax_t m_textureWarningThresholdBytes = 150ull * 1024ull * 1024ull;
+    std::uintmax_t m_totalTextureBytes = 0;
+    bool m_textureWarningActive = false;
+
+    void evaluateTextureMemoryWarning();
+    void emitTextureMemoryWarning();
 };
 

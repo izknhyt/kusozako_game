@@ -471,6 +471,7 @@ struct TelemetryOptions
     std::string outputDirectory{"build/debug_dumps"};
     std::uintmax_t rotationBytes = 10ull * 1024ull * 1024ull;
     std::size_t maxFiles = 8;
+    std::uintmax_t textureMemoryWarningBytes = 150ull * 1024ull * 1024ull;
 };
 
 struct InputBindings

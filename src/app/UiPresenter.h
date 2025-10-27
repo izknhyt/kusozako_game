@@ -85,9 +85,13 @@ class UiPresenter
     void setTelemetrySink(std::shared_ptr<TelemetrySink> sink);
     void bindSimulation(world::LegacySimulation *simulation);
 
+    void showWarningMessage(const std::string &message, float durationSeconds = 0.0f);
+
     const FormationHudStatus &formationHud() const { return m_formationHud; }
     const MoraleHudStatus &moraleHud() const { return m_moraleHud; }
     const JobHudStatus &jobHud() const { return m_jobHud; }
+    const std::string &lastWarningMessage() const { return m_lastWarningMessage; }
+    float lastWarningDuration() const { return m_lastWarningDuration; }
 
   private:
     void subscribe();
@@ -114,5 +118,7 @@ class UiPresenter
     EventBus::SubscriptionToken m_countdownHandler;
     EventBus::SubscriptionToken m_moraleStatusHandler;
     EventBus::SubscriptionToken m_jobSummaryHandler;
+    std::string m_lastWarningMessage;
+    float m_lastWarningDuration = 0.0f;
 };
 

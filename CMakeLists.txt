@@ -179,3 +179,20 @@ target_include_directories(performance_budget_monitor_test PRIVATE
 )
 
 add_test(NAME performance_budget_monitor COMMAND performance_budget_monitor_test)
+
+add_executable(asset_manager_memory_warning_test
+  tests/AssetManagerMemoryWarningTest.cpp
+  src/assets/AssetManager.cpp
+  src/services/ServiceLocator.cpp
+  src/telemetry/TelemetrySink.cpp
+  tests/StubUiPresenter.cpp
+)
+
+target_include_directories(asset_manager_memory_warning_test PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}/src
+  ${CMAKE_CURRENT_SOURCE_DIR}/tests
+)
+
+target_link_libraries(asset_manager_memory_warning_test PRIVATE SDL2::SDL2 SDL2_image::SDL2_image SDL2_ttf::SDL2_ttf)
+
+add_test(NAME asset_manager_memory_warning COMMAND asset_manager_memory_warning_test)
