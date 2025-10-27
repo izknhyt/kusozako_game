@@ -136,6 +136,10 @@ void CombatSystem::update(float dt, SystemContext &context)
         sim.formationAlignTimer > 0.0f ? std::max(sim.formationDefenseMul, 0.01f) : 1.0f;
     const float formationDamageScale = 1.0f / defenseMultiplier;
 
+    const int configuredTileSize = sim.mapDefs.tile_size > 0 ? sim.mapDefs.tile_size : 16;
+    const float cellSize = std::max(1.0f, static_cast<float>(configuredTileSize));
+    m_grid.configure(sim.worldMin, sim.worldMax, cellSize);
+
     for (EnemyUnit &enemy : enemies)
     {
         bool taunted = enemy.tauntTimer > 0.0f;
@@ -183,10 +187,80 @@ void CombatSystem::update(float dt, SystemContext &context)
         enemy.pos += dir * (speedPx * dt);
     }
 
-    for (EnemyUnit &enemy : enemies)
-    {
-        for (WallSegment &wall : walls)
+    m_grid.clear();
+
+    auto ensureMarkerSize = [](std::vector<std::uint32_t> &marker, std::size_t size) {
+        if (marker.size() < size)
         {
+            marker.resize(size, 0);
+        }
+    };
+
+    ensureMarkerSize(m_wallVisit, walls.size());
+    ensureMarkerSize(m_enemyVisit, enemies.size());
+
+    if (!walls.empty())
+    {
+        for (std::size_t i = 0; i < walls.size(); ++i)
+        {
+            m_grid.insertWall(i, walls[i].pos, walls[i].radius);
+        }
+    }
+
+    auto nextStamp = [](std::uint32_t &stamp, std::vector<std::uint32_t> &markers) {
+        ++stamp;
+        if (stamp == 0)
+        {
+            std::fill(markers.begin(), markers.end(), 0);
+            ++stamp;
+        }
+    };
+
+    auto gatherWallsNear = [&](const Vec2 &pos, float radius, std::vector<std::size_t> &out) {
+        out.clear();
+        if (walls.empty())
+        {
+            return;
+        }
+        m_grid.queryCells(pos, radius, m_cellScratch);
+        nextStamp(m_wallStamp, m_wallVisit);
+        for (std::size_t cellIndex : m_cellScratch)
+        {
+            const auto &cell = m_grid.cell(cellIndex);
+            for (std::size_t idx : cell.walls)
+            {
+                if (idx >= walls.size())
+                {
+                    continue;
+                }
+                if (m_wallVisit[idx] != m_wallStamp)
+                {
+                    m_wallVisit[idx] = m_wallStamp;
+                    out.push_back(idx);
+                }
+            }
+        }
+    };
+
+    for (std::size_t enemyIndex = 0; enemyIndex < enemies.size(); ++enemyIndex)
+    {
+        EnemyUnit &enemy = enemies[enemyIndex];
+        if (enemy.hp <= 0.0f)
+        {
+            continue;
+        }
+        gatherWallsNear(enemy.pos, enemy.radius, m_wallScratch);
+        for (std::size_t wallIndex : m_wallScratch)
+        {
+            if (wallIndex >= walls.size())
+            {
+                continue;
+            }
+            WallSegment &wall = walls[wallIndex];
+            if (wall.hp <= 0.0f)
+            {
+                continue;
+            }
             const float combined = enemy.radius + wall.radius;
             const float distSq = lengthSq(enemy.pos - wall.pos);
             if (distSq <= combined * combined)
@@ -200,13 +274,61 @@ void CombatSystem::update(float dt, SystemContext &context)
         }
     }
 
+    if (!enemies.empty())
+    {
+        for (std::size_t i = 0; i < enemies.size(); ++i)
+        {
+            m_grid.insertEnemy(i, enemies[i].pos, enemies[i].radius);
+        }
+    }
+
+    if (!yunas.empty())
+    {
+        for (std::size_t i = 0; i < yunas.size(); ++i)
+        {
+            m_grid.insertUnit(i, yunas[i].pos, yunas[i].radius);
+        }
+    }
+
+    auto gatherEnemiesNear = [&](const Vec2 &pos, float radius, std::vector<std::size_t> &out) {
+        out.clear();
+        if (enemies.empty())
+        {
+            return;
+        }
+        m_grid.queryCells(pos, radius, m_cellScratch);
+        nextStamp(m_enemyStamp, m_enemyVisit);
+        for (std::size_t cellIndex : m_cellScratch)
+        {
+            const auto &cell = m_grid.cell(cellIndex);
+            for (std::size_t idx : cell.enemies)
+            {
+                if (idx >= enemies.size())
+                {
+                    continue;
+                }
+                if (m_enemyVisit[idx] != m_enemyStamp)
+                {
+                    m_enemyVisit[idx] = m_enemyStamp;
+                    out.push_back(idx);
+                }
+            }
+        }
+    };
+
     std::vector<float> yunaDamage(yunas.size(), 0.0f);
     float commanderDamage = 0.0f;
 
     if (commander.alive)
     {
-        for (EnemyUnit &enemy : enemies)
+        gatherEnemiesNear(commander.pos, commander.radius, m_enemyScratch);
+        for (std::size_t enemyIndex : m_enemyScratch)
         {
+            EnemyUnit &enemy = enemies[enemyIndex];
+            if (enemy.hp <= 0.0f)
+            {
+                continue;
+            }
             const float combined = commander.radius + enemy.radius;
             if (lengthSq(commander.pos - enemy.pos) <= combined * combined)
             {
@@ -242,8 +364,14 @@ void CombatSystem::update(float dt, SystemContext &context)
         {
             triggerShieldTaunt(yuna, sim, enemies);
         }
-        for (EnemyUnit &enemy : enemies)
+        gatherEnemiesNear(yuna.pos, yuna.radius, m_enemyScratch);
+        for (std::size_t enemyIndex : m_enemyScratch)
         {
+            EnemyUnit &enemy = enemies[enemyIndex];
+            if (enemy.hp <= 0.0f)
+            {
+                continue;
+            }
             const float combined = yuna.radius + enemy.radius;
             if (lengthSq(yuna.pos - enemy.pos) <= combined * combined)
             {
@@ -292,10 +420,6 @@ void CombatSystem::update(float dt, SystemContext &context)
         }
     }
 
-    enemies.erase(std::remove_if(enemies.begin(), enemies.end(), [](const EnemyUnit &e) {
-        return e.hp <= 0.0f;
-    }), enemies.end());
-
     if (commander.alive && commanderDamage > 0.0f)
     {
         const float hpBefore = commander.hp;
@@ -343,8 +467,14 @@ void CombatSystem::update(float dt, SystemContext &context)
     }
 
     const float baseRadius = std::max(sim.config.base_aabb.x, sim.config.base_aabb.y) * 0.5f;
-    for (EnemyUnit &enemy : enemies)
+    gatherEnemiesNear(sim.basePos, baseRadius, m_enemyScratch);
+    for (std::size_t enemyIndex : m_enemyScratch)
     {
+        EnemyUnit &enemy = enemies[enemyIndex];
+        if (enemy.hp <= 0.0f)
+        {
+            continue;
+        }
         const float combined = baseRadius + enemy.radius;
         if (lengthSq(enemy.pos - sim.basePos) <= combined * combined)
         {
@@ -360,6 +490,10 @@ void CombatSystem::update(float dt, SystemContext &context)
             }
         }
     }
+
+    enemies.erase(std::remove_if(enemies.begin(), enemies.end(), [](const EnemyUnit &e) {
+        return e.hp <= 0.0f;
+    }), enemies.end());
 
     walls.erase(std::remove_if(walls.begin(), walls.end(), [](const WallSegment &wall) {
         return wall.hp <= 0.0f;
