@@ -66,6 +66,15 @@ struct HUDState
         std::string message;
         float timer = 0.0f;
     } performance;
+
+    struct SpawnBudgetWarning
+    {
+        bool active = false;
+        std::string message;
+        float timer = 0.0f;
+        std::size_t lastDeferred = 0;
+        std::size_t totalDeferred = 0;
+    } spawnBudget;
 };
 
 enum class GameResult

@@ -165,6 +165,18 @@ target_include_directories(event_bus_test PRIVATE
 
 add_test(NAME event_bus COMMAND event_bus_test)
 
+add_executable(spawner_test
+  tests/SpawnerTest.cpp
+  src/world/spawn/Spawner.cpp
+)
+
+target_include_directories(spawner_test PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}/src
+  ${CMAKE_CURRENT_SOURCE_DIR}/tests
+)
+
+add_test(NAME spawner COMMAND spawner_test)
+
 add_executable(performance_budget_monitor_test
   tests/PerformanceBudgetMonitorTest.cpp
   src/telemetry/PerformanceBudgetMonitor.cpp

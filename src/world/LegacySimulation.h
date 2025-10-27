@@ -322,6 +322,8 @@ struct LegacySimulation
         float telemetryTimer = 0.0f;
         std::string performanceWarningText;
         float performanceWarningTimer = 0.0f;
+        std::string spawnWarningText;
+        float spawnWarningTimer = 0.0f;
 
         void clearDynamic()
         {
@@ -331,6 +333,11 @@ struct LegacySimulation
             moraleIcons.clear();
         }
     } renderQueue;
+
+    struct SpawnBudgetState
+    {
+        std::size_t totalDeferred = 0;
+    } spawnBudgetState;
 
     struct SurvivalRuntime
     {
@@ -457,6 +464,7 @@ struct LegacySimulation
         spawnTelemetryWindow.clear();
         spawnTelemetryTotals.fill(0);
         spawnTelemetryTotal = 0;
+        spawnBudgetState = {};
         enemies.clear();
         walls.clear();
         spawnEnabled = true;
@@ -1593,6 +1601,8 @@ struct LegacySimulation
         hud.telemetryText = normalizeTelemetry(text);
         hud.telemetryTimer = config.telemetry_duration;
     }
+
+    void handleSpawnDeferral(int deferredCount);
 
     void setResult(GameResult r, const std::string &text)
     {

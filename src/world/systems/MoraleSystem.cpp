@@ -87,6 +87,16 @@ void MoraleSystem::update(float dt, SystemContext &context)
         }
         requestSync = true;
     }
+    if (tickTimer(hud.spawnBudget.timer))
+    {
+        if (hud.spawnBudget.timer <= 0.0f)
+        {
+            hud.spawnBudget.active = false;
+            hud.spawnBudget.message.clear();
+            hud.spawnBudget.lastDeferred = 0;
+        }
+        requestSync = true;
+    }
 
     if (context.orderActive)
     {
