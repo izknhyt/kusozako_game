@@ -337,6 +337,9 @@ bool GameApplication::initialize()
 
 void GameApplication::applyTelemetrySettings()
 {
+    m_assetManager.setTextureMemoryWarningThreshold(
+        m_appConfigResult.config.telemetry.textureMemoryWarningBytes);
+
     if (!m_telemetrySink)
     {
         return;

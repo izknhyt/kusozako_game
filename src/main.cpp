@@ -2017,6 +2017,7 @@ class BattleScene : public Scene
     std::shared_ptr<EventBus> m_eventBus;
     std::shared_ptr<AssetManager> m_assetService;
     UiPresenter m_ui;
+    std::shared_ptr<UiPresenter> m_uiServiceHandle;
     ActionBuffer m_actionBuffer;
     std::uint64_t m_inputSequence = 0;
     std::uint64_t m_lastProcessedSequence = 0;
@@ -2050,6 +2051,12 @@ void BattleScene::onEnter(GameApplication &app, SceneStack &stack)
     m_eventBus = locator.getService<EventBus>();
     m_assetService = locator.getService<AssetManager>();
 
+    if (!m_uiServiceHandle)
+    {
+        m_uiServiceHandle = std::shared_ptr<UiPresenter>(&m_ui, [](UiPresenter *) {});
+    }
+    locator.registerService<UiPresenter>(m_uiServiceHandle);
+
     if (!m_assetService)
     {
         std::cerr << "AssetManager service not available.\n";
@@ -2078,6 +2085,8 @@ void BattleScene::onExit(GameApplication &app, SceneStack &stack)
     (void)app;
     (void)stack;
 
+    ServiceLocator &locator = ServiceLocator::instance();
+
     m_ui.bindSimulation(nullptr);
     m_ui.setEventBus(nullptr);
     m_ui.setTelemetrySink(nullptr);
@@ -2095,6 +2104,8 @@ void BattleScene::onExit(GameApplication &app, SceneStack &stack)
     m_assetService.reset();
     m_eventBus.reset();
     m_telemetry.reset();
+    locator.unregisterService<UiPresenter>();
+    m_uiServiceHandle.reset();
 }
 
 void BattleScene::handleEvent(const SDL_Event &event, GameApplication &app, SceneStack &stack)

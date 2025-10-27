@@ -4,10 +4,14 @@
 
 #include <filesystem>
 #include <fstream>
+#include <iomanip>
 #include <iostream>
+#include <limits>
 #include <sstream>
 
 #include "json/JsonUtils.h"
+#include "services/ServiceLocator.h"
+#include "app/UiPresenter.h"
 
 namespace
 {
@@ -43,9 +47,44 @@ AssetManager::FontPtr makeFontPtr(TTF_Font *font)
     return AssetManager::FontPtr(font, FontDeleter{});
 }
 
+AssetManager::TexturePtr defaultTextureLoader(SDL_Renderer *renderer, const std::string &path)
+{
+    if (!renderer)
+    {
+        return nullptr;
+    }
+    SDL_Texture *texture = IMG_LoadTexture(renderer, path.c_str());
+    if (!texture)
+    {
+        return nullptr;
+    }
+    return makeTexturePtr(texture);
+}
+
+int defaultTextureQuery(SDL_Texture *texture, Uint32 *format, int *access, int *w, int *h)
+{
+    return SDL_QueryTexture(texture, format, access, w, h);
+}
+
+std::uintmax_t safeMultiply(std::uintmax_t lhs, std::uintmax_t rhs)
+{
+    if (lhs == 0 || rhs == 0)
+    {
+        return 0;
+    }
+    if (lhs > std::numeric_limits<std::uintmax_t>::max() / rhs)
+    {
+        return std::numeric_limits<std::uintmax_t>::max();
+    }
+    return lhs * rhs;
+}
+
 } // namespace
 
-AssetManager::AssetManager() = default;
+AssetManager::AssetManager()
+    : m_textureLoader(defaultTextureLoader), m_textureQuery(defaultTextureQuery)
+{
+}
 
 AssetManager::~AssetManager()
 {
@@ -165,6 +204,18 @@ void AssetManager::release(const AssetHandle &handle)
     }
     if (record.refCount <= 0)
     {
+        if (record.type == AssetType::Texture && record.byteSize > 0)
+        {
+            if (record.byteSize >= m_totalTextureBytes)
+            {
+                m_totalTextureBytes = 0;
+            }
+            else
+            {
+                m_totalTextureBytes -= record.byteSize;
+            }
+            evaluateTextureMemoryWarning();
+        }
         m_assets.erase(it);
     }
 }
@@ -177,6 +228,38 @@ void AssetManager::clear()
     m_fallbackJson.reset();
     m_renderer = nullptr;
     m_assetRoot.clear();
+    m_totalTextureBytes = 0;
+    m_textureWarningActive = false;
+}
+
+void AssetManager::setTextureLoadCallback(TextureLoadFunc loader)
+{
+    if (loader)
+    {
+        m_textureLoader = std::move(loader);
+    }
+    else
+    {
+        m_textureLoader = defaultTextureLoader;
+    }
+}
+
+void AssetManager::setTextureQueryCallback(TextureQueryFunc query)
+{
+    if (query)
+    {
+        m_textureQuery = std::move(query);
+    }
+    else
+    {
+        m_textureQuery = defaultTextureQuery;
+    }
+}
+
+void AssetManager::setTextureMemoryWarningThreshold(std::uintmax_t bytes)
+{
+    m_textureWarningThresholdBytes = bytes;
+    evaluateTextureMemoryWarning();
 }
 
 AssetManager::AssetLoadStatus AssetManager::requestLoad(const AssetRequest &request)
@@ -290,13 +373,40 @@ AssetManager::AssetRecord *AssetManager::loadOrGet(const AssetRequest &request, 
             status.message = "Renderer not available";
             break;
         }
-        SDL_Texture *texture = IMG_LoadTexture(m_renderer, record.resolvedPath.c_str());
+        TexturePtr texture;
+        if (m_textureLoader)
+        {
+            texture = m_textureLoader(m_renderer, record.resolvedPath);
+        }
         if (!texture)
         {
             status.message = std::string("Failed to load texture: ") + record.resolvedPath + " -> " + IMG_GetError();
             break;
         }
-        record.resource = makeTexturePtr(texture);
+        if (m_textureQuery)
+        {
+            Uint32 format = 0;
+            int access = 0;
+            int width = 0;
+            int height = 0;
+            if (m_textureQuery(texture.get(), &format, &access, &width, &height) == 0)
+            {
+                record.width = width;
+                record.height = height;
+                const std::uintmax_t wVal = width > 0 ? static_cast<std::uintmax_t>(width) : 0;
+                const std::uintmax_t hVal = height > 0 ? static_cast<std::uintmax_t>(height) : 0;
+                const std::uintmax_t bpp = static_cast<std::uintmax_t>(SDL_BYTESPERPIXEL(format));
+                const std::uintmax_t area = safeMultiply(wVal, hVal);
+                record.byteSize = safeMultiply(area, bpp);
+            }
+            else
+            {
+                record.width = 0;
+                record.height = 0;
+                record.byteSize = 0;
+            }
+        }
+        record.resource = std::move(texture);
         status.ok = true;
         break;
     }
@@ -339,9 +449,24 @@ AssetManager::AssetRecord *AssetManager::loadOrGet(const AssetRequest &request, 
         return nullptr;
     }
 
+    const std::uintmax_t newTextureBytes = request.type == AssetType::Texture ? record.byteSize : 0;
+
     auto inserted = m_assets.emplace(outKey, std::move(record));
     if (inserted.second)
     {
+        if (newTextureBytes > 0)
+        {
+            const std::uintmax_t maxValue = std::numeric_limits<std::uintmax_t>::max();
+            if (newTextureBytes > maxValue - m_totalTextureBytes)
+            {
+                m_totalTextureBytes = maxValue;
+            }
+            else
+            {
+                m_totalTextureBytes += newTextureBytes;
+            }
+            evaluateTextureMemoryWarning();
+        }
         return &inserted.first->second;
     }
     return nullptr;
@@ -370,5 +495,59 @@ std::string AssetManager::makeKey(const AssetRequest &request, std::string &reso
         key.append(std::to_string(request.variant));
     }
     return key;
+}
+
+void AssetManager::evaluateTextureMemoryWarning()
+{
+    if (m_textureWarningThresholdBytes == 0)
+    {
+        m_textureWarningActive = false;
+        return;
+    }
+
+    if (m_totalTextureBytes > m_textureWarningThresholdBytes)
+    {
+        if (!m_textureWarningActive)
+        {
+            m_textureWarningActive = true;
+            emitTextureMemoryWarning();
+        }
+    }
+    else
+    {
+        m_textureWarningActive = false;
+    }
+}
+
+void AssetManager::emitTextureMemoryWarning()
+{
+    ServiceLocator &locator = ServiceLocator::instance();
+    if (auto telemetry = locator.telemetrySink())
+    {
+        TelemetrySink::Payload payload;
+        payload.emplace("bytes", std::to_string(m_totalTextureBytes));
+        payload.emplace("threshold_bytes", std::to_string(m_textureWarningThresholdBytes));
+
+        auto formatMb = [](std::uintmax_t value) {
+            std::ostringstream oss;
+            const double mb = static_cast<double>(value) / (1024.0 * 1024.0);
+            oss << std::fixed << std::setprecision(2) << mb;
+            return oss.str();
+        };
+
+        payload.emplace("mb", formatMb(m_totalTextureBytes));
+        payload.emplace("threshold_mb", formatMb(m_textureWarningThresholdBytes));
+        telemetry->recordEvent("assets.texture_memory.warning", payload);
+    }
+
+    if (auto ui = locator.getService<UiPresenter>())
+    {
+        std::ostringstream message;
+        const double totalMb = static_cast<double>(m_totalTextureBytes) / (1024.0 * 1024.0);
+        const double thresholdMb = static_cast<double>(m_textureWarningThresholdBytes) / (1024.0 * 1024.0);
+        message << "Texture memory usage high: " << std::fixed << std::setprecision(1) << totalMb
+                << "MB (threshold " << std::fixed << std::setprecision(1) << thresholdMb << "MB)";
+        ui->showWarningMessage(message.str(), 0.0f);
+    }
 }
 

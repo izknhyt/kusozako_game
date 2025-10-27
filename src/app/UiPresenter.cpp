@@ -42,6 +42,30 @@ void UiPresenter::bindSimulation(world::LegacySimulation *simulation)
     updateUnconsumedEvents();
 }
 
+void UiPresenter::showWarningMessage(const std::string &message, float durationSeconds)
+{
+    float duration = durationSeconds;
+    if (m_simulation)
+    {
+        if (duration <= 0.0f)
+        {
+            duration = std::max(m_simulation->config.telemetry_duration, 1.5f);
+        }
+
+        HUDState &hud = m_simulation->hud;
+        hud.performance.active = true;
+        hud.performance.message = message;
+        hud.performance.timer = duration;
+    }
+    else if (duration <= 0.0f)
+    {
+        duration = 1.5f;
+    }
+
+    m_lastWarningMessage = message;
+    m_lastWarningDuration = duration;
+}
+
 void UiPresenter::subscribe()
 {
     if (!m_eventBus)
