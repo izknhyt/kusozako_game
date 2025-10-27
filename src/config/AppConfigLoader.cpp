@@ -1562,6 +1562,21 @@ AppConfigLoadResult AppConfigLoader::load(AssetManager &assets)
         {
             telemetryOptions.maxFiles = static_cast<std::size_t>(maxFiles);
         }
+
+        double warningMb = json::getNumber(*telemetryObj, "texture_warning_mb", -1.0);
+        warningMb = json::getNumber(*telemetryObj, "textureWarningMB", warningMb);
+        if (warningMb >= 0.0)
+        {
+            telemetryOptions.textureMemoryWarningBytes =
+                static_cast<std::uintmax_t>(warningMb * 1024.0 * 1024.0);
+        }
+
+        double warningBytes = json::getNumber(*telemetryObj, "texture_warning_bytes", -1.0);
+        warningBytes = json::getNumber(*telemetryObj, "textureWarningBytes", warningBytes);
+        if (warningBytes >= 0.0)
+        {
+            telemetryOptions.textureMemoryWarningBytes = static_cast<std::uintmax_t>(warningBytes);
+        }
     }
 
     const json::JsonValue *assetsObj = json::getObjectField(*appJson, "assets");
