@@ -1,5 +1,6 @@
 #include "world/LegacySimulation.h"
 
+#include <algorithm>
 #include <chrono>
 #include <filesystem>
 #include <fstream>
@@ -212,6 +213,53 @@ void LegacySimulation::captureFrameSnapshot(TelemetrySink &sink)
         payload.emplace("bytes", std::to_string(size));
     }
     sink.recordEvent("world.frame_capture.saved", payload);
+}
+
+void LegacySimulation::handleSpawnDeferral(int deferredCount)
+{
+    if (deferredCount <= 0)
+    {
+        return;
+    }
+
+    spawnBudgetState.totalDeferred += static_cast<std::size_t>(deferredCount);
+
+    std::string warningBase = config.spawnBudget.warningText;
+    if (warningBase.empty())
+    {
+        warningBase = "Spawn queue delayed";
+    }
+
+    std::ostringstream oss;
+    oss << warningBase << " (" << deferredCount << " deferred";
+    if (config.spawnBudget.maxPerFrame > 0)
+    {
+        oss << ", budget " << config.spawnBudget.maxPerFrame << "/frame";
+    }
+    oss << ')';
+    const std::string warningText = oss.str();
+
+    pushTelemetry(warningText);
+
+    HUDState::SpawnBudgetWarning &hudWarning = hud.spawnBudget;
+    hudWarning.active = true;
+    hudWarning.message = warningText;
+    hudWarning.timer = std::max(config.telemetry_duration, 1.5f);
+    hudWarning.lastDeferred = static_cast<std::size_t>(deferredCount);
+    hudWarning.totalDeferred += static_cast<std::size_t>(deferredCount);
+
+    if (auto sink = telemetry.lock())
+    {
+        TelemetrySink::Payload payload;
+        payload.emplace("count", std::to_string(deferredCount));
+        payload.emplace("total_deferred", std::to_string(hudWarning.totalDeferred));
+        if (config.spawnBudget.maxPerFrame > 0)
+        {
+            payload.emplace("max_per_frame", std::to_string(config.spawnBudget.maxPerFrame));
+        }
+        payload.emplace("frame", std::to_string(frameCounter));
+        sink->recordEvent("battle.spawn.budget_deferred", payload);
+    }
 }
 
 LegacySimulation::SpawnHistoryDumpResult LegacySimulation::dumpSpawnHistory(const spawn::WaveController &controller) const

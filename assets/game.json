@@ -13,6 +13,7 @@
     "yuna_max": 200,
     "yuna_offset_px": [48, 0],
     "yuna_scatter_y_px": 16,
+    "budget": { "max_per_frame": 8, "warning_text": "Spawn queue delayed" },
     "jobs": {
       "weights": { "warrior": 1.2, "shield": 1.0, "archer": 1.1 },
       "pity": { "repeatLimit": 3, "unseenBoost": 2.0 },

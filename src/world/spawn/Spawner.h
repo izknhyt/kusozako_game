@@ -39,6 +39,12 @@ class Spawner
     using SpawnCallback = std::function<void(const SpawnPayload &)>;
     using IntervalModifier = std::function<float(float)>;
 
+    struct EmitResult
+    {
+        int emitted = 0;
+        int deferred = 0;
+    };
+
     Spawner();
 
     void setBudget(const SpawnBudget &budget);
@@ -47,7 +53,7 @@ class Spawner
 
     void clear();
     void enqueue(const SpawnRequest &request);
-    void emit(float dt, const SpawnCallback &callback);
+    EmitResult emit(float dt, const SpawnCallback &callback);
 
     bool empty() const;
 

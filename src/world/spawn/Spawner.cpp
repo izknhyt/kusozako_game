@@ -78,14 +78,15 @@ bool Spawner::empty() const
     return true;
 }
 
-void Spawner::emit(float dt, const SpawnCallback &callback)
+Spawner::EmitResult Spawner::emit(float dt, const SpawnCallback &callback)
 {
+    EmitResult result;
     if (!callback)
     {
-        return;
+        return result;
     }
 
-    int emittedThisFrame = 0;
+    bool budgetHit = false;
     for (GateQueue &queue : m_queues)
     {
         const bool destroyed = m_destroyedCheck && m_destroyedCheck(queue.gateId);
@@ -112,15 +113,16 @@ void Spawner::emit(float dt, const SpawnCallback &callback)
             spawn.timer -= dt;
             while (spawn.remaining > 0 && spawn.timer <= 0.0f)
             {
-                if (m_budget.maxPerFrame > 0 && emittedThisFrame >= m_budget.maxPerFrame)
+                if (m_budget.maxPerFrame > 0 && result.emitted >= m_budget.maxPerFrame)
                 {
                     spawn.timer = 0.0f;
-                    goto next_gate;
+                    budgetHit = true;
+                    break;
                 }
 
                 SpawnPayload payload{queue.gateId, spawn.position, spawn.type};
                 callback(payload);
-                ++emittedThisFrame;
+                ++result.emitted;
                 --spawn.remaining;
 
                 if (spawn.remaining <= 0)
@@ -140,12 +142,21 @@ void Spawner::emit(float dt, const SpawnCallback &callback)
                 }
                 spawn.timer += nextInterval;
             }
+
+            if (budgetHit)
+            {
+                break;
+            }
         }
 
-    next_gate:
         queue.spawns.erase(
             std::remove_if(queue.spawns.begin(), queue.spawns.end(), [](const ActiveSpawn &s) { return s.remaining <= 0; }),
             queue.spawns.end());
+
+        if (budgetHit)
+        {
+            break;
+        }
     }
 
     for (std::size_t i = 0; i < m_queues.size();)
@@ -165,6 +176,32 @@ void Spawner::emit(float dt, const SpawnCallback &callback)
         }
         ++i;
     }
+
+    if (budgetHit)
+    {
+        for (const GateQueue &queue : m_queues)
+        {
+            const bool destroyed = m_destroyedCheck && m_destroyedCheck(queue.gateId);
+            if (destroyed)
+            {
+                continue;
+            }
+            const bool disabled = m_disabledCheck && m_disabledCheck(queue.gateId);
+            if (disabled)
+            {
+                continue;
+            }
+            for (const ActiveSpawn &spawn : queue.spawns)
+            {
+                if (spawn.remaining > 0 && spawn.timer <= 0.0f)
+                {
+                    result.deferred += spawn.remaining;
+                }
+            }
+        }
+    }
+
+    return result;
 }
 
 } // namespace world::spawn

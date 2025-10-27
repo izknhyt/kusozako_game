@@ -141,6 +141,12 @@ struct PerformanceBudgetConfig
     float toleranceMs = 0.5f;
 };
 
+struct SpawnBudgetConfig
+{
+    int maxPerFrame = 8;
+    std::string warningText = "Spawn queue delayed";
+};
+
 struct GameConfig
 {
     float fixed_dt = 1.0f / 60.0f;
@@ -177,6 +183,7 @@ struct GameConfig
     ShieldJobConfig shieldJob{};
     JobSpawnConfig jobSpawn{};
     PerformanceBudgetConfig performance{};
+    SpawnBudgetConfig spawnBudget{};
 };
 
 struct EntityStats

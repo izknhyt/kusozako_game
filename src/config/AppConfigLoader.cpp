@@ -312,6 +312,17 @@ std::optional<GameConfig> parseGameConfig(ParseContext &ctx, const std::string &
         cfg.jobSpawn.weightsAssetPath =
             json::getString(*spawn, "weights_path", cfg.jobSpawn.weightsAssetPath);
         cfg.spawn_weights_path = json::getString(*spawn, "weights_path", cfg.spawn_weights_path);
+        if (const json::JsonValue *budget = json::getObjectField(*spawn, "budget"))
+        {
+            int maxPerFrame = cfg.spawnBudget.maxPerFrame;
+            maxPerFrame = json::getInt(*budget, "max_per_frame", maxPerFrame);
+            maxPerFrame = json::getInt(*budget, "maxPerFrame", maxPerFrame);
+            cfg.spawnBudget.maxPerFrame = std::max(0, maxPerFrame);
+
+            std::string warning = json::getString(*budget, "warning_text", cfg.spawnBudget.warningText);
+            warning = json::getString(*budget, "warningText", warning);
+            cfg.spawnBudget.warningText = warning;
+        }
     }
     if (const json::JsonValue *jobSection = json::getObjectField(jsonRoot, "spawn_config"))
     {

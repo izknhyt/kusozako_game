@@ -311,6 +311,9 @@ void WorldState::reset()
     if (m_spawner)
     {
         m_spawner->clear();
+        spawn::SpawnBudget budget;
+        budget.maxPerFrame = m_sim->config.spawnBudget.maxPerFrame;
+        m_spawner->setBudget(budget);
     }
     if (m_waveController)
     {
@@ -508,10 +511,14 @@ void WorldState::runSpawnStage(float dt, systems::SystemContext &context)
                 m_spawner->setIntervalModifier({});
             }
 
-            m_spawner->emit(dt, [this, &context](const spawn::SpawnPayload &payload) {
+            const auto emitResult = m_spawner->emit(dt, [this, &context](const spawn::SpawnPayload &payload) {
                 m_sim->spawnOneEnemy(payload.position, payload.type);
                 context.requestComponentSync();
             });
+            if (emitResult.deferred > 0)
+            {
+                m_sim->handleSpawnDeferral(emitResult.deferred);
+            }
         }
     }
 
@@ -1927,6 +1934,21 @@ void renderScene(SDL_Renderer *renderer, const LegacySimulation &sim, const Form
         SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
         const SDL_Color warnColor{255, 220, 220, 255};
         font.drawText(renderer, queue.performanceWarningText, warnPanel.x + warnPadX, warnPanel.y + warnPadY, &stats, warnColor);
+        topRightAnchorY += warnPanel.h + 12;
+    }
+    if (!queue.spawnWarningText.empty() && queue.spawnWarningTimer > 0.0f)
+    {
+        const int warnPadX = 12;
+        const int warnPadY = 6;
+        const int textWidth = measureWithFallback(font, queue.spawnWarningText, lineHeight);
+        SDL_Rect warnPanel{screenW - (textWidth + warnPadX * 2) - 12, topRightAnchorY,
+                           textWidth + warnPadX * 2, lineHeight + warnPadY * 2};
+        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+        SDL_SetRenderDrawColor(renderer, 200, 120, 30, 210);
+        countedRenderFillRect(renderer, &warnPanel, stats);
+        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
+        const SDL_Color warnColor{255, 240, 210, 255};
+        font.drawText(renderer, queue.spawnWarningText, warnPanel.x + warnPadX, warnPanel.y + warnPadY, &stats, warnColor);
         topRightAnchorY += warnPanel.h + 12;
     }
     if (!queue.telemetryText.empty() && queue.telemetryTimer > 0.0f)

@@ -42,6 +42,17 @@ void RenderingPrepSystem::update(float, SystemContext &context)
         queue.performanceWarningTimer = 0.0f;
     }
 
+    if (context.hud.spawnBudget.active && context.hud.spawnBudget.timer > 0.0f)
+    {
+        queue.spawnWarningText = context.hud.spawnBudget.message;
+        queue.spawnWarningTimer = context.hud.spawnBudget.timer;
+    }
+    else
+    {
+        queue.spawnWarningText.clear();
+        queue.spawnWarningTimer = 0.0f;
+    }
+
     const std::size_t allyCount = sim.yunas.size();
     const std::size_t enemyCount = sim.enemies.size();
     const std::size_t commanderCount = sim.commander.alive ? 1u : 0u;
