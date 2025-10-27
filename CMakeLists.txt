@@ -37,6 +37,7 @@ add_executable(kusozako
   src/telemetry/FileTelemetrySink.cpp
   src/telemetry/TelemetrySink.cpp
   src/telemetry/ConsoleTelemetrySink.cpp
+  src/telemetry/PerformanceBudgetMonitor.cpp
   src/world/LegacySimulation.cpp
   src/world/spawn/Spawner.cpp
   src/world/spawn/WaveController.cpp
@@ -75,6 +76,7 @@ set(WORLD_STATE_CORE_SOURCES
   src/telemetry/FileTelemetrySink.cpp
   src/telemetry/TelemetrySink.cpp
   src/telemetry/ConsoleTelemetrySink.cpp
+  src/telemetry/PerformanceBudgetMonitor.cpp
   src/world/LegacySimulation.cpp
   src/world/spawn/Spawner.cpp
   src/world/spawn/WaveController.cpp
@@ -162,3 +164,18 @@ target_include_directories(event_bus_test PRIVATE
 )
 
 add_test(NAME event_bus COMMAND event_bus_test)
+
+add_executable(performance_budget_monitor_test
+  tests/PerformanceBudgetMonitorTest.cpp
+  src/telemetry/PerformanceBudgetMonitor.cpp
+  src/telemetry/TelemetrySink.cpp
+  src/config/AppConfig.cpp
+)
+
+target_include_directories(performance_budget_monitor_test PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}/src
+  ${CMAKE_CURRENT_SOURCE_DIR}/include
+  ${CMAKE_CURRENT_SOURCE_DIR}/tests
+)
+
+add_test(NAME performance_budget_monitor COMMAND performance_budget_monitor_test)

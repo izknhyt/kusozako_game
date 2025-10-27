@@ -36,5 +36,11 @@ int main()
         std::cerr << "Spawn weighting configuration not resolved.\n";
         return 1;
     }
+    if (game.performance.updateMs <= 0.0f || game.performance.renderMs <= 0.0f ||
+        game.performance.inputMs <= 0.0f || game.performance.hudMs <= 0.0f)
+    {
+        std::cerr << "Performance budgets must be positive.\n";
+        return 1;
+    }
     return 0;
 }

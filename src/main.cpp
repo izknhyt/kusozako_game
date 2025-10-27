@@ -15,6 +15,7 @@
 #include "input/InputMapper.h"
 #include "services/ServiceLocator.h"
 #include "telemetry/TelemetrySink.h"
+#include "telemetry/PerformanceBudgetMonitor.h"
 #include "world/ComponentPool.h"
 #include "world/FormationUtils.h"
 #include "world/LegacySimulation.h"
@@ -775,8 +776,14 @@ struct FramePerf
     float fps = 0.0f;
     float msUpdate = 0.0f;
     float msRender = 0.0f;
+    float msInput = 0.0f;
+    float msHud = 0.0f;
     int drawCalls = 0;
     int entities = 0;
+    bool budgetExceeded = false;
+    std::string budgetStage;
+    float budgetSampleMs = 0.0f;
+    float budgetTargetMs = 0.0f;
 };
 
 Vec2 worldToScreen(const Vec2 &world, const Camera &camera)
@@ -855,9 +862,27 @@ void renderScene(SDL_Renderer *renderer, const LegacySimulation &sim, const Form
                  const MoraleHudStatus *moraleHud, const JobHudStatus *jobHud, const Camera &camera,
                  const TextRenderer &font,
                  const TextRenderer &debugFont, const TileMap &map,
-                 const Atlas &atlas, int screenW, int screenH, FramePerf &perf, bool showDebugHud)
+                 const Atlas &atlas, int screenW, int screenH, FramePerf &perf, bool showDebugHud,
+                 double perfFrequency, double *hudTimeMs)
 {
     RenderStats stats;
+    Uint64 hudSectionStart = 0;
+    auto beginHudSection = [&]() {
+        if (!hudTimeMs || perfFrequency <= 0.0 || hudSectionStart != 0)
+        {
+            return;
+        }
+        hudSectionStart = SDL_GetPerformanceCounter();
+    };
+    auto endHudSection = [&]() {
+        if (!hudTimeMs || perfFrequency <= 0.0 || hudSectionStart == 0)
+        {
+            return;
+        }
+        const Uint64 hudEnd = SDL_GetPerformanceCounter();
+        *hudTimeMs += (hudEnd - hudSectionStart) * 1000.0 / perfFrequency;
+        hudSectionStart = 0;
+    };
     const LegacySimulation::RenderQueue &queue = sim.renderQueue;
     const bool lodActive = queue.lodActive;
     const bool skipActors = queue.skipActors;
@@ -1742,6 +1767,7 @@ void renderScene(SDL_Renderer *renderer, const LegacySimulation &sim, const Form
     infoPanelAnchor = std::max(infoPanelAnchor, hudLeftAnchor);
 
     const int commanderHpInt = static_cast<int>(std::round(std::max(sim.commander.hp, 0.0f)));
+    beginHudSection();
     std::vector<std::string> infoLines;
     infoLines.push_back("Allies: " + std::to_string(static_cast<int>(sim.yunas.size())));
     if (sim.commander.alive)
@@ -1849,11 +1875,21 @@ void renderScene(SDL_Renderer *renderer, const LegacySimulation &sim, const Form
         line2 << std::fixed << std::setprecision(2) << "Upd " << perf.msUpdate << "ms  Ren " << perf.msRender << "ms";
         perfLines.push_back(line2.str());
         std::ostringstream line3;
-        line3 << "Draw " << perf.drawCalls;
+        line3 << std::fixed << std::setprecision(2) << "In " << perf.msInput << "ms  Hud " << perf.msHud << "ms";
         perfLines.push_back(line3.str());
         std::ostringstream line4;
-        line4 << "Events lost " << sim.hud.unconsumedEvents;
+        line4 << "Draw " << perf.drawCalls;
         perfLines.push_back(line4.str());
+        std::ostringstream line5;
+        line5 << "Events lost " << sim.hud.unconsumedEvents;
+        perfLines.push_back(line5.str());
+        if (perf.budgetExceeded)
+        {
+            std::ostringstream warn;
+            warn << "Budget " << perf.budgetStage << ' ' << std::fixed << std::setprecision(2) << perf.budgetSampleMs
+                 << "ms > " << perf.budgetTargetMs << "ms";
+            perfLines.push_back(warn.str());
+        }
 
         int debugWidth = 0;
         for (const std::string &line : perfLines)
@@ -1878,6 +1914,21 @@ void renderScene(SDL_Renderer *renderer, const LegacySimulation &sim, const Form
         topRightAnchorY += debugPanel.h + 12;
     }
 
+    if (!queue.performanceWarningText.empty() && queue.performanceWarningTimer > 0.0f)
+    {
+        const int warnPadX = 12;
+        const int warnPadY = 6;
+        const int textWidth = measureWithFallback(font, queue.performanceWarningText, lineHeight);
+        SDL_Rect warnPanel{screenW - (textWidth + warnPadX * 2) - 12, topRightAnchorY,
+                           textWidth + warnPadX * 2, lineHeight + warnPadY * 2};
+        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+        SDL_SetRenderDrawColor(renderer, 140, 30, 30, 210);
+        countedRenderFillRect(renderer, &warnPanel, stats);
+        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
+        const SDL_Color warnColor{255, 220, 220, 255};
+        font.drawText(renderer, queue.performanceWarningText, warnPanel.x + warnPadX, warnPanel.y + warnPadY, &stats, warnColor);
+        topRightAnchorY += warnPanel.h + 12;
+    }
     if (!queue.telemetryText.empty() && queue.telemetryTimer > 0.0f)
     {
         const int telePadX = 12;
@@ -1908,6 +1959,7 @@ void renderScene(SDL_Renderer *renderer, const LegacySimulation &sim, const Form
         font.drawText(renderer, sim.hud.resultText, resultPanel.x + resultPadX, resultPanel.y + resultPadY, &stats);
     }
 
+    endHudSection();
     perf.drawCalls = stats.drawCalls;
 }
 
@@ -1928,6 +1980,8 @@ class BattleScene : public Scene
     void handleActionFrame(const ActionBuffer::Frame &frame, GameApplication &app);
     void applyAppConfig(GameApplication &app);
     void showTelemetryMessage(const std::string &message);
+    void evaluatePerformanceBudgets(GameApplication &app);
+    void raisePerformanceWarning(const telemetry::BudgetViolation &violation, GameApplication &app);
 
     bool m_initialized = false;
     world::WorldState m_world;
@@ -1956,6 +2010,7 @@ class BattleScene : public Scene
     double m_frequency = 0.0;
     double m_lastFrameSeconds = 0.0;
     double m_lastUpdateMs = 0.0;
+    double m_lastInputMs = 0.0;
     int m_screenWidth = 0;
     int m_screenHeight = 0;
     std::shared_ptr<TelemetrySink> m_telemetry;
@@ -1966,6 +2021,18 @@ class BattleScene : public Scene
     std::uint64_t m_inputSequence = 0;
     std::uint64_t m_lastProcessedSequence = 0;
     bool m_haveProcessedSequence = false;
+    bool m_pendingBudgetCheck = false;
+    struct StageTimings
+    {
+        double updateMs = 0.0;
+        double renderMs = 0.0;
+        double inputMs = 0.0;
+        double hudMs = 0.0;
+    } m_lastStageTimings{};
+    PerformanceBudgetConfig m_performanceBudget{};
+    telemetry::PerformanceBudgetMonitor m_budgetMonitor{};
+    Uint64 m_lastBudgetWarningTick = 0;
+    static constexpr Uint64 BudgetWarningCooldownMs = 1000;
 };
 
 void BattleScene::onEnter(GameApplication &app, SceneStack &stack)
@@ -2192,6 +2259,12 @@ void BattleScene::update(double deltaSeconds, GameApplication &app, SceneStack &
         return;
     }
 
+    if (m_pendingBudgetCheck)
+    {
+        evaluatePerformanceBudgets(app);
+        m_pendingBudgetCheck = false;
+    }
+
     LegacySimulation &sim = m_world.legacy();
 
     m_lastFrameSeconds = deltaSeconds;
@@ -2208,10 +2281,13 @@ void BattleScene::update(double deltaSeconds, GameApplication &app, SceneStack &
     const float dt = sim.config.fixed_dt;
     const double baseInputTimestamp = static_cast<double>(SDL_GetTicks64());
     const Uint64 updateStart = SDL_GetPerformanceCounter();
+    const double tickToMs = m_frequency > 0.0 ? 1000.0 / m_frequency : 0.0;
     std::size_t stepIndex = 0;
     bool producedFrame = false;
+    double inputMsAccum = 0.0;
     while (m_accumulator >= dt)
     {
+        const Uint64 inputStart = SDL_GetPerformanceCounter();
         const double frameTimestamp = baseInputTimestamp +
                                       static_cast<double>(stepIndex) * (static_cast<double>(dt) * 1000.0);
         app.inputMapper().sampleFrame(!m_introActive,
@@ -2222,6 +2298,11 @@ void BattleScene::update(double deltaSeconds, GameApplication &app, SceneStack &
         {
             handleActionFrame(*frame, app);
         }
+        const Uint64 inputEnd = SDL_GetPerformanceCounter();
+        if (tickToMs > 0.0)
+        {
+            inputMsAccum += (inputEnd - inputStart) * tickToMs;
+        }
         m_world.step(dt, m_actionBuffer);
         m_accumulator -= dt;
         ++stepIndex;
@@ -2229,6 +2310,7 @@ void BattleScene::update(double deltaSeconds, GameApplication &app, SceneStack &
     }
     if (!producedFrame)
     {
+        const Uint64 inputStart = SDL_GetPerformanceCounter();
         app.inputMapper().sampleFrame(!m_introActive,
                                       baseInputTimestamp,
                                       m_inputSequence++,
@@ -2237,11 +2319,20 @@ void BattleScene::update(double deltaSeconds, GameApplication &app, SceneStack &
         {
             handleActionFrame(*frame, app);
         }
+        const Uint64 inputEnd = SDL_GetPerformanceCounter();
+        if (tickToMs > 0.0)
+        {
+            inputMsAccum += (inputEnd - inputStart) * tickToMs;
+        }
     }
     const Uint64 updateEnd = SDL_GetPerformanceCounter();
     const double updateMs = (updateEnd - updateStart) * 1000.0 / m_frequency;
     m_lastUpdateMs = updateMs;
     m_framePerf.msUpdate = static_cast<float>(updateMs);
+    m_lastInputMs = inputMsAccum;
+    m_framePerf.msInput = static_cast<float>(inputMsAccum);
+    m_lastStageTimings.updateMs = updateMs;
+    m_lastStageTimings.inputMs = inputMsAccum;
 
     const float frameSeconds = static_cast<float>(deltaSeconds);
     if (m_introActive)
@@ -2296,17 +2387,22 @@ void BattleScene::render(SDL_Renderer *renderer, GameApplication &app)
     const FormationHudStatus &formationHud = m_ui.formationHud();
     const MoraleHudStatus &moraleHud = m_ui.moraleHud();
     const JobHudStatus &jobHud = m_ui.jobHud();
+    double hudMs = 0.0;
     renderScene(renderer, sim, &formationHud, &moraleHud, &jobHud, renderCamera, m_hudFont, m_debugFont, m_tileMap, m_atlas,
-                m_screenWidth, m_screenHeight, m_framePerf, m_showDebugHud);
+                m_screenWidth, m_screenHeight, m_framePerf, m_showDebugHud, m_frequency, &hudMs);
     const Uint64 renderEnd = SDL_GetPerformanceCounter();
     const double renderMs = (renderEnd - renderStart) * 1000.0 / m_frequency;
     m_framePerf.msRender = static_cast<float>(renderMs);
+    m_framePerf.msHud = static_cast<float>(hudMs);
+    m_lastStageTimings.renderMs = renderMs;
+    m_lastStageTimings.hudMs = hudMs;
 
     m_perfLogTimer += m_lastFrameSeconds;
     m_updateAccum += m_lastUpdateMs;
     m_renderAccum += renderMs;
     m_entityAccum += static_cast<double>(m_framePerf.entities);
     ++m_perfLogFrames;
+    m_pendingBudgetCheck = true;
     if (m_perfLogTimer >= 1.0 && m_perfLogFrames > 0)
     {
         const double avgFps = static_cast<double>(m_perfLogFrames) / m_perfLogTimer;
@@ -2336,6 +2432,73 @@ void BattleScene::render(SDL_Renderer *renderer, GameApplication &app)
         m_entityAccum = 0.0;
         m_perfLogFrames = 0;
     }
+}
+
+void BattleScene::evaluatePerformanceBudgets(GameApplication &app)
+{
+    (void)app;
+    m_framePerf.budgetExceeded = false;
+    m_framePerf.budgetStage.clear();
+    m_framePerf.budgetSampleMs = 0.0f;
+    m_framePerf.budgetTargetMs = 0.0f;
+
+    telemetry::StageTimingSample sample{};
+    sample.updateMs = m_lastStageTimings.updateMs;
+    sample.renderMs = m_lastStageTimings.renderMs;
+    sample.inputMs = m_lastStageTimings.inputMs;
+    sample.hudMs = m_lastStageTimings.hudMs;
+
+    if (auto violation = m_budgetMonitor.evaluate(sample))
+    {
+        raisePerformanceWarning(*violation, app);
+    }
+}
+
+void BattleScene::raisePerformanceWarning(const telemetry::BudgetViolation &violation, GameApplication &app)
+{
+    std::string stageLabel = violation.stage;
+    std::transform(stageLabel.begin(), stageLabel.end(), stageLabel.begin(), [](unsigned char ch) {
+        return static_cast<char>(std::toupper(ch));
+    });
+
+    auto formatMs = [](double value) {
+        std::ostringstream oss;
+        oss << std::fixed << std::setprecision(2) << value;
+        return oss.str();
+    };
+
+    const std::string warningText = "Performance spike: " + stageLabel + ' ' + formatMs(violation.sampleMs) +
+                                    "ms (budget " + formatMs(violation.budgetMs) + "ms)";
+
+    m_framePerf.budgetExceeded = true;
+    m_framePerf.budgetStage = stageLabel;
+    m_framePerf.budgetSampleMs = static_cast<float>(violation.sampleMs);
+    m_framePerf.budgetTargetMs = static_cast<float>(violation.budgetMs);
+
+    LegacySimulation &sim = m_world.legacy();
+    HUDState &hud = sim.hud;
+    hud.performance.active = true;
+    hud.performance.message = warningText;
+    hud.performance.timer = std::max(sim.config.telemetry_duration, 1.5f);
+
+    if (m_telemetry)
+    {
+        TelemetrySink::Payload payload;
+        payload.emplace("stage", violation.stage);
+        payload.emplace("sample_ms", formatMs(violation.sampleMs));
+        payload.emplace("budget_ms", formatMs(violation.budgetMs));
+        payload.emplace("tolerance_ms", formatMs(m_performanceBudget.toleranceMs));
+        m_telemetry->recordEvent("battle.performance.budget_exceeded", payload);
+
+        const Uint64 now = SDL_GetTicks64();
+        if (m_lastBudgetWarningTick == 0 || now - m_lastBudgetWarningTick >= BudgetWarningCooldownMs)
+        {
+            m_telemetry->requestFrameCapture();
+            m_lastBudgetWarningTick = now;
+        }
+    }
+
+    (void)app;
 }
 
 #ifndef KUSOZAKO_SKIP_APP_MAIN
@@ -2488,6 +2651,11 @@ void BattleScene::applyAppConfig(GameApplication &app)
     m_renderAccum = 0.0;
     m_entityAccum = 0.0;
     m_perfLogFrames = 0;
+    m_performanceBudget = appConfig.game.performance;
+    m_budgetMonitor.setBudget(m_performanceBudget);
+    m_lastBudgetWarningTick = 0;
+    m_lastStageTimings = {};
+    m_pendingBudgetCheck = false;
     if (!m_initialized)
     {
         m_showDebugHud = false;
