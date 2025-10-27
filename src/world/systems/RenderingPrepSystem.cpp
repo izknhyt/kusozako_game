@@ -31,6 +31,16 @@ void RenderingPrepSystem::update(float, SystemContext &context)
 
     queue.telemetryText = context.hud.telemetryText;
     queue.telemetryTimer = context.hud.telemetryTimer;
+    if (context.hud.performance.active && context.hud.performance.timer > 0.0f)
+    {
+        queue.performanceWarningText = context.hud.performance.message;
+        queue.performanceWarningTimer = context.hud.performance.timer;
+    }
+    else
+    {
+        queue.performanceWarningText.clear();
+        queue.performanceWarningTimer = 0.0f;
+    }
 
     const std::size_t allyCount = sim.yunas.size();
     const std::size_t enemyCount = sim.enemies.size();

@@ -59,6 +59,13 @@ struct HUDState
 
         std::vector<Skill> skills;
     } jobs;
+
+    struct PerformanceWarning
+    {
+        bool active = false;
+        std::string message;
+        float timer = 0.0f;
+    } performance;
 };
 
 enum class GameResult

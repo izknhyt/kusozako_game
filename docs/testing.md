@@ -47,3 +47,19 @@ captures the next five frames into the same directory as
 `frame_capture_XXXX_YY.json`. Each capture file contains commander, ally,
 enemy, and wall snapshots and triggers telemetry events for both success
 (`world.frame_capture.saved`) and failure (`world.frame_capture.error`).
+
+## Frame-budget telemetry
+
+`assets/game.json` now exposes a `performance` block that defines CPU, GPU,
+input, and HUD budgets in milliseconds, along with a shared tolerance. The
+runtime samples each stage every frame; if a sample exceeds `budget +
+tolerance`, the battle scene:
+
+* records `battle.performance.budget_exceeded` telemetry with stage,
+  threshold, and tolerance metadata,
+* requests a frame capture (throttled to at most once per second), and
+* displays a red HUD banner for the configured telemetry duration.
+
+The standalone `performance_budget_monitor_test` executable exercises the
+budget evaluator with forced timings to ensure the frame-capture request is
+issued when budgets are exceeded.

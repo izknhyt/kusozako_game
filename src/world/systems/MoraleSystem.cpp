@@ -78,6 +78,15 @@ void MoraleSystem::update(float dt, SystemContext &context)
     {
         requestSync = true;
     }
+    if (tickTimer(hud.performance.timer))
+    {
+        if (hud.performance.timer <= 0.0f)
+        {
+            hud.performance.active = false;
+            hud.performance.message.clear();
+        }
+        requestSync = true;
+    }
 
     if (context.orderActive)
     {

@@ -30,6 +30,15 @@
   "map": "assets/maps/level1.tmx",
   "mission": "assets/mission_level1.json",
   "rng_seed": 1337,
+  "performance": {
+    "budget": {
+      "update_ms": 6.0,
+      "render_ms": 8.0,
+      "input_ms": 1.5,
+      "hud_ms": 2.0
+    },
+    "tolerance_ms": 0.5
+  },
   "on_commander_death": { "auto_reinforce_chibi": 10 },
   "lod": { "threshold_entities": 300, "skip_draw_every": 2 }
 }

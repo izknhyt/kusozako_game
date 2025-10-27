@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <cmath>
 #include <fstream>
 #include <optional>
 #include <sstream>
@@ -378,6 +379,23 @@ std::optional<GameConfig> parseGameConfig(ParseContext &ctx, const std::string &
     cfg.formations_path = json::getString(jsonRoot, "formations_config", cfg.formations_path);
     cfg.morale_path = json::getString(jsonRoot, "morale_config", cfg.morale_path);
     cfg.jobs_path = json::getString(jsonRoot, "jobs_config", cfg.jobs_path);
+    if (const json::JsonValue *performance = json::getObjectField(jsonRoot, "performance"))
+    {
+        const json::JsonValue *budget = json::getObjectField(*performance, "budget");
+        const json::JsonValue *limits = budget ? budget : performance;
+        auto clampBudget = [](float value) {
+            if (std::isfinite(value) && value >= 0.0f)
+            {
+                return value;
+            }
+            return 0.0f;
+        };
+        cfg.performance.updateMs = clampBudget(json::getNumber(*limits, "update_ms", cfg.performance.updateMs));
+        cfg.performance.renderMs = clampBudget(json::getNumber(*limits, "render_ms", cfg.performance.renderMs));
+        cfg.performance.inputMs = clampBudget(json::getNumber(*limits, "input_ms", cfg.performance.inputMs));
+        cfg.performance.hudMs = clampBudget(json::getNumber(*limits, "hud_ms", cfg.performance.hudMs));
+        cfg.performance.toleranceMs = clampBudget(json::getNumber(*performance, "tolerance_ms", cfg.performance.toleranceMs));
+    }
     return cfg;
 }
 

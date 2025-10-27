@@ -132,6 +132,15 @@ struct FormationAlignmentConfig
     float defenseMultiplier = 1.0f;
 };
 
+struct PerformanceBudgetConfig
+{
+    float updateMs = 6.0f;
+    float renderMs = 8.0f;
+    float inputMs = 1.5f;
+    float hudMs = 2.0f;
+    float toleranceMs = 0.5f;
+};
+
 struct GameConfig
 {
     float fixed_dt = 1.0f / 60.0f;
@@ -167,6 +176,7 @@ struct GameConfig
     ArcherJobConfig archerJob{};
     ShieldJobConfig shieldJob{};
     JobSpawnConfig jobSpawn{};
+    PerformanceBudgetConfig performance{};
 };
 
 struct EntityStats

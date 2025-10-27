@@ -320,6 +320,8 @@ struct LegacySimulation
         std::vector<MoraleIcon> moraleIcons;
         std::string telemetryText;
         float telemetryTimer = 0.0f;
+        std::string performanceWarningText;
+        float performanceWarningTimer = 0.0f;
 
         void clearDynamic()
         {
