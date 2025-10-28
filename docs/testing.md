@@ -13,7 +13,8 @@ recommended workflow is:
      config_schema_test \
      world_state_step_order_test \
      systems_behavior_test \
-     job_ability_system_test
+     job_ability_system_test \
+     ui_view_test
    ```
 3. Run the complete suite with CTest:
    ```sh
@@ -28,7 +29,9 @@ recommended workflow is:
 `systems_behavior_test` validates formation alignment timers, commander
 morale transitions, and spawn pity weighting. `job_ability_system_test`
 exercises cooldowns, rally toggles, and spawn-rate boosts in the job
-ability system.
+ability system. `ui_view_test` snapshots the HUD drawing logic with fake
+renderers to catch formatting or visibility regressions in the mission,
+morale, job, and warning overlays.
 
 ## Telemetry capture and frame dumps
 
