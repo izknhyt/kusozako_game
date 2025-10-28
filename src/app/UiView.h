@@ -8,6 +8,7 @@ struct SDL_Renderer;
 
 class TextRenderer;
 struct FramePerf;
+struct RenderStats;
 
 namespace world
 {
@@ -33,6 +34,7 @@ class UiView
         const MoraleHudStatus *moraleHud = nullptr;
         const JobHudStatus *jobHud = nullptr;
         FramePerf *framePerf = nullptr;
+        RenderStats *renderStats = nullptr;
         bool showDebugHud = false;
         double performanceFrequency = 0.0;
         double *hudTimeMs = nullptr;
@@ -49,9 +51,19 @@ class UiView
 
     const Dependencies &dependencies() const noexcept;
 
-    void draw(const DrawContext &context) const;
+    void render(const DrawContext &context) const;
 
   private:
+    static int measureWithFallback(const TextRenderer &renderer, const std::string &text, int approxHeight);
+    static SDL_Color moraleColorForState(MoraleState state);
+    static std::string moraleDisplayName(MoraleState state);
+    static SDL_Color jobRingColor(UnitJob job);
+    static const char *jobDisplayName(UnitJob job);
+    static const char *jobSpecialLabel(UnitJob job);
+    static std::string formatSecondsShort(float seconds);
+    static std::string formatTimer(float seconds);
+    static const char *stanceDisplayName(ArmyStance stance);
+
     Dependencies m_dependencies{};
 };
 
