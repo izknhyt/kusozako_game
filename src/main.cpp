@@ -844,31 +844,11 @@ er(SDL_Renderer *renderer, const TileMap &map, const std::vector<int> &tiles, co
     }
 }
 
-void renderScene(SDL_Renderer *renderer, const LegacySimulation &sim, const FormationHudStatus *formationHud,
+void renderWorld(SDL_Renderer *renderer, const LegacySimulation &sim, const FormationHudStatus *formationHud,
                  const MoraleHudStatus *moraleHud, const JobHudStatus *jobHud, const Camera &camera,
-                 const TextRenderer &font,
-                 const TextRenderer &debugFont, const TileMap &map,
-                 const Atlas &atlas, int screenW, int screenH, FramePerf &perf, bool showDebugHud,
-                 double perfFrequency, double *hudTimeMs, UiView &uiView)
+                 const TextRenderer &font, const TextRenderer &debugFont, const TileMap &map,
+                 const Atlas &atlas, int screenW, int screenH, RenderStats &stats)
 {
-    RenderStats stats;
-    Uint64 hudSectionStart = 0;
-    auto beginHudSection = [&]() {
-        if (!hudTimeMs || perfFrequency <= 0.0 || hudSectionStart != 0)
-        {
-            return;
-        }
-        hudSectionStart = SDL_GetPerformanceCounter();
-    };
-    auto endHudSection = [&]() {
-        if (!hudTimeMs || perfFrequency <= 0.0 || hudSectionStart == 0)
-        {
-            return;
-        }
-        const Uint64 hudEnd = SDL_GetPerformanceCounter();
-        *hudTimeMs += (hudEnd - hudSectionStart) * 1000.0 / perfFrequency;
-        hudSectionStart = 0;
-    };
     const LegacySimulation::RenderQueue &queue = sim.renderQueue;
     const bool lodActive = queue.lodActive;
     const bool skipActors = queue.skipActors;
@@ -1373,22 +1353,6 @@ void renderScene(SDL_Renderer *renderer, const LegacySimulation &sim, const Form
     SDL_Rect overlay{0, 0, screenW, screenH};
     countedRenderFillRect(renderer, &overlay, stats);
     SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
-
-    beginHudSection();
-    UiView::DrawContext hudContext{};
-    hudContext.simulation = &sim;
-    hudContext.formationHud = formationHud;
-    hudContext.moraleHud = moraleHud;
-    hudContext.jobHud = jobHud;
-    hudContext.framePerf = &perf;
-    hudContext.renderStats = &stats;
-    hudContext.showDebugHud = showDebugHud;
-    hudContext.performanceFrequency = perfFrequency;
-    hudContext.hudTimeMs = hudTimeMs;
-    uiView.render(hudContext);
-
-    endHudSection();
-    perf.drawCalls = stats.drawCalls;
 }
 
 
@@ -1828,17 +1792,67 @@ void BattleScene::render(SDL_Renderer *renderer, GameApplication &app)
     const MoraleHudStatus &moraleHud = m_ui.moraleHud();
     const JobHudStatus &jobHud = m_ui.jobHud();
     double hudMs = 0.0;
+    RenderStats renderStats{};
 
-    m_uiView.setRenderer(renderer);
-    m_uiView.setHudFont(&m_hudFont);
-    m_uiView.setDebugFont(&m_debugFont);
-    m_uiView.setScreenSize(m_screenWidth, m_screenHeight);
-    renderScene(renderer, sim, &formationHud, &moraleHud, &jobHud, renderCamera, m_hudFont, m_debugFont, m_tileMap, m_atlas,
-                m_screenWidth, m_screenHeight, m_framePerf, m_showDebugHud, m_frequency, &hudMs, m_uiView);
+    if (renderer)
+    {
+        const UiView::Dependencies &deps = m_uiView.dependencies();
+        if (deps.renderer != renderer || deps.hudFont != &m_hudFont || deps.debugFont != &m_debugFont ||
+            deps.screenWidth != m_screenWidth || deps.screenHeight != m_screenHeight)
+        {
+            UiView::Dependencies updated = deps;
+            updated.renderer = renderer;
+            updated.hudFont = &m_hudFont;
+            updated.debugFont = &m_debugFont;
+            updated.screenWidth = m_screenWidth;
+            updated.screenHeight = m_screenHeight;
+            m_uiView.setDependencies(updated);
+        }
+    }
+
+    renderWorld(renderer,
+                sim,
+                &formationHud,
+                &moraleHud,
+                &jobHud,
+                renderCamera,
+                m_hudFont,
+                m_debugFont,
+                m_tileMap,
+                m_atlas,
+                m_screenWidth,
+                m_screenHeight,
+                renderStats);
+
+    Uint64 hudSectionStart = 0;
+    if (m_frequency > 0.0)
+    {
+        hudSectionStart = SDL_GetPerformanceCounter();
+    }
+
+    UiView::DrawContext hudContext{};
+    hudContext.simulation = &sim;
+    hudContext.formationHud = &formationHud;
+    hudContext.moraleHud = &moraleHud;
+    hudContext.jobHud = &jobHud;
+    hudContext.framePerf = &m_framePerf;
+    hudContext.renderStats = &renderStats;
+    hudContext.showDebugHud = m_showDebugHud;
+    hudContext.performanceFrequency = m_frequency;
+    hudContext.hudTimeMs = &hudMs;
+    m_uiView.render(hudContext);
+
+    if (hudSectionStart != 0)
+    {
+        const Uint64 hudEnd = SDL_GetPerformanceCounter();
+        hudMs += (hudEnd - hudSectionStart) * 1000.0 / m_frequency;
+    }
+
     const Uint64 renderEnd = SDL_GetPerformanceCounter();
     const double renderMs = (renderEnd - renderStart) * 1000.0 / m_frequency;
     m_framePerf.msRender = static_cast<float>(renderMs);
     m_framePerf.msHud = static_cast<float>(hudMs);
+    m_framePerf.drawCalls = renderStats.drawCalls;
     m_lastStageTimings.renderMs = renderMs;
     m_lastStageTimings.hudMs = hudMs;
 
