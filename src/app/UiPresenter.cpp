@@ -140,7 +140,23 @@ void UiPresenter::updateUnconsumedEvents()
     }
     if (m_eventBus)
     {
-        m_simulation->hud.unconsumedEvents = m_eventBus->unconsumedCount();
+        const std::size_t unconsumed = m_eventBus->unconsumedCount();
+        m_simulation->hud.unconsumedEvents = unconsumed;
+
+        constexpr std::size_t WarningThreshold = 10;
+        if (unconsumed >= WarningThreshold)
+        {
+            const std::string warningText = std::string("Events lost ") + std::to_string(unconsumed);
+            const HUDState::PerformanceWarning &performanceHud = m_simulation->hud.performance;
+
+            const bool warningAlreadyActive = performanceHud.active && performanceHud.timer > 0.0f &&
+                                              performanceHud.message == warningText;
+
+            if (!warningAlreadyActive)
+            {
+                showWarningMessage(warningText);
+            }
+        }
     }
     else
     {

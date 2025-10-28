@@ -1,5 +1,11 @@
 #pragma once
 
+#ifdef KUSOZAKO_USE_REAL_UI_PRESENTER
+
+#include "../../src/app/UiPresenter.h"
+
+#else
+
 #include "world/FormationUtils.h"
 #include "world/LegacyTypes.h"
 #include "world/MoraleTypes.h"
@@ -76,4 +82,6 @@ class UiPresenter
   public:
     UiPresenter() = default;
 };
+
+#endif
 
