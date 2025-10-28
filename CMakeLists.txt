@@ -210,3 +210,17 @@ target_include_directories(asset_manager_memory_warning_test PRIVATE
 target_link_libraries(asset_manager_memory_warning_test PRIVATE SDL2::SDL2 SDL2_image::SDL2_image SDL2_ttf::SDL2_ttf)
 
 add_test(NAME asset_manager_memory_warning COMMAND asset_manager_memory_warning_test)
+
+add_executable(ui_view_test
+  tests/UiViewTest.cpp
+)
+
+target_include_directories(ui_view_test PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}/tests/stubs
+  ${CMAKE_CURRENT_SOURCE_DIR}/src
+  ${CMAKE_CURRENT_SOURCE_DIR}/tests
+)
+
+target_link_libraries(ui_view_test PRIVATE SDL2::SDL2 SDL2_image::SDL2_image SDL2_ttf::SDL2_ttf)
+
+add_test(NAME ui_view COMMAND ui_view_test)
