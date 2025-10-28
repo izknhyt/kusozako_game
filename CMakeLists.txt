@@ -26,6 +26,7 @@ add_executable(kusozako
   src/main.cpp
   src/app/GameApplication.cpp
   src/app/UiPresenter.cpp
+  src/app/UiView.cpp
   src/assets/AssetManager.cpp
   src/events/EventBus.cpp
   src/input/ActionBuffer.cpp
@@ -65,6 +66,7 @@ set(WORLD_STATE_CORE_SOURCES
   src/main.cpp
   src/app/GameApplication.cpp
   src/app/UiPresenter.cpp
+  src/app/UiView.cpp
   src/assets/AssetManager.cpp
   src/config/AppConfig.cpp
   src/config/AppConfigLoader.cpp
