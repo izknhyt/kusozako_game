@@ -49,6 +49,7 @@ struct CaptureRuntime
 struct GameConfig
 {
     int base_hp = 0;
+    float telemetry_duration = 3.0f;
 };
 
 struct CommanderUnit

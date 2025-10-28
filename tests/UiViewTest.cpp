@@ -421,7 +421,7 @@ bool testWarningAndResultOverlays()
     world::LegacySimulation sim{};
     sim.config.base_hp = 100;
     sim.baseHp = 80.0f;
-    sim.renderQueue.performanceWarningText = "Frame drop";
+    sim.renderQueue.performanceWarningText = "Events lost 12";
     sim.renderQueue.performanceWarningTimer = 1.0f;
     sim.renderQueue.spawnWarningText = "Spawn backlog";
     sim.renderQueue.spawnWarningTimer = 1.0f;
@@ -437,7 +437,7 @@ bool testWarningAndResultOverlays()
 
     RecordingRenderer renderer = renderView(view, context);
 
-    success &= assertDrawColor(renderer, "Frame drop", SDL_Color{255, 220, 220, 255},
+    success &= assertDrawColor(renderer, "Events lost 12", SDL_Color{255, 220, 220, 255},
                                "Performance warning should render with light red text");
     success &= assertDrawColor(renderer, "Spawn backlog", SDL_Color{255, 240, 210, 255},
                                "Spawn warning should render with warm highlight color");

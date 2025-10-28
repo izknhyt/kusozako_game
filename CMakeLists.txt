@@ -211,6 +211,22 @@ target_link_libraries(asset_manager_memory_warning_test PRIVATE SDL2::SDL2 SDL2_
 
 add_test(NAME asset_manager_memory_warning COMMAND asset_manager_memory_warning_test)
 
+add_executable(ui_presenter_test
+  tests/UiPresenterTest.cpp
+  src/app/UiPresenter.cpp
+)
+
+target_include_directories(ui_presenter_test PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}/tests/ui_presenter
+  ${CMAKE_CURRENT_SOURCE_DIR}/src
+  ${CMAKE_CURRENT_SOURCE_DIR}/include
+  ${CMAKE_CURRENT_SOURCE_DIR}/tests
+)
+
+target_compile_definitions(ui_presenter_test PRIVATE KUSOZAKO_USE_REAL_UI_PRESENTER=1)
+
+add_test(NAME ui_presenter COMMAND ui_presenter_test)
+
 add_executable(ui_view_test
   tests/UiViewTest.cpp
 )
