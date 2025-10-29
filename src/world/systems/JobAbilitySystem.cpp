@@ -23,6 +23,49 @@ namespace
 
 using HandlerRegistry = std::unordered_map<std::string, JobAbilitySystem::SkillHandler>;
 
+constexpr const char *RallySkillId = "rally";
+constexpr const char *WallSkillId = "wall";
+constexpr const char *SurgeSkillId = "surge";
+constexpr const char *SelfDestructSkillId = "self_destruct";
+
+const std::unordered_map<std::string, JobAbilitySystem::SkillHandler> &defaultSkillHandlers()
+{
+    static const std::unordered_map<std::string, JobAbilitySystem::SkillHandler> handlers = [] {
+        std::unordered_map<std::string, JobAbilitySystem::SkillHandler> map;
+        map.emplace(
+            RallySkillId,
+            JobAbilitySystem::SkillHandler{
+                [](JobAbilitySystem &system, SystemContext &context, RuntimeSkill &skill,
+                   const SkillCommand &command) { system.toggleRally(context, skill, command); }});
+        map.emplace(
+            WallSkillId,
+            JobAbilitySystem::SkillHandler{
+                [](JobAbilitySystem &, SystemContext &context, RuntimeSkill &skill,
+                   const SkillCommand &command) {
+                    context.simulation.spawnWallSegments(skill.def, command.worldTarget);
+                    skill.cooldownRemaining = skill.def.cooldown;
+                    context.requestComponentSync();
+                }});
+        map.emplace(
+            SurgeSkillId,
+            JobAbilitySystem::SkillHandler{
+                [](JobAbilitySystem &system, SystemContext &context, RuntimeSkill &skill,
+                   const SkillCommand &) {
+                    system.activateSpawnRate(context, skill);
+                }});
+        map.emplace(
+            SelfDestructSkillId,
+            JobAbilitySystem::SkillHandler{
+                [](JobAbilitySystem &, SystemContext &context, RuntimeSkill &skill, const SkillCommand &) {
+                    context.simulation.detonateCommander(skill.def);
+                    skill.cooldownRemaining = skill.def.cooldown;
+                    context.requestComponentSync();
+                }});
+        return map;
+    }();
+    return handlers;
+}
+
 HandlerRegistry &skillHandlerRegistry()
 {
     static HandlerRegistry registry;
@@ -74,6 +117,7 @@ void JobAbilitySystem::registerSkillHandler(
 void JobAbilitySystem::installDefaultHandlers(const std::vector<SkillDef> &defs)
 {
     clearSkillHandlers();
+    const auto &defaults = defaultSkillHandlers();
     for (const SkillDef &def : defs)
     {
         if (def.id.empty())
@@ -81,32 +125,10 @@ void JobAbilitySystem::installDefaultHandlers(const std::vector<SkillDef> &defs)
             continue;
         }
 
-        switch (def.type)
+        const auto handler = defaults.find(def.id);
+        if (handler != defaults.end())
         {
-        case SkillType::ToggleFollow:
-            registerSkillHandler(def.id, &JobAbilitySystem::toggleRally);
-            break;
-        case SkillType::MakeWall:
-            registerSkillHandler(
-                def.id,
-                [](JobAbilitySystem &, SystemContext &context, RuntimeSkill &skill, const SkillCommand &command) {
-                    context.simulation.spawnWallSegments(skill.def, command.worldTarget);
-                    skill.cooldownRemaining = skill.def.cooldown;
-                    context.requestComponentSync();
-                });
-            break;
-        case SkillType::SpawnRate:
-            registerSkillHandler(def.id, &JobAbilitySystem::activateSpawnRate);
-            break;
-        case SkillType::Detonate:
-            registerSkillHandler(
-                def.id,
-                [](JobAbilitySystem &, SystemContext &context, RuntimeSkill &skill, const SkillCommand &) {
-                    context.simulation.detonateCommander(skill.def);
-                    skill.cooldownRemaining = skill.def.cooldown;
-                    context.requestComponentSync();
-                });
-            break;
+            registerSkillHandler(def.id, handler->second);
         }
     }
 }

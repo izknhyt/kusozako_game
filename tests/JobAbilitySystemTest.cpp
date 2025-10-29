@@ -1,3 +1,16 @@
+#include <algorithm>
+#include <cmath>
+#include <iostream>
+#include <string>
+#include <vector>
+
+struct CaptureRuntime;
+
+namespace world
+{
+std::string normalizeTelemetry(const std::string &text);
+} // namespace world
+
 #include "world/systems/JobAbilitySystem.h"
 
 #include "config/AppConfig.h"
@@ -6,9 +19,16 @@
 #include "world/SkillRuntime.h"
 #include "world/WorldState.h"
 
-#include <cmath>
-#include <iostream>
-#include <vector>
+namespace world
+{
+using ::RuntimeSkill;
+using ::SkillDef;
+
+std::string normalizeTelemetry(const std::string &text)
+{
+    return text;
+}
+} // namespace world
 
 namespace
 {
@@ -18,6 +38,20 @@ using world::systems::JobAbilitySystem;
 bool almostEqual(float a, float b, float epsilon = 0.001f)
 {
     return std::fabs(a - b) <= epsilon;
+}
+
+bool findDefaultSkill(const std::string &id, world::SkillDef &out)
+{
+    const std::vector<world::SkillDef> defaults = buildDefaultSkills();
+    const auto it = std::find_if(defaults.begin(), defaults.end(), [&id](const world::SkillDef &def) {
+        return def.id == id;
+    });
+    if (it == defaults.end())
+    {
+        return false;
+    }
+    out = *it;
+    return true;
 }
 
 bool testUpdateTimersAndFlags()
@@ -121,23 +155,21 @@ bool testToggleRallySkill()
 {
     world::WorldState world;
     world.reset();
+    world::SkillDef rallyDef{};
+    if (!findDefaultSkill("rally", rallyDef))
+    {
+        std::cerr << "Default rally skill not found" << '\n';
+        return false;
+    }
+    world.configureSkills(std::vector<world::SkillDef>{rallyDef});
     auto &sim = world.legacy();
-    sim.skills.clear();
-
-    RuntimeSkill toggleSkill{};
-    toggleSkill.def.id = "toggle";
-    toggleSkill.def.type = SkillType::ToggleFollow;
-    toggleSkill.def.cooldown = 7.0f;
-    sim.skills.push_back(toggleSkill);
-
-    JobAbilitySystem::installDefaultHandlers(std::vector<SkillDef>{toggleSkill.def});
 
     world::systems::JobAbilitySystem system;
     ActionBuffer actions;
     auto context = world.makeSystemContext(actions);
     context.componentsDirty = false;
 
-    systems::SkillCommand command{0, sim.commander.pos + Vec2{16.0f, 0.0f}};
+    world::systems::SkillCommand command{0, sim.commander.pos + Vec2{16.0f, 0.0f}};
 
     sim.moraleSummary.rallySuppressed = true;
     system.triggerSkill(context, command);
@@ -165,7 +197,7 @@ bool testToggleRallySkill()
         std::cerr << "Rally did not activate" << '\n';
         return false;
     }
-    if (!almostEqual(sim.skills[0].cooldownRemaining, toggleSkill.def.cooldown))
+    if (!almostEqual(sim.skills[0].cooldownRemaining, rallyDef.cooldown))
     {
         std::cerr << "Rally cooldown not applied" << '\n';
         return false;
@@ -183,40 +215,36 @@ bool testSpawnRateTrigger()
 {
     world::WorldState world;
     world.reset();
+    world::SkillDef surgeDef{};
+    if (!findDefaultSkill("surge", surgeDef))
+    {
+        std::cerr << "Default surge skill not found" << '\n';
+        return false;
+    }
+    world.configureSkills(std::vector<world::SkillDef>{surgeDef});
     auto &sim = world.legacy();
-    sim.skills.clear();
-
-    RuntimeSkill spawnSkill{};
-    spawnSkill.def.id = "surge";
-    spawnSkill.def.type = SkillType::SpawnRate;
-    spawnSkill.def.cooldown = 8.0f;
-    spawnSkill.def.duration = 3.0f;
-    spawnSkill.def.multiplier = 2.0f;
-    sim.skills.push_back(spawnSkill);
-
-    JobAbilitySystem::installDefaultHandlers(std::vector<SkillDef>{spawnSkill.def});
 
     world::systems::JobAbilitySystem system;
     ActionBuffer actions;
     auto context = world.makeSystemContext(actions);
     context.componentsDirty = false;
 
-    systems::SkillCommand command{0, sim.commander.pos};
+    world::systems::SkillCommand command{0, sim.commander.pos};
     system.triggerSkill(context, command);
 
     const RuntimeSkill &updated = sim.skills[0];
     bool success = true;
-    if (!almostEqual(updated.cooldownRemaining, spawnSkill.def.cooldown))
+    if (!almostEqual(updated.cooldownRemaining, surgeDef.cooldown))
     {
         std::cerr << "Spawn rate cooldown not applied" << '\n';
         success = false;
     }
-    if (!almostEqual(updated.activeTimer, spawnSkill.def.duration))
+    if (!almostEqual(updated.activeTimer, surgeDef.duration))
     {
         std::cerr << "Spawn rate duration not applied" << '\n';
         success = false;
     }
-    if (!almostEqual(sim.spawnRateMultiplier, spawnSkill.def.multiplier))
+    if (!almostEqual(sim.spawnRateMultiplier, surgeDef.multiplier))
     {
         std::cerr << "Spawn rate multiplier not applied" << '\n';
         success = false;
