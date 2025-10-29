@@ -6,11 +6,6 @@
 
 struct CaptureRuntime;
 
-namespace world
-{
-std::string normalizeTelemetry(const std::string &text);
-} // namespace world
-
 #include "world/systems/JobAbilitySystem.h"
 
 #include "config/AppConfig.h"
@@ -23,11 +18,6 @@ namespace world
 {
 using ::RuntimeSkill;
 using ::SkillDef;
-
-std::string normalizeTelemetry(const std::string &text)
-{
-    return text;
-}
 } // namespace world
 
 namespace
