@@ -90,6 +90,11 @@ add_executable(config_schema_test
   src/assets/AssetManager.cpp
   src/config/AppConfig.cpp
   src/config/AppConfigLoader.cpp
+  src/input/ActionBuffer.cpp
+  src/input/InputMapper.cpp
+  src/services/ServiceLocator.cpp
+  src/telemetry/TelemetrySink.cpp
+  tests/StubUiPresenter.cpp
 )
 
 target_include_directories(config_schema_test PRIVATE
