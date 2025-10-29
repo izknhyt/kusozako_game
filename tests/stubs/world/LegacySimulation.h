@@ -89,6 +89,7 @@ struct LegacySimulation
     BossRuntime boss;
     float missionTimer = 0.0f;
     float baseHp = 0.0f;
+    float restartCooldown = 0.0f;
     HUDState hud;
     CommanderUnit commander;
     std::vector<int> yunas;
