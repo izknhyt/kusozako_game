@@ -148,14 +148,49 @@ void MoraleSystem::update(float dt, SystemContext &context)
     bool moraleChanged = false;
 
     const MoraleConfig &moraleCfg = sim.config.morale;
-    auto assignModifiers = [&](Unit &unit, const MoraleModifiers &mods) {
+    auto applyEffects = [&](Unit &unit, const MoraleModifiers &mods, const MoraleBehaviorConfig &behavior,
+                            bool stateChanged) {
         MoraleModifiers clamped = clampModifiers(mods);
         unit.moraleSpeedMultiplier = clamped.speed;
         unit.moraleAccuracyMultiplier = clamped.accuracy;
         unit.moraleDefenseMultiplier = clamped.defense;
+        unit.moraleAttackIntervalMultiplier =
+            std::max(0.01f, std::isfinite(behavior.attackIntervalMultiplier) ? behavior.attackIntervalMultiplier : 1.0f);
+        unit.moraleIgnoreOrdersChance = std::clamp(behavior.ignoreOrdersChance, 0.0f, 1.0f);
+        unit.moraleDetectionRadiusMultiplier =
+            std::max(0.0f, std::isfinite(behavior.detectionRadiusMultiplier) ? behavior.detectionRadiusMultiplier : 1.0f);
+        unit.moraleSpawnDelayMultiplier =
+            behavior.spawnDelayMultiplier > 0.0f ? behavior.spawnDelayMultiplier : 1.0f;
+
+        const bool enableRetreat = behavior.retreat.enabled && behavior.retreat.duration > 0.0f &&
+                                   behavior.retreat.speedMultiplier > 0.0f;
+        if (enableRetreat)
+        {
+            if (stateChanged || !unit.moraleRetreatActive)
+            {
+                unit.moraleRetreatActive = true;
+                unit.moraleRetreatTimer = behavior.retreat.duration;
+            }
+            unit.moraleRetreatSpeedMultiplier = std::max(behavior.retreat.speedMultiplier, 0.0f);
+            unit.moraleRetreatHomewardBias = std::clamp(behavior.retreat.homewardBias, 0.0f, 1.0f);
+        }
+        else
+        {
+            unit.moraleRetreatActive = false;
+            unit.moraleRetreatTimer = 0.0f;
+            unit.moraleRetreatSpeedMultiplier = 1.0f;
+            unit.moraleRetreatHomewardBias = 1.0f;
+        }
+
+        if (stateChanged)
+        {
+            unit.moraleIgnoreOrdersTimer = 0.0f;
+            unit.moraleIgnoringOrders = false;
+        }
     };
 
-    auto setState = [&](Unit &unit, MoraleState state, float overrideDuration, bool comfortShield) {
+    auto setState = [&](Unit &unit, MoraleState state, float overrideDuration, bool comfortShield,
+                        const MoraleStateConfig *overrideState = nullptr) {
         bool changed = unit.moraleState != state || unit.moraleComfortShield != comfortShield;
         unit.moraleState = state;
         unit.moraleComfortShield = comfortShield;
@@ -163,10 +198,12 @@ void MoraleSystem::update(float dt, SystemContext &context)
         {
             unit.moraleImmunityTimer = 0.0f;
             unit.moraleBarrierActive = false;
+            unit.moraleBarrierLingerTimer = 0.0f;
         }
 
+        const MoraleStateConfig *configState = overrideState ? overrideState : lookupStateConfig(moraleCfg, state);
         MoraleModifiers modifiers = moraleCfg.stable;
-        const MoraleStateConfig *configState = lookupStateConfig(moraleCfg, state);
+        MoraleBehaviorConfig behavior = moraleCfg.stableBehavior;
         float desiredDuration = overrideDuration;
 
         switch (state)
@@ -174,10 +211,12 @@ void MoraleSystem::update(float dt, SystemContext &context)
         case MoraleState::Stable:
             desiredDuration = overrideDuration >= 0.0f ? overrideDuration : 0.0f;
             modifiers = moraleCfg.stable;
+            behavior = moraleCfg.stableBehavior;
             break;
         case MoraleState::LeaderDown:
             desiredDuration = overrideDuration >= 0.0f ? overrideDuration : moraleCfg.leaderDownWindow;
             modifiers = moraleCfg.leaderDown;
+            behavior = moraleCfg.leaderDownBehavior;
             break;
         default:
             if (configState)
@@ -187,6 +226,7 @@ void MoraleSystem::update(float dt, SystemContext &context)
                     desiredDuration = configState->duration;
                 }
                 modifiers = configState->modifiers;
+                behavior = configState->behavior;
             }
             break;
         }
@@ -206,6 +246,7 @@ void MoraleSystem::update(float dt, SystemContext &context)
             {
                 unit.moraleImmunityTimer = std::max(unit.moraleImmunityTimer, moraleCfg.reviveBarrier);
                 unit.moraleBarrierActive = true;
+                unit.moraleBarrierLingerTimer = std::max(unit.moraleBarrierLingerTimer, moraleCfg.reviveBarrierLinger);
                 if (desiredDuration <= 0.0f)
                 {
                     desiredDuration = std::max(moraleCfg.reviveBarrier, moraleCfg.shielded.duration);
@@ -213,18 +254,19 @@ void MoraleSystem::update(float dt, SystemContext &context)
             }
         }
 
+        bool effectsChanged = changed;
         if (std::fabs(unit.moraleTimer - desiredDuration) > 0.0001f)
         {
             unit.moraleTimer = desiredDuration;
-            changed = true;
+            effectsChanged = true;
         }
         else if (state == MoraleState::Shielded && comfortShield)
         {
             unit.moraleTimer = 0.0f;
         }
 
-        assignModifiers(unit, modifiers);
-        return changed;
+        applyEffects(unit, modifiers, behavior, effectsChanged);
+        return effectsChanged;
     };
 
     const bool commanderAlive = context.commander.alive;
@@ -308,6 +350,7 @@ void MoraleSystem::update(float dt, SystemContext &context)
     float totalDefense = 0.0f;
     std::size_t panicCount = 0;
     std::size_t mesomesoCount = 0;
+    float spawnMultiplier = 1.0f;
 
     for (std::size_t i = 0; i < yunas.size(); ++i)
     {
@@ -317,6 +360,14 @@ void MoraleSystem::update(float dt, SystemContext &context)
         {
             sim.resetUnitMorale(unit);
             moraleChanged = true;
+            if (moraleCfg.spawnLightInjury.duration > 0.0f)
+            {
+                if (setState(unit, MoraleState::Recovering, moraleCfg.spawnLightInjury.duration, false,
+                              &moraleCfg.spawnLightInjury))
+                {
+                    moraleChanged = true;
+                }
+            }
         }
 
         if (unit.moraleImmunityTimer > 0.0f)
@@ -329,7 +380,45 @@ void MoraleSystem::update(float dt, SystemContext &context)
             }
             if (unit.moraleImmunityTimer <= 0.0f)
             {
+                unit.moraleBarrierLingerTimer = std::max(unit.moraleBarrierLingerTimer, moraleCfg.reviveBarrierLinger);
+            }
+        }
+
+        if (unit.moraleBarrierActive && unit.moraleImmunityTimer <= 0.0f)
+        {
+            if (unit.moraleBarrierLingerTimer > 0.0f)
+            {
+                float before = unit.moraleBarrierLingerTimer;
+                unit.moraleBarrierLingerTimer = std::max(0.0f, unit.moraleBarrierLingerTimer - dt);
+                if (before != unit.moraleBarrierLingerTimer)
+                {
+                    moraleChanged = true;
+                }
+                if (unit.moraleBarrierLingerTimer <= 0.0f)
+                {
+                    unit.moraleBarrierActive = false;
+                    unit.moraleBarrierLingerTimer = 0.0f;
+                }
+            }
+            else if (unit.moraleBarrierActive)
+            {
                 unit.moraleBarrierActive = false;
+                unit.moraleBarrierLingerTimer = 0.0f;
+                moraleChanged = true;
+            }
+        }
+
+        if (unit.moraleRetreatActive)
+        {
+            float before = unit.moraleRetreatTimer;
+            unit.moraleRetreatTimer = std::max(0.0f, unit.moraleRetreatTimer - dt);
+            if (before != unit.moraleRetreatTimer)
+            {
+                moraleChanged = true;
+            }
+            if (unit.moraleRetreatTimer <= 0.0f)
+            {
+                unit.moraleRetreatActive = false;
             }
         }
 
@@ -495,6 +584,8 @@ void MoraleSystem::update(float dt, SystemContext &context)
             moraleEvent.icons.push_back(MoraleHudIcon{false, i, unit.moraleState});
         }
 
+        spawnMultiplier = std::max(spawnMultiplier, unit.moraleSpawnDelayMultiplier);
+
         if (m_lastStates[i] != unit.moraleState)
         {
             moraleChanged = true;
@@ -522,6 +613,16 @@ void MoraleSystem::update(float dt, SystemContext &context)
     sim.moraleSummary.mesomesoCount = mesomesoCount;
     sim.moraleSummary.commanderState = commanderState;
     sim.moraleSummary.rallySuppressed = panicCount > 0;
+
+    if (yunas.empty())
+    {
+        spawnMultiplier = 1.0f;
+    }
+    if (std::fabs(sim.moraleSpawnMultiplier - spawnMultiplier) > 0.0001f)
+    {
+        sim.moraleSpawnMultiplier = spawnMultiplier;
+    }
+    m_lastMoraleSpawnMultiplier = spawnMultiplier;
 
     if (!commanderAlive)
     {

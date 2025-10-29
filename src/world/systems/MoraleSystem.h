@@ -32,6 +32,7 @@ class MoraleSystem : public ISystem
     std::size_t m_lastHudPanic = std::numeric_limits<std::size_t>::max();
     std::size_t m_lastHudMesomeso = std::numeric_limits<std::size_t>::max();
     MoraleState m_lastHudCommanderState = MoraleState::Stable;
+    float m_lastMoraleSpawnMultiplier = 1.0f;
 };
 
 } // namespace world::systems

@@ -16,6 +16,8 @@ namespace world::systems
 namespace
 {
 
+constexpr float kMoraleIgnoreDecisionInterval = 0.6f;
+
 Vec2 computeTemperamentVelocity(LegacySimulation &sim,
                                 Unit &yuna,
                                 float dt,
@@ -368,12 +370,44 @@ void BehaviorSystem::update(float dt, SystemContext &context)
     std::size_t defendIndex = 0;
     std::size_t supportIndex = 0;
 
-    auto nearestEnemy = [&enemies](const Vec2 &pos) -> EnemyUnit * {
+    Unit *detectionUnit = nullptr;
+    const float baseDetectionRadius = std::max(sim.config.morale.detectionRadius, 0.0f);
+
+    auto nearestEnemy = [&](const Vec2 &pos) -> EnemyUnit * {
         EnemyUnit *best = nullptr;
         float bestDist = std::numeric_limits<float>::max();
+        float limitSq = -1.0f;
+        bool applyLimit = false;
+        if (detectionUnit && baseDetectionRadius > 0.0f)
+        {
+            const float mul = std::max(0.0f, detectionUnit->moraleDetectionRadiusMultiplier);
+            if (mul > 0.0f)
+            {
+                const float radius = baseDetectionRadius * mul;
+                limitSq = radius * radius;
+                applyLimit = lengthSq(pos - detectionUnit->pos) <= limitSq + 0.0001f;
+            }
+            else
+            {
+                limitSq = 0.0f;
+                applyLimit = true;
+            }
+        }
         for (EnemyUnit &enemy : enemies)
         {
+            if (enemy.hp <= 0.0f)
+            {
+                continue;
+            }
             const float dist = lengthSq(enemy.pos - pos);
+            if (applyLimit)
+            {
+                const float unitDistSq = lengthSq(enemy.pos - detectionUnit->pos);
+                if (unitDistSq > limitSq + 0.0001f)
+                {
+                    continue;
+                }
+            }
             if (dist < bestDist)
             {
                 bestDist = dist;
@@ -400,13 +434,65 @@ void BehaviorSystem::update(float dt, SystemContext &context)
         {
             jobSpeedMultiplier *= std::clamp(sim.config.shieldJob.selfSlowMultiplier, 0.0f, 1.0f);
         }
-        float effectiveSpeed = immobilized ? 0.0f : unitSpeed * jobSpeedMultiplier;
+        const float retreatSpeedMultiplier = yuna.moraleRetreatActive
+                                                 ? std::max(yuna.moraleRetreatSpeedMultiplier, 0.0f)
+                                                 : 1.0f;
+        float effectiveSpeed = immobilized ? 0.0f : unitSpeed * jobSpeedMultiplier * retreatSpeedMultiplier;
+        detectionUnit = &yuna;
         Vec2 temperamentVelocity =
             computeTemperamentVelocity(sim, yuna, dt, yunaSpeedPx, nearestEnemy, raidTargets);
         Vec2 velocity{0.0f, 0.0f};
         const bool panicActive = yuna.temperament.panicTimer > 0.0f;
 
-        if (panicActive)
+        const bool retreatActive = yuna.moraleRetreatActive;
+
+        if (yuna.moraleIgnoreOrdersChance > 0.0f)
+        {
+            if (yuna.moraleIgnoreOrdersTimer <= 0.0f)
+            {
+                std::uniform_real_distribution<float> roll(0.0f, 1.0f);
+                yuna.moraleIgnoringOrders = roll(sim.rng) < yuna.moraleIgnoreOrdersChance;
+                yuna.moraleIgnoreOrdersTimer = kMoraleIgnoreDecisionInterval;
+            }
+            else
+            {
+                yuna.moraleIgnoreOrdersTimer = std::max(0.0f, yuna.moraleIgnoreOrdersTimer - dt);
+            }
+        }
+        else
+        {
+            yuna.moraleIgnoringOrders = false;
+            yuna.moraleIgnoreOrdersTimer = 0.0f;
+        }
+
+        if (retreatActive)
+        {
+            Vec2 retreatDir{0.0f, 0.0f};
+            Vec2 away{0.0f, 0.0f};
+            if (EnemyUnit *threat = nearestEnemy(yuna.pos))
+            {
+                away = normalize(yuna.pos - threat->pos);
+            }
+            Vec2 toBase = normalize(sim.basePos - yuna.pos);
+            const float bias = std::clamp(yuna.moraleRetreatHomewardBias, 0.0f, 1.0f);
+            if (lengthSq(away) > 0.0f && bias < 1.0f)
+            {
+                retreatDir += away * (1.0f - bias);
+            }
+            if (lengthSq(toBase) > 0.0f && bias > 0.0f)
+            {
+                retreatDir += toBase * bias;
+            }
+            if (lengthSq(retreatDir) < 0.0001f)
+            {
+                retreatDir = lengthSq(toBase) > 0.0f ? toBase : away;
+            }
+            if (lengthSq(retreatDir) > 0.0f)
+            {
+                velocity = normalize(retreatDir) * unitSpeed;
+            }
+        }
+        else if (panicActive)
         {
             velocity = temperamentVelocity;
         }
@@ -423,7 +509,7 @@ void BehaviorSystem::update(float dt, SystemContext &context)
                 velocity = temperamentVelocity;
             }
         }
-        else if (context.orderActive)
+        else if (context.orderActive && !yuna.moraleIgnoringOrders)
         {
             switch (sim.stance)
             {
@@ -511,6 +597,8 @@ void BehaviorSystem::update(float dt, SystemContext &context)
             yuna.desiredVelocity = velocity;
             yuna.hasDesiredVelocity = true;
         }
+
+        detectionUnit = nullptr;
     }
 }
 

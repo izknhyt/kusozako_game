@@ -34,7 +34,8 @@ float triggerWarriorSwing(Unit &yuna, LegacySimulation &sim)
     if (dist(sim.rng) <= sim.config.warriorJob.accuracyMultiplier)
     {
         sim.pushTelemetry("Warrior swing!");
-        return sim.yunaStats.dps;
+        const float intervalMul = std::max(0.01f, yuna.moraleAttackIntervalMultiplier);
+        return sim.yunaStats.dps / intervalMul;
     }
     job.warrior.stumbleTimer = sim.config.warriorJob.stumbleSeconds;
     sim.pushTelemetry("Warrior stumbled");
@@ -376,7 +377,9 @@ void CombatSystem::update(float dt, SystemContext &context)
             const float combined = yuna.radius + enemy.radius;
             if (lengthSq(yuna.pos - enemy.pos) <= combined * combined)
             {
-                float attackDps = sim.yunaStats.dps * std::max(0.01f, yuna.moraleAccuracyMultiplier);
+                const float intervalMul = std::max(0.01f, yuna.moraleAttackIntervalMultiplier);
+                float attackDps =
+                    (sim.yunaStats.dps * std::max(0.01f, yuna.moraleAccuracyMultiplier)) / intervalMul;
                 float burstDamage = 0.0f;
                 if (yuna.job.job == UnitJob::Warrior)
                 {
@@ -411,7 +414,9 @@ void CombatSystem::update(float dt, SystemContext &context)
             const float combined = yuna.radius + gate.radius;
             if (lengthSq(yuna.pos - gate.pos) <= combined * combined)
             {
-                const float attackDps = sim.yunaStats.dps * std::max(0.01f, yuna.moraleAccuracyMultiplier);
+                const float intervalMul = std::max(0.01f, yuna.moraleAttackIntervalMultiplier);
+                const float attackDps =
+                    (sim.yunaStats.dps * std::max(0.01f, yuna.moraleAccuracyMultiplier)) / intervalMul;
                 gate.hp = std::max(0.0f, gate.hp - attackDps * dt);
                 if (gate.hp <= 0.0f)
                 {
