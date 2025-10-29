@@ -1952,9 +1952,14 @@ std::vector<std::string> AppConfigLoader::detectChangedFiles()
     for (auto &kv : m_trackedFiles)
     {
         std::error_code ec;
-        auto ts = fs::last_write_time(kv.second.path, ec);
+        const auto ts = fs::last_write_time(kv.second.path, ec);
         if (ec)
         {
+            if (kv.second.timestamp != fs::file_time_type{})
+            {
+                kv.second.timestamp = fs::file_time_type{};
+                changed.push_back(kv.first);
+            }
             continue;
         }
         if (kv.second.timestamp != ts)
