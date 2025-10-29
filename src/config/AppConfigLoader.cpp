@@ -19,7 +19,7 @@ namespace
 constexpr int kAppSchemaVersion = 1;
 constexpr int kInputSchemaVersion = 1;
 constexpr int kRendererSchemaVersion = 1;
-constexpr int kMoraleSchemaVersion = 1;
+constexpr int kMoraleSchemaVersion = 2;
 constexpr int kJobsSchemaVersion = 1;
 constexpr int kFormationsSchemaVersion = 1;
 constexpr int kSpawnWeightsSchemaVersion = 1;
@@ -450,9 +450,62 @@ std::optional<MoraleConfig> parseMoraleConfig(ParseContext &ctx, const std::stri
         return modifiers;
     };
 
+    auto readRetreat = [](const json::JsonValue &obj, MoraleRetreatConfig retreat) {
+        retreat.enabled = json::getBool(obj, "enabled", retreat.enabled);
+        retreat.duration = json::getNumber(obj, "duration_s", retreat.duration);
+        if (retreat.duration < 0.0f)
+        {
+            retreat.duration = 0.0f;
+        }
+        retreat.speedMultiplier = json::getNumber(obj, "speed_mul", retreat.speedMultiplier);
+        if (!std::isfinite(retreat.speedMultiplier) || retreat.speedMultiplier < 0.0f)
+        {
+            retreat.speedMultiplier = 1.0f;
+        }
+        retreat.homewardBias = json::getNumber(obj, "homeward_bias", retreat.homewardBias);
+        retreat.homewardBias = std::clamp(retreat.homewardBias, 0.0f, 1.0f);
+        return retreat;
+    };
+
+    auto readBehavior = [&](const json::JsonValue &obj, MoraleBehaviorConfig behavior) {
+        behavior.attackIntervalMultiplier =
+            json::getNumber(obj, "attack_interval_mul", behavior.attackIntervalMultiplier);
+        if (!std::isfinite(behavior.attackIntervalMultiplier) || behavior.attackIntervalMultiplier <= 0.0f)
+        {
+            behavior.attackIntervalMultiplier = 1.0f;
+        }
+        behavior.ignoreOrdersChance = json::getNumber(obj, "ignore_orders_chance", behavior.ignoreOrdersChance);
+        behavior.ignoreOrdersChance = std::clamp(behavior.ignoreOrdersChance, 0.0f, 1.0f);
+        behavior.detectionRadiusMultiplier =
+            json::getNumber(obj, "detection_radius_mul", behavior.detectionRadiusMultiplier);
+        if (!std::isfinite(behavior.detectionRadiusMultiplier) || behavior.detectionRadiusMultiplier < 0.0f)
+        {
+            behavior.detectionRadiusMultiplier = 1.0f;
+        }
+        behavior.spawnDelayMultiplier = json::getNumber(obj, "spawn_delay_mul", behavior.spawnDelayMultiplier);
+        if (!std::isfinite(behavior.spawnDelayMultiplier) || behavior.spawnDelayMultiplier < 0.0f)
+        {
+            behavior.spawnDelayMultiplier = 1.0f;
+        }
+        if (const json::JsonValue *retreat = json::getObjectField(obj, "retreat"))
+        {
+            behavior.retreat = readRetreat(*retreat, behavior.retreat);
+        }
+        else
+        {
+            behavior.retreat.enabled = false;
+        }
+        return behavior;
+    };
+
     auto readState = [&](const json::JsonValue &obj, MoraleStateConfig state) {
         state.duration = json::getNumber(obj, "duration_s", state.duration);
+        if (state.duration < 0.0f)
+        {
+            state.duration = 0.0f;
+        }
         state.modifiers = readModifiers(obj, state.modifiers);
+        state.behavior = readBehavior(obj, state.behavior);
         return state;
     };
 
@@ -460,14 +513,38 @@ std::optional<MoraleConfig> parseMoraleConfig(ParseContext &ctx, const std::stri
     config.leaderDownWindow = json::getNumber(root, "leader_down_window_s", config.leaderDownWindow);
     config.comfortZoneRadius = json::getNumber(root, "comfort_zone_radius_px", config.comfortZoneRadius);
     config.reviveBarrier = json::getNumber(root, "revive_barrier_s", config.reviveBarrier);
+    if (config.leaderDownWindow < 0.0f)
+    {
+        config.leaderDownWindow = 0.0f;
+    }
+    if (config.comfortZoneRadius < 0.0f)
+    {
+        config.comfortZoneRadius = 0.0f;
+    }
+    if (config.reviveBarrier < 0.0f)
+    {
+        config.reviveBarrier = 0.0f;
+    }
+    config.reviveBarrierLinger = json::getNumber(root, "revive_barrier_linger_s", config.reviveBarrierLinger);
+    if (config.reviveBarrierLinger < 0.0f)
+    {
+        config.reviveBarrierLinger = 0.0f;
+    }
+    config.detectionRadius = json::getNumber(root, "detection_radius_px", config.detectionRadius);
+    if (config.detectionRadius < 0.0f)
+    {
+        config.detectionRadius = 0.0f;
+    }
 
     if (const json::JsonValue *stable = json::getObjectField(root, "stable"))
     {
         config.stable = readModifiers(*stable, config.stable);
+        config.stableBehavior = readBehavior(*stable, config.stableBehavior);
     }
     if (const json::JsonValue *leader = json::getObjectField(root, "leader_down"))
     {
         config.leaderDown = readModifiers(*leader, config.leaderDown);
+        config.leaderDownBehavior = readBehavior(*leader, config.leaderDownBehavior);
     }
     if (const json::JsonValue *states = json::getObjectField(root, "states"))
     {
@@ -487,6 +564,11 @@ std::optional<MoraleConfig> parseMoraleConfig(ParseContext &ctx, const std::stri
         {
             config.shielded = readState(*shielded, config.shielded);
         }
+    }
+
+    if (const json::JsonValue *spawn = json::getObjectField(root, "spawn_light_injury"))
+    {
+        config.spawnLightInjury = readState(*spawn, config.spawnLightInjury);
     }
 
     return config;

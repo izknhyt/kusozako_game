@@ -20,10 +20,28 @@ struct RespawnSettings
     float invuln = 0.0f;
 };
 
+struct MoraleRetreatConfig
+{
+    bool enabled = false;
+    float duration = 0.0f;
+    float speedMultiplier = 1.0f;
+    float homewardBias = 1.0f;
+};
+
+struct MoraleBehaviorConfig
+{
+    float attackIntervalMultiplier = 1.0f;
+    float ignoreOrdersChance = 0.0f;
+    float detectionRadiusMultiplier = 1.0f;
+    float spawnDelayMultiplier = 1.0f;
+    MoraleRetreatConfig retreat{};
+};
+
 struct MoraleStateConfig
 {
     float duration = 0.0f;
     MoraleModifiers modifiers{};
+    MoraleBehaviorConfig behavior{};
 };
 
 struct MoraleConfig
@@ -31,12 +49,17 @@ struct MoraleConfig
     float leaderDownWindow = 3.0f;
     float comfortZoneRadius = 96.0f;
     float reviveBarrier = 4.0f;
+    float reviveBarrierLinger = 0.0f;
+    float detectionRadius = 256.0f;
     MoraleModifiers stable{};
+    MoraleBehaviorConfig stableBehavior{};
     MoraleModifiers leaderDown{};
+    MoraleBehaviorConfig leaderDownBehavior{};
     MoraleStateConfig panic{};
     MoraleStateConfig mesomeso{};
     MoraleStateConfig recovering{};
     MoraleStateConfig shielded{};
+    MoraleStateConfig spawnLightInjury{};
 };
 
 enum class UnitJob : std::uint8_t
