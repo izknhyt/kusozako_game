@@ -241,6 +241,21 @@ bool assertDrawPresent(const RecordingRenderer &renderer, const std::string &tex
     return assertTrue(call != nullptr, message);
 }
 
+bool assertDrawNotPresent(const RecordingRenderer &renderer, const std::string &text, const char *message)
+{
+    const DrawCall *call = findDraw(renderer, text);
+    if (call)
+    {
+        std::cerr << "Unexpected draw present: " << text << "\n";
+        std::cerr << "Available draws:\n";
+        for (const auto &entry : renderer.draws)
+        {
+            std::cerr << "  " << entry.text << "\n";
+        }
+    }
+    return assertTrue(call == nullptr, message);
+}
+
 bool assertDrawColor(const RecordingRenderer &renderer, const std::string &text, const SDL_Color &expected,
                      const char *message)
 {
@@ -429,6 +444,7 @@ bool testWarningAndResultOverlays()
     sim.renderQueue.telemetryTimer = 1.0f;
     sim.hud.resultText = "Mission Complete";
     sim.hud.resultTimer = 1.0f;
+    sim.restartCooldown = 0.5f;
 
     RenderStats stats{};
     UiView::DrawContext context{};
@@ -443,6 +459,14 @@ bool testWarningAndResultOverlays()
                                "Spawn warning should render with warm highlight color");
     success &= assertDrawPresent(renderer, "Elite incoming", "Telemetry text should be drawn when timer is active");
     success &= assertDrawPresent(renderer, "Mission Complete", "Result overlay should appear while timer is active");
+    success &= assertDrawNotPresent(renderer, "Rキーで再挑戦",
+                                    "Restart hint should stay hidden while cooldown is active");
+
+    sim.restartCooldown = 0.0f;
+
+    RecordingRenderer cooldownReadyRenderer = renderView(view, context);
+    success &= assertDrawPresent(cooldownReadyRenderer, "Rキーで再挑戦",
+                                 "Restart hint should appear once restart cooldown finishes");
 
     return success;
 }

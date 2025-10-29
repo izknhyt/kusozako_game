@@ -762,18 +762,36 @@ void UiView::render(const DrawContext &context) const
 
     if (!sim.hud.resultText.empty() && sim.hud.resultTimer > 0.0f)
     {
+        const bool showRestartHint = sim.restartCooldown <= 0.0f;
+        const std::string restartHintText = "Rキーで再挑戦";
         const int resultPadX = 24;
         const int resultPadY = 12;
-        const int textWidth = measureWithFallback(font, sim.hud.resultText, lineHeight);
-        SDL_Rect resultPanel{screenW / 2 - (textWidth + resultPadX * 2) / 2,
+        const int hintSpacing = 6;
+        int contentWidth = measureWithFallback(font, sim.hud.resultText, lineHeight);
+        if (showRestartHint)
+        {
+            contentWidth = std::max(contentWidth, measureWithFallback(font, restartHintText, lineHeight));
+        }
+        int panelHeight = lineHeight + resultPadY * 2;
+        if (showRestartHint)
+        {
+            panelHeight += hintSpacing + lineHeight;
+        }
+        SDL_Rect resultPanel{screenW / 2 - (contentWidth + resultPadX * 2) / 2,
                              screenH / 2 - lineHeight - resultPadY,
-                             textWidth + resultPadX * 2,
-                             lineHeight + resultPadY * 2};
+                             contentWidth + resultPadX * 2,
+                             panelHeight};
         SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
         SDL_SetRenderDrawColor(renderer, 0, 0, 0, 200);
         countedRenderFillRect(renderer, &resultPanel, stats);
         SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
         font.drawText(renderer, sim.hud.resultText, resultPanel.x + resultPadX, resultPanel.y + resultPadY, &stats);
+        if (showRestartHint)
+        {
+            const int hintY = resultPanel.y + resultPadY + lineHeight + hintSpacing;
+            const SDL_Color hintColor{235, 235, 235, 255};
+            font.drawText(renderer, restartHintText, resultPanel.x + resultPadX, hintY, &stats, hintColor);
+        }
     }
 }
 
