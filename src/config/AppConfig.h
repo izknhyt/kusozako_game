@@ -520,8 +520,8 @@ struct InputBindings
     std::vector<std::string> orderPushForward{"F2"};
     std::vector<std::string> orderFollowLeader{"F3"};
     std::vector<std::string> orderDefendBase{"F4"};
-    std::string toggleDebugHud{"F9"};
-    std::string reloadConfig{"F10"};
+    std::string toggleDebugHud{"F10"};
+    std::string reloadConfig{"F9"};
     std::string dumpSpawnHistory{"Shift+F10"};
     std::string quit{"Escape"};
     std::string formationPrevious{"Z"};
