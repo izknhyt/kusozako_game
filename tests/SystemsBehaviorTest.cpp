@@ -1,4 +1,5 @@
 #include "world/WorldState.h"
+#include "world/FrameAllocator.h"
 
 #include "config/AppConfig.h"
 #include "input/ActionBuffer.h"
@@ -11,6 +12,7 @@
 #include <cmath>
 #include <cstdint>
 #include <iostream>
+#include <new>
 #include <random>
 
 namespace
@@ -794,6 +796,136 @@ bool benchmarkCombatSpatialGrid()
     return true;
 }
 
+bool testFrameAllocatorReuseAndLimit()
+{
+    world::FrameAllocator allocator(1024);
+    std::uint8_t *firstBlock = allocator.allocateArray<std::uint8_t>(256);
+    std::fill(firstBlock, firstBlock + 256, 0xCD);
+
+    allocator.reset();
+    std::uint8_t *secondBlock = allocator.allocateArray<std::uint8_t>(256);
+    if (firstBlock != secondBlock)
+    {
+        std::cerr << "Frame allocator did not reuse storage" << '\n';
+        return false;
+    }
+    if (!std::all_of(secondBlock, secondBlock + 256, [](std::uint8_t value) { return value == 0; }))
+    {
+        std::cerr << "Frame allocator did not clear memory on reuse" << '\n';
+        return false;
+    }
+
+    allocator.reset();
+    bool threw = false;
+    try
+    {
+        (void)allocator.allocateArray<std::uint8_t>(1025);
+    }
+    catch (const std::bad_alloc &)
+    {
+        threw = true;
+    }
+    if (!threw)
+    {
+        std::cerr << "Frame allocator failed to enforce capacity" << '\n';
+        return false;
+    }
+
+    allocator.reset();
+    threw = false;
+    try
+    {
+        (void)allocator.allocateArray<std::uint8_t>(800);
+        (void)allocator.allocateArray<std::uint8_t>(400);
+    }
+    catch (const std::bad_alloc &)
+    {
+        threw = true;
+    }
+    if (!threw)
+    {
+        std::cerr << "Frame allocator allowed cumulative overflow" << '\n';
+        return false;
+    }
+
+    return true;
+}
+
+bool testWorldFrameAllocatorReset()
+{
+    world::WorldState world;
+    auto &sim = world.legacy();
+    world.reset();
+
+    sim.config.pixels_per_unit = 1.0f;
+    sim.basePos = {0.0f, 0.0f};
+    sim.commander.alive = true;
+    sim.commander.hp = 100.0f;
+    sim.commander.radius = 12.0f;
+    sim.commander.pos = {150.0f, 140.0f};
+
+    sim.yunas.clear();
+    for (int i = 0; i < 24; ++i)
+    {
+        Unit unit{};
+        unit.pos = {150.0f + static_cast<float>(i) * 6.0f, 180.0f};
+        unit.radius = 8.0f;
+        unit.hp = 50.0f;
+        unit.followBySkill = (i % 2) == 0;
+        unit.moraleAccuracyMultiplier = 1.0f;
+        unit.moraleDefenseMultiplier = 1.0f;
+        sim.yunas.push_back(unit);
+    }
+
+    sim.enemies.clear();
+    for (int i = 0; i < 12; ++i)
+    {
+        EnemyUnit enemy{};
+        enemy.pos = {220.0f + static_cast<float>(i) * 8.0f, 210.0f};
+        enemy.radius = 9.0f;
+        enemy.hp = 80.0f;
+        enemy.dpsUnit = 5.0f;
+        enemy.dpsWall = 2.0f;
+        enemy.dpsBase = 1.0f;
+        sim.enemies.push_back(enemy);
+    }
+
+    sim.walls.clear();
+    for (int i = 0; i < 4; ++i)
+    {
+        WallSegment wall{};
+        wall.pos = {260.0f + static_cast<float>(i) * 16.0f, 200.0f};
+        wall.radius = 12.0f;
+        wall.hp = 120.0f;
+        wall.life = 1.0f;
+        sim.walls.push_back(wall);
+    }
+
+    ActionBuffer actions;
+    world.step(0.016f, actions);
+    const std::size_t firstUsage = world.frameAllocatorUsage();
+    if (firstUsage == 0)
+    {
+        std::cerr << "Frame allocator reported zero usage after systems ran" << '\n';
+        return false;
+    }
+    if (firstUsage > world.frameAllocatorCapacity())
+    {
+        std::cerr << "Frame allocator exceeded capacity" << '\n';
+        return false;
+    }
+
+    world.step(0.016f, actions);
+    const std::size_t secondUsage = world.frameAllocatorUsage();
+    if (secondUsage != firstUsage)
+    {
+        std::cerr << "Frame allocator usage changed across identical frames" << '\n';
+        return false;
+    }
+
+    return true;
+}
+
 } // namespace
 
 int main()
@@ -816,6 +948,14 @@ int main()
         success = false;
     }
     if (!benchmarkCombatSpatialGrid())
+    {
+        success = false;
+    }
+    if (!testFrameAllocatorReuseAndLimit())
+    {
+        success = false;
+    }
+    if (!testWorldFrameAllocatorReset())
     {
         success = false;
     }

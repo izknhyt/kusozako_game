@@ -1761,9 +1761,9 @@ struct LegacySimulation
         }
     }
 
-    std::vector<Vec2> collectRaidTargets() const
+    void collectRaidTargets(std::vector<Vec2> &targets) const
     {
-        std::vector<Vec2> targets;
+        targets.clear();
         targets.reserve(captureZones.size() + spawnScript.gate_tiles.size() + mapDefs.gate_tiles.size());
         for (const CaptureRuntime &zone : captureZones)
         {
@@ -1807,6 +1807,12 @@ struct LegacySimulation
                 targets.push_back(tileToWorld(kv.second, mapDefs.tile_size));
             }
         }
+    }
+
+    std::vector<Vec2> collectRaidTargets() const
+    {
+        std::vector<Vec2> targets;
+        collectRaidTargets(targets);
         return targets;
     }
 

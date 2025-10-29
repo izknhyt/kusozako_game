@@ -95,7 +95,8 @@ void RenderingPrepSystem::update(float, SystemContext &context)
         queue.moraleIcons.push_back(commanderIcon);
     }
 
-    std::vector<std::uint8_t> yunaAlpha(allyCount, 255);
+    FrameAllocator::Allocator<std::uint8_t> alphaAlloc(context.frameAllocator);
+    std::vector<std::uint8_t, FrameAllocator::Allocator<std::uint8_t>> yunaAlpha(allyCount, 255, alphaAlloc);
     if (allyCount > 1)
     {
         const float crowdRadiusSq = 32.0f * 32.0f;

@@ -164,7 +164,9 @@ void JobAbilitySystem::update(float dt, SystemContext &context)
         }
     }
 
-    std::vector<JobHudSnapshot::Skill> skillSnapshot;
+    FrameAllocator::Allocator<JobHudSnapshot::Skill> skillAlloc(context.frameAllocator);
+    std::vector<JobHudSnapshot::Skill, FrameAllocator::Allocator<JobHudSnapshot::Skill>> skillSnapshot(
+        skillAlloc);
     skillSnapshot.reserve(context.skills.size());
     for (const RuntimeSkill &skill : context.skills)
     {

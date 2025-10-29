@@ -316,7 +316,8 @@ void CombatSystem::update(float dt, SystemContext &context)
         }
     };
 
-    std::vector<float> yunaDamage(yunas.size(), 0.0f);
+    FrameAllocator::Allocator<float> damageAlloc(context.frameAllocator);
+    std::vector<float, FrameAllocator::Allocator<float>> yunaDamage(yunas.size(), 0.0f, damageAlloc);
     float commanderDamage = 0.0f;
 
     if (commander.alive)
@@ -434,7 +435,8 @@ void CombatSystem::update(float dt, SystemContext &context)
 
     if (!yunaDamage.empty())
     {
-        std::vector<Unit> survivors;
+        FrameAllocator::Allocator<Unit> survivorAlloc(context.frameAllocator);
+        std::vector<Unit, FrameAllocator::Allocator<Unit>> survivors(survivorAlloc);
         survivors.reserve(yunas.size());
         for (std::size_t i = 0; i < yunas.size(); ++i)
         {

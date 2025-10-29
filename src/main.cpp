@@ -257,7 +257,8 @@ WorldState::WorldState()
       m_walls(std::make_unique<ComponentPool<WallSegment>>()),
       m_captureZones(std::make_unique<ComponentPool<CaptureRuntime>>()),
       m_waveController(std::make_unique<spawn::WaveController>()),
-      m_spawner(std::make_unique<spawn::Spawner>())
+      m_spawner(std::make_unique<spawn::Spawner>()),
+      m_frameAllocator()
 {
     m_waveController->setSpawner(m_spawner.get());
     m_spawner->setGateChecks(
@@ -364,6 +365,7 @@ systems::SystemContext WorldState::makeSystemContext(const ActionBuffer &actions
         m_sim->yunaRespawns,
         m_sim->commanderRespawnTimer,
         m_sim->commanderInvulnTimer,
+        m_frameAllocator,
         missionContext,
         actions,
         m_eventBus,
@@ -531,6 +533,7 @@ void WorldState::runSpawnStage(float dt, systems::SystemContext &context)
 
 void WorldState::step(float dt, const ActionBuffer &actions)
 {
+    m_frameAllocator.reset();
     systems::SystemContext context = makeSystemContext(actions);
 
     for (std::size_t i = 0; i < m_systems.size(); ++i)
@@ -570,6 +573,16 @@ void WorldState::step(float dt, const ActionBuffer &actions)
             context.componentsDirty = false;
         }
     }
+}
+
+std::size_t WorldState::frameAllocatorCapacity() const
+{
+    return m_frameAllocator.capacity();
+}
+
+std::size_t WorldState::frameAllocatorUsage() const
+{
+    return m_frameAllocator.used();
 }
 
 void WorldState::issueOrder(ArmyStance stance)

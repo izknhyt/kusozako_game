@@ -2,6 +2,7 @@
 
 #include "input/ActionBuffer.h"
 #include "world/ComponentPool.h"
+#include "world/FrameAllocator.h"
 #include "world/LegacySimulation.h"
 
 #include <memory>
@@ -77,6 +78,7 @@ struct SystemContext
     float &commanderRespawnTimer;
     float &commanderInvulnTimer;
 
+    FrameAllocator &frameAllocator;
     MissionContext mission;
     const ActionBuffer &actions;
     std::shared_ptr<EventBus> eventBus;
