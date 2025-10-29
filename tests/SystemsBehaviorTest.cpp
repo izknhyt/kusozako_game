@@ -425,7 +425,28 @@ bool testCommanderDeathMorale()
     world::WorldState world;
     world.reset();
     auto &sim = world.legacy();
-    sim.config.morale.leaderDownWindow = 1.0f;
+    sim.config.morale.leaderDownWindow = 0.5f;
+    sim.config.morale.spawnLightInjury.duration = 0.0f;
+    sim.config.morale.spawnWhileLeaderDown.applyLightMesomeso = false;
+
+    sim.config.morale.panic.modifiers.speed = 1.3f;
+    sim.config.morale.panic.modifiers.attackInterval = 0.8f;
+    sim.config.morale.panic.modifiers.accuracy = 0.65f;
+    sim.config.morale.panic.modifiers.defense = 0.9f;
+    sim.config.morale.panic.behavior.ignoreOrdersChance = 1.0f;
+    sim.config.morale.panic.behavior.retargetCooldownMultiplier = 0.5f;
+
+    sim.config.morale.mesomeso.modifiers.speed = 0.75f;
+    sim.config.morale.mesomeso.modifiers.attackInterval = 1.35f;
+    sim.config.morale.mesomeso.behavior.ignoreOrdersChance = 0.2f;
+    sim.config.morale.mesomeso.behavior.commandObeyBonus = 0.2f;
+    sim.config.morale.mesomeso.behavior.retargetCooldownMultiplier = 1.0f;
+    sim.config.morale.mesomeso.retreatCheck.interval = 0.1f;
+    sim.config.morale.mesomeso.retreatCheck.chance = 1.0f;
+    sim.config.morale.mesomeso.behavior.retreat.enabled = true;
+    sim.config.morale.mesomeso.behavior.retreat.duration = 1.0f;
+    sim.config.morale.mesomeso.behavior.retreat.speedMultiplier = 1.0f;
+    sim.config.morale.mesomeso.behavior.retreat.homewardBias = 1.0f;
 
     sim.yunas.clear();
     sim.yunas.resize(2);
@@ -467,6 +488,70 @@ bool testCommanderDeathMorale()
     if (sim.hud.morale.panicCount == 0 || sim.hud.morale.mesomesoCount == 0)
     {
         std::cerr << "HUD morale counters not updated" << '\n';
+        return false;
+    }
+
+    const Unit &panicUnit = sim.yunas[0];
+    const Unit &mesoUnit = sim.yunas[1];
+
+    if (!almostEqual(panicUnit.moraleSpeedMultiplier, sim.config.morale.panic.modifiers.speed))
+    {
+        std::cerr << "Panic speed multiplier not applied" << '\n';
+        return false;
+    }
+    if (!almostEqual(panicUnit.moraleAttackIntervalMultiplier, sim.config.morale.panic.modifiers.attackInterval))
+    {
+        std::cerr << "Panic attack interval multiplier not applied" << '\n';
+        return false;
+    }
+    if (!almostEqual(panicUnit.moraleRetargetCooldownMultiplier,
+                     sim.config.morale.panic.behavior.retargetCooldownMultiplier))
+    {
+        std::cerr << "Panic retarget cooldown multiplier not applied" << '\n';
+        return false;
+    }
+    if (!almostEqual(mesoUnit.moraleCommandObeyBonus, sim.config.morale.mesomeso.behavior.commandObeyBonus))
+    {
+        std::cerr << "Mesomeso obey bonus not applied" << '\n';
+        return false;
+    }
+    if (!almostEqual(mesoUnit.moraleRetreatCheckInterval, sim.config.morale.mesomeso.retreatCheck.interval) ||
+        !almostEqual(mesoUnit.moraleRetreatCheckChance, sim.config.morale.mesomeso.retreatCheck.chance))
+    {
+        std::cerr << "Mesomeso retreat check configuration not applied" << '\n';
+        return false;
+    }
+
+    constexpr float kIgnoreDecisionInterval = 0.6f;
+    world.step(kIgnoreDecisionInterval, actions);
+
+    const Unit &panicAfter = sim.yunas[0];
+    const Unit &mesoAfter = sim.yunas[1];
+
+    if (!almostEqual(panicAfter.moraleIgnoreOrdersTimer,
+                     kIgnoreDecisionInterval * sim.config.morale.panic.behavior.retargetCooldownMultiplier))
+    {
+        std::cerr << "Panic ignore-orders timer not scaled" << '\n';
+        return false;
+    }
+    if (!panicAfter.moraleIgnoringOrders)
+    {
+        std::cerr << "Panic unit did not ignore orders" << '\n';
+        return false;
+    }
+    if (mesoAfter.moraleIgnoringOrders)
+    {
+        std::cerr << "Mesomeso unit ignored orders despite obey bonus" << '\n';
+        return false;
+    }
+    if (!mesoAfter.moraleRetreatActive)
+    {
+        std::cerr << "Mesomeso unit did not trigger retreat" << '\n';
+        return false;
+    }
+    if (!(mesoAfter.moraleRetreatTimer > 0.0f))
+    {
+        std::cerr << "Mesomeso retreat timer not started" << '\n';
         return false;
     }
 

@@ -446,13 +446,17 @@ void BehaviorSystem::update(float dt, SystemContext &context)
 
         const bool retreatActive = yuna.moraleRetreatActive;
 
-        if (yuna.moraleIgnoreOrdersChance > 0.0f)
+        const float effectiveIgnoreChance =
+            std::clamp(yuna.moraleIgnoreOrdersChance - yuna.moraleCommandObeyBonus, 0.0f, 1.0f);
+        const float decisionInterval =
+            kMoraleIgnoreDecisionInterval * std::max(0.01f, yuna.moraleRetargetCooldownMultiplier);
+        if (effectiveIgnoreChance > 0.0f)
         {
             if (yuna.moraleIgnoreOrdersTimer <= 0.0f)
             {
                 std::uniform_real_distribution<float> roll(0.0f, 1.0f);
-                yuna.moraleIgnoringOrders = roll(sim.rng) < yuna.moraleIgnoreOrdersChance;
-                yuna.moraleIgnoreOrdersTimer = kMoraleIgnoreDecisionInterval;
+                yuna.moraleIgnoringOrders = roll(sim.rng) < effectiveIgnoreChance;
+                yuna.moraleIgnoreOrdersTimer = decisionInterval;
             }
             else
             {
