@@ -904,25 +904,46 @@ std::optional<TemperamentConfig> parseTemperamentConfig(ParseContext &ctx, const
     if (const json::JsonValue *follow = json::getObjectField(root, "follow_catchup"))
     {
         config.followCatchup.distance = json::getNumber(*follow, "distance_px", config.followCatchup.distance);
+        config.followCatchup.distance = json::getNumber(*follow, "dist_px", config.followCatchup.distance);
         config.followCatchup.duration = json::getNumber(*follow, "duration_s", config.followCatchup.duration);
+        config.followCatchup.duration = json::getNumber(*follow, "dur_s", config.followCatchup.duration);
         config.followCatchup.multiplier = json::getNumber(*follow, "multiplier", config.followCatchup.multiplier);
+        config.followCatchup.multiplier = json::getNumber(*follow, "mult", config.followCatchup.multiplier);
     }
     if (const json::JsonValue *wander = json::getObjectField(root, "wander"))
     {
         config.wanderTurnInterval = getRangeField(*wander, "turn_every_s", config.wanderTurnInterval);
+    }
+    else if (const json::JsonValue *wanderInterval = json::getObjectField(root, "wander_turn_interval_s"))
+    {
+        config.wanderTurnInterval = readRangeValue(*wanderInterval, config.wanderTurnInterval);
     }
     if (const json::JsonValue *sleep = json::getObjectField(root, "sleep"))
     {
         config.sleepEvery = getRangeField(*sleep, "every_s", config.sleepEvery);
         config.sleepDuration = json::getNumber(*sleep, "duration_s", config.sleepDuration);
     }
+    else
+    {
+        if (const json::JsonValue *sleepEvery = json::getObjectField(root, "sleep_every_s"))
+        {
+            config.sleepEvery = readRangeValue(*sleepEvery, config.sleepEvery);
+        }
+        config.sleepDuration = json::getNumber(root, "sleep_dur_s", config.sleepDuration);
+    }
     if (const json::JsonValue *dash = json::getObjectField(root, "charge_dash"))
     {
         config.chargeDash.duration = json::getNumber(*dash, "duration_s", config.chargeDash.duration);
+        config.chargeDash.duration = json::getNumber(*dash, "dur_s", config.chargeDash.duration);
         config.chargeDash.multiplier = json::getNumber(*dash, "multiplier", config.chargeDash.multiplier);
+        config.chargeDash.multiplier = json::getNumber(*dash, "mult", config.chargeDash.multiplier);
     }
 
     const json::JsonValue *definitions = json::getObjectField(root, "definitions");
+    if (!definitions)
+    {
+        definitions = json::getObjectField(root, "temperaments");
+    }
     if (!definitions)
     {
         ctx.errors->push_back({path, "Missing temperament definitions"});
@@ -944,7 +965,9 @@ std::optional<TemperamentConfig> parseTemperamentConfig(ParseContext &ctx, const
         def.label = json::getString(value, "label", def.id);
         def.spawnRate = json::getNumber(value, "spawn_rate", def.spawnRate);
         def.homeRadius = json::getNumber(value, "home_radius_px", def.homeRadius);
+        def.homeRadius = json::getNumber(value, "home_r_px", def.homeRadius);
         def.avoidEnemyRadius = json::getNumber(value, "avoid_enemy_radius_px", def.avoidEnemyRadius);
+        def.avoidEnemyRadius = json::getNumber(value, "avoid_enemy_r_px", def.avoidEnemyRadius);
         if (const json::JsonValue *behavior = json::getObjectField(value, "behavior"))
         {
             if (behavior->type == json::JsonValue::Type::String)
@@ -961,9 +984,21 @@ std::optional<TemperamentConfig> parseTemperamentConfig(ParseContext &ctx, const
             def.cryPauseEvery = getRangeField(*cry, "every_s", def.cryPauseEvery);
             def.cryPauseDuration = json::getNumber(*cry, "pause_s", def.cryPauseDuration);
         }
-        def.panicOnHit = json::getNumber(value, "panic_on_hit", def.panicOnHit);
-        if (const json::JsonValue *targets = json::getObjectField(value, "target_tags"))
+        else
         {
+            if (const json::JsonValue *cryEvery = json::getObjectField(value, "cry_pause_every_s"))
+            {
+                def.cryPauseEvery = readRangeValue(*cryEvery, def.cryPauseEvery);
+            }
+            def.cryPauseDuration = json::getNumber(value, "cry_pause_dur_s", def.cryPauseDuration);
+        }
+        def.panicOnHit = json::getNumber(value, "panic_on_hit", def.panicOnHit);
+        def.panicOnHit = json::getNumber(value, "panic_on_hit_s", def.panicOnHit);
+        auto appendTargetTags = [&def](const json::JsonValue *targets) {
+            if (!targets)
+            {
+                return;
+            }
             if (targets->type == json::JsonValue::Type::Array)
             {
                 for (const auto &entry : targets->array)
@@ -972,6 +1007,18 @@ std::optional<TemperamentConfig> parseTemperamentConfig(ParseContext &ctx, const
                     {
                         def.targetTags.push_back(entry.string);
                     }
+                }
+            }
+        };
+        appendTargetTags(json::getObjectField(value, "target_tags"));
+        appendTargetTags(json::getObjectField(value, "target_tag"));
+        if (def.targetTags.empty())
+        {
+            if (const json::JsonValue *singleTag = json::getObjectField(value, "target_tag"))
+            {
+                if (singleTag->type == json::JsonValue::Type::String)
+                {
+                    def.targetTags.push_back(singleTag->string);
                 }
             }
         }
