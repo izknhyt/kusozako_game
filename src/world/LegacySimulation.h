@@ -125,13 +125,20 @@ struct Unit
     float moraleIgnoreOrdersChance = 0.0f;
     float moraleDetectionRadiusMultiplier = 1.0f;
     float moraleSpawnDelayMultiplier = 1.0f;
+    float moraleRetargetCooldownMultiplier = 1.0f;
+    float moraleCommandObeyBonus = 0.0f;
     bool moraleRetreatActive = false;
     float moraleRetreatTimer = 0.0f;
     float moraleRetreatSpeedMultiplier = 1.0f;
     float moraleRetreatHomewardBias = 1.0f;
+    float moraleRetreatDuration = 0.0f;
+    float moraleRetreatCheckInterval = 0.0f;
+    float moraleRetreatCheckChance = 0.0f;
+    float moraleRetreatCheckTimer = 0.0f;
     float moraleBarrierLingerTimer = 0.0f;
     float moraleIgnoreOrdersTimer = 0.0f;
     bool moraleIgnoringOrders = false;
+    bool moraleLightMesomesoPending = false;
     JobRuntimeState job{};
 };
 
@@ -715,18 +722,29 @@ struct LegacySimulation
         unit.moraleSpeedMultiplier = std::max(config.morale.stable.speed, 0.01f);
         unit.moraleAccuracyMultiplier = std::max(config.morale.stable.accuracy, 0.01f);
         unit.moraleDefenseMultiplier = std::max(config.morale.stable.defense, 0.01f);
-        unit.moraleAttackIntervalMultiplier = std::max(config.morale.stableBehavior.attackIntervalMultiplier, 0.01f);
+        unit.moraleAttackIntervalMultiplier = std::max(config.morale.stable.attackInterval, 0.01f);
         unit.moraleIgnoreOrdersChance = std::clamp(config.morale.stableBehavior.ignoreOrdersChance, 0.0f, 1.0f);
         unit.moraleDetectionRadiusMultiplier =
             std::max(config.morale.stableBehavior.detectionRadiusMultiplier, 0.0f);
         unit.moraleSpawnDelayMultiplier =
             std::max(config.morale.stableBehavior.spawnDelayMultiplier, 1.0f);
+        unit.moraleRetargetCooldownMultiplier =
+            std::max(config.morale.stableBehavior.retargetCooldownMultiplier, 0.01f);
+        unit.moraleCommandObeyBonus =
+            std::clamp(config.morale.stableBehavior.commandObeyBonus, 0.0f, 1.0f);
         unit.moraleRetreatActive = false;
         unit.moraleRetreatTimer = 0.0f;
         unit.moraleRetreatSpeedMultiplier = std::max(config.morale.stableBehavior.retreat.speedMultiplier, 0.0f);
         unit.moraleRetreatHomewardBias = std::clamp(config.morale.stableBehavior.retreat.homewardBias, 0.0f, 1.0f);
+        unit.moraleRetreatDuration = config.morale.stableBehavior.retreat.enabled
+                                          ? std::max(config.morale.stableBehavior.retreat.duration, 0.0f)
+                                          : 0.0f;
+        unit.moraleRetreatCheckInterval = 0.0f;
+        unit.moraleRetreatCheckChance = 0.0f;
+        unit.moraleRetreatCheckTimer = 0.0f;
         unit.moraleIgnoreOrdersTimer = 0.0f;
         unit.moraleIgnoringOrders = false;
+        unit.moraleLightMesomesoPending = false;
     }
 
     void initializeJobState(Unit &unit, UnitJob job)
@@ -954,6 +972,8 @@ struct LegacySimulation
         yuna.hp = yunaStats.hp;
         yuna.radius = yunaStats.radius;
         resetUnitMorale(yuna);
+        yuna.moraleLightMesomesoPending = !commander.alive &&
+                                         config.morale.spawnWhileLeaderDown.applyLightMesomeso;
         initializeJobState(yuna, job);
         yunas.push_back(yuna);
         assignTemperament(yunas.back());

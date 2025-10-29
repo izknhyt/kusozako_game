@@ -19,7 +19,7 @@ namespace
 constexpr int kAppSchemaVersion = 1;
 constexpr int kInputSchemaVersion = 1;
 constexpr int kRendererSchemaVersion = 1;
-constexpr int kMoraleSchemaVersion = 2;
+constexpr int kMoraleSchemaVersion = 3;
 constexpr int kJobsSchemaVersion = 1;
 constexpr int kFormationsSchemaVersion = 1;
 constexpr int kSpawnWeightsSchemaVersion = 1;
@@ -442,9 +442,11 @@ std::optional<MoraleConfig> parseMoraleConfig(ParseContext &ctx, const std::stri
 
     auto readModifiers = [](const json::JsonValue &obj, MoraleModifiers modifiers) {
         modifiers.speed = json::getNumber(obj, "speed", modifiers.speed);
+        modifiers.attackInterval = json::getNumber(obj, "attack_interval_mul", modifiers.attackInterval);
         modifiers.accuracy = json::getNumber(obj, "accuracy", modifiers.accuracy);
         modifiers.defense = json::getNumber(obj, "defense", modifiers.defense);
         if (modifiers.speed <= 0.0f) modifiers.speed = 0.01f;
+        if (modifiers.attackInterval <= 0.0f) modifiers.attackInterval = 0.01f;
         if (modifiers.accuracy <= 0.0f) modifiers.accuracy = 0.01f;
         if (modifiers.defense <= 0.0f) modifiers.defense = 0.01f;
         return modifiers;
@@ -468,12 +470,6 @@ std::optional<MoraleConfig> parseMoraleConfig(ParseContext &ctx, const std::stri
     };
 
     auto readBehavior = [&](const json::JsonValue &obj, MoraleBehaviorConfig behavior) {
-        behavior.attackIntervalMultiplier =
-            json::getNumber(obj, "attack_interval_mul", behavior.attackIntervalMultiplier);
-        if (!std::isfinite(behavior.attackIntervalMultiplier) || behavior.attackIntervalMultiplier <= 0.0f)
-        {
-            behavior.attackIntervalMultiplier = 1.0f;
-        }
         behavior.ignoreOrdersChance = json::getNumber(obj, "ignore_orders_chance", behavior.ignoreOrdersChance);
         behavior.ignoreOrdersChance = std::clamp(behavior.ignoreOrdersChance, 0.0f, 1.0f);
         behavior.detectionRadiusMultiplier =
@@ -487,6 +483,14 @@ std::optional<MoraleConfig> parseMoraleConfig(ParseContext &ctx, const std::stri
         {
             behavior.spawnDelayMultiplier = 1.0f;
         }
+        behavior.retargetCooldownMultiplier =
+            json::getNumber(obj, "retarget_cd_mul", behavior.retargetCooldownMultiplier);
+        if (!std::isfinite(behavior.retargetCooldownMultiplier) || behavior.retargetCooldownMultiplier <= 0.0f)
+        {
+            behavior.retargetCooldownMultiplier = 1.0f;
+        }
+        behavior.commandObeyBonus = json::getNumber(obj, "command_obey_bonus", behavior.commandObeyBonus);
+        behavior.commandObeyBonus = std::clamp(behavior.commandObeyBonus, 0.0f, 1.0f);
         if (const json::JsonValue *retreat = json::getObjectField(obj, "retreat"))
         {
             behavior.retreat = readRetreat(*retreat, behavior.retreat);
@@ -498,6 +502,17 @@ std::optional<MoraleConfig> parseMoraleConfig(ParseContext &ctx, const std::stri
         return behavior;
     };
 
+    auto readRetreatCheck = [](const json::JsonValue &obj, MoraleRetreatCheckConfig config) {
+        config.interval = json::getNumber(obj, "interval_s", config.interval);
+        if (!std::isfinite(config.interval) || config.interval < 0.0f)
+        {
+            config.interval = 0.0f;
+        }
+        config.chance = json::getNumber(obj, "chance", config.chance);
+        config.chance = std::clamp(config.chance, 0.0f, 1.0f);
+        return config;
+    };
+
     auto readState = [&](const json::JsonValue &obj, MoraleStateConfig state) {
         state.duration = json::getNumber(obj, "duration_s", state.duration);
         if (state.duration < 0.0f)
@@ -506,6 +521,14 @@ std::optional<MoraleConfig> parseMoraleConfig(ParseContext &ctx, const std::stri
         }
         state.modifiers = readModifiers(obj, state.modifiers);
         state.behavior = readBehavior(obj, state.behavior);
+        if (const json::JsonValue *retreatCheck = json::getObjectField(obj, "retreat_check"))
+        {
+            state.retreatCheck = readRetreatCheck(*retreatCheck, state.retreatCheck);
+        }
+        else
+        {
+            state.retreatCheck = {};
+        }
         return state;
     };
 
@@ -569,6 +592,18 @@ std::optional<MoraleConfig> parseMoraleConfig(ParseContext &ctx, const std::stri
     if (const json::JsonValue *spawn = json::getObjectField(root, "spawn_light_injury"))
     {
         config.spawnLightInjury = readState(*spawn, config.spawnLightInjury);
+    }
+
+    if (const json::JsonValue *spawnWindow = json::getObjectField(root, "spawn_while_leader_down"))
+    {
+        config.spawnWhileLeaderDown.applyLightMesomeso =
+            json::getBool(*spawnWindow, "apply_light_mesomeso", config.spawnWhileLeaderDown.applyLightMesomeso);
+        config.spawnWhileLeaderDown.duration =
+            json::getNumber(*spawnWindow, "duration_s", config.spawnWhileLeaderDown.duration);
+        if (!std::isfinite(config.spawnWhileLeaderDown.duration) || config.spawnWhileLeaderDown.duration < 0.0f)
+        {
+            config.spawnWhileLeaderDown.duration = 0.0f;
+        }
     }
 
     return config;

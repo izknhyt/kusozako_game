@@ -20,6 +20,7 @@ class MoraleSystem : public ISystem
     bool m_commanderAlive = true;
     float m_leaderDownTimer = 0.0f;
     float m_commanderBarrierTimer = 0.0f;
+    float m_leaderDownSpawnTimer = 0.0f;
     std::size_t m_knownUnits = 0;
     std::vector<MoraleState> m_lastStates;
     MoraleState m_lastCommanderState = MoraleState::Stable;

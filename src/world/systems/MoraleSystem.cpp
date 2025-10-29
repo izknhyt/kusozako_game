@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <cmath>
 #include <numeric>
+#include <random>
 #include <sstream>
 #include <vector>
 
@@ -22,6 +23,10 @@ MoraleModifiers clampModifiers(const MoraleModifiers &mods)
     if (!std::isfinite(clamped.speed) || clamped.speed <= 0.0f)
     {
         clamped.speed = 0.01f;
+    }
+    if (!std::isfinite(clamped.attackInterval) || clamped.attackInterval <= 0.0f)
+    {
+        clamped.attackInterval = 0.01f;
     }
     if (!std::isfinite(clamped.accuracy) || clamped.accuracy <= 0.0f)
     {
@@ -149,30 +154,47 @@ void MoraleSystem::update(float dt, SystemContext &context)
 
     const MoraleConfig &moraleCfg = sim.config.morale;
     auto applyEffects = [&](Unit &unit, const MoraleModifiers &mods, const MoraleBehaviorConfig &behavior,
-                            bool stateChanged) {
+                            const MoraleStateConfig *stateConfig, bool stateChanged) {
         MoraleModifiers clamped = clampModifiers(mods);
         unit.moraleSpeedMultiplier = clamped.speed;
         unit.moraleAccuracyMultiplier = clamped.accuracy;
         unit.moraleDefenseMultiplier = clamped.defense;
-        unit.moraleAttackIntervalMultiplier =
-            std::max(0.01f, std::isfinite(behavior.attackIntervalMultiplier) ? behavior.attackIntervalMultiplier : 1.0f);
+        unit.moraleAttackIntervalMultiplier = clamped.attackInterval;
         unit.moraleIgnoreOrdersChance = std::clamp(behavior.ignoreOrdersChance, 0.0f, 1.0f);
         unit.moraleDetectionRadiusMultiplier =
             std::max(0.0f, std::isfinite(behavior.detectionRadiusMultiplier) ? behavior.detectionRadiusMultiplier : 1.0f);
         unit.moraleSpawnDelayMultiplier =
             behavior.spawnDelayMultiplier > 0.0f ? behavior.spawnDelayMultiplier : 1.0f;
-
-        const bool enableRetreat = behavior.retreat.enabled && behavior.retreat.duration > 0.0f &&
-                                   behavior.retreat.speedMultiplier > 0.0f;
-        if (enableRetreat)
+        float retargetMul = std::isfinite(behavior.retargetCooldownMultiplier) ? behavior.retargetCooldownMultiplier : 1.0f;
+        if (retargetMul <= 0.0f)
         {
-            if (stateChanged || !unit.moraleRetreatActive)
-            {
-                unit.moraleRetreatActive = true;
-                unit.moraleRetreatTimer = behavior.retreat.duration;
-            }
+            retargetMul = 0.01f;
+        }
+        unit.moraleRetargetCooldownMultiplier = retargetMul;
+        unit.moraleCommandObeyBonus = std::clamp(behavior.commandObeyBonus, 0.0f, 1.0f);
+
+        const bool hasRetreat = behavior.retreat.enabled && behavior.retreat.duration > 0.0f &&
+                                behavior.retreat.speedMultiplier > 0.0f;
+        const bool hasRetreatCheck = stateConfig && stateConfig->retreatCheck.interval > 0.0f &&
+                                     stateConfig->retreatCheck.chance > 0.0f;
+        if (hasRetreat)
+        {
+            unit.moraleRetreatDuration = behavior.retreat.duration;
             unit.moraleRetreatSpeedMultiplier = std::max(behavior.retreat.speedMultiplier, 0.0f);
             unit.moraleRetreatHomewardBias = std::clamp(behavior.retreat.homewardBias, 0.0f, 1.0f);
+            if (!hasRetreatCheck)
+            {
+                if (stateChanged || !unit.moraleRetreatActive)
+                {
+                    unit.moraleRetreatActive = true;
+                    unit.moraleRetreatTimer = behavior.retreat.duration;
+                }
+            }
+            else if (stateChanged)
+            {
+                unit.moraleRetreatActive = false;
+                unit.moraleRetreatTimer = 0.0f;
+            }
         }
         else
         {
@@ -180,6 +202,26 @@ void MoraleSystem::update(float dt, SystemContext &context)
             unit.moraleRetreatTimer = 0.0f;
             unit.moraleRetreatSpeedMultiplier = 1.0f;
             unit.moraleRetreatHomewardBias = 1.0f;
+            unit.moraleRetreatDuration = 0.0f;
+        }
+
+        float retreatInterval = 0.0f;
+        float retreatChance = 0.0f;
+        if (stateConfig)
+        {
+            retreatInterval = std::max(0.0f, stateConfig->retreatCheck.interval);
+            retreatChance = std::clamp(stateConfig->retreatCheck.chance, 0.0f, 1.0f);
+            if (unit.moraleRetreatDuration <= 0.0f)
+            {
+                retreatInterval = 0.0f;
+                retreatChance = 0.0f;
+            }
+        }
+        unit.moraleRetreatCheckInterval = retreatInterval;
+        unit.moraleRetreatCheckChance = retreatChance;
+        if (stateChanged)
+        {
+            unit.moraleRetreatCheckTimer = retreatInterval;
         }
 
         if (stateChanged)
@@ -265,7 +307,7 @@ void MoraleSystem::update(float dt, SystemContext &context)
             unit.moraleTimer = 0.0f;
         }
 
-        applyEffects(unit, modifiers, behavior, effectsChanged);
+        applyEffects(unit, modifiers, behavior, configState, effectsChanged);
         return effectsChanged;
     };
 
@@ -277,6 +319,14 @@ void MoraleSystem::update(float dt, SystemContext &context)
         m_commanderAlive = false;
         m_leaderDownTimer = moraleCfg.leaderDownWindow;
         m_commanderBarrierTimer = 0.0f;
+        if (moraleCfg.spawnWhileLeaderDown.applyLightMesomeso)
+        {
+            m_leaderDownSpawnTimer = moraleCfg.spawnWhileLeaderDown.duration;
+        }
+        else
+        {
+            m_leaderDownSpawnTimer = 0.0f;
+        }
         m_applyReviveBarrier = false;
         m_announcedPanic = false;
         m_announcedRecovery = false;
@@ -292,6 +342,7 @@ void MoraleSystem::update(float dt, SystemContext &context)
         m_commanderAlive = true;
         m_leaderDownTimer = 0.0f;
         m_commanderBarrierTimer = moraleCfg.reviveBarrier;
+        m_leaderDownSpawnTimer = 0.0f;
         m_applyReviveBarrier = moraleCfg.reviveBarrier > 0.0f;
         m_announcedLeaderDown = false;
         m_announcedPanic = false;
@@ -360,7 +411,19 @@ void MoraleSystem::update(float dt, SystemContext &context)
         {
             sim.resetUnitMorale(unit);
             moraleChanged = true;
-            if (moraleCfg.spawnLightInjury.duration > 0.0f)
+            bool appliedSpawnEffect = false;
+            const bool leaderDownEligible = !commanderAlive && moraleCfg.spawnWhileLeaderDown.applyLightMesomeso &&
+                                             moraleCfg.spawnLightInjury.duration > 0.0f;
+            if ((leaderDownEligible && (m_leaderDownSpawnTimer > 0.0f || unit.moraleLightMesomesoPending)))
+            {
+                if (setState(unit, MoraleState::Mesomeso, moraleCfg.spawnLightInjury.duration, false,
+                              &moraleCfg.spawnLightInjury))
+                {
+                    moraleChanged = true;
+                }
+                appliedSpawnEffect = true;
+            }
+            if (!appliedSpawnEffect && moraleCfg.spawnLightInjury.duration > 0.0f)
             {
                 if (setState(unit, MoraleState::Recovering, moraleCfg.spawnLightInjury.duration, false,
                               &moraleCfg.spawnLightInjury))
@@ -368,6 +431,7 @@ void MoraleSystem::update(float dt, SystemContext &context)
                     moraleChanged = true;
                 }
             }
+            unit.moraleLightMesomesoPending = false;
         }
 
         if (unit.moraleImmunityTimer > 0.0f)
@@ -420,6 +484,34 @@ void MoraleSystem::update(float dt, SystemContext &context)
             {
                 unit.moraleRetreatActive = false;
             }
+        }
+        else if (unit.moraleRetreatCheckInterval > 0.0f && unit.moraleRetreatCheckChance > 0.0f)
+        {
+            unit.moraleRetreatCheckTimer -= dt;
+            bool triggered = false;
+            while (unit.moraleRetreatCheckTimer <= 0.0f && unit.moraleRetreatCheckInterval > 0.0f)
+            {
+                unit.moraleRetreatCheckTimer += unit.moraleRetreatCheckInterval;
+                if (!triggered && unit.moraleRetreatDuration > 0.0f)
+                {
+                    std::uniform_real_distribution<float> roll(0.0f, 1.0f);
+                    if (roll(sim.rng) < unit.moraleRetreatCheckChance)
+                    {
+                        unit.moraleRetreatActive = true;
+                        unit.moraleRetreatTimer = unit.moraleRetreatDuration;
+                        moraleChanged = true;
+                        triggered = true;
+                    }
+                }
+            }
+            if (unit.moraleRetreatCheckTimer < 0.0f)
+            {
+                unit.moraleRetreatCheckTimer = 0.0f;
+            }
+        }
+        else
+        {
+            unit.moraleRetreatCheckTimer = 0.0f;
         }
 
         if (m_applyReviveBarrier && moraleCfg.reviveBarrier > 0.0f && !unit.moraleComfortShield)
@@ -591,6 +683,18 @@ void MoraleSystem::update(float dt, SystemContext &context)
             moraleChanged = true;
             m_lastStates[i] = unit.moraleState;
         }
+    }
+
+    if (!commanderAlive)
+    {
+        if (m_leaderDownSpawnTimer > 0.0f)
+        {
+            m_leaderDownSpawnTimer = std::max(0.0f, m_leaderDownSpawnTimer - dt);
+        }
+    }
+    else
+    {
+        m_leaderDownSpawnTimer = 0.0f;
     }
 
     moraleEvent.panicCount = panicCount;

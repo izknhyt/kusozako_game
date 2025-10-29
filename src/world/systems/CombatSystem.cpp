@@ -23,7 +23,8 @@ float triggerWarriorSwing(Unit &yuna, LegacySimulation &sim)
     {
         return 0.0f;
     }
-    job.cooldown = std::max(0.0f, sim.config.warriorJob.cooldown);
+    const float intervalMul = std::max(0.01f, yuna.moraleAttackIntervalMultiplier);
+    job.cooldown = std::max(0.0f, sim.config.warriorJob.cooldown * intervalMul);
     job.endlag = std::max(job.endlag, sim.config.jobCommon.endlagSeconds);
     std::uniform_real_distribution<float> dist(0.0f, 1.0f);
     if (dist(sim.rng) < sim.config.jobCommon.fizzleChance)
@@ -34,7 +35,6 @@ float triggerWarriorSwing(Unit &yuna, LegacySimulation &sim)
     if (dist(sim.rng) <= sim.config.warriorJob.accuracyMultiplier)
     {
         sim.pushTelemetry("Warrior swing!");
-        const float intervalMul = std::max(0.01f, yuna.moraleAttackIntervalMultiplier);
         return sim.yunaStats.dps / intervalMul;
     }
     job.warrior.stumbleTimer = sim.config.warriorJob.stumbleSeconds;
@@ -53,7 +53,8 @@ void triggerArcherFocus(Unit &yuna, LegacySimulation &sim)
     {
         return;
     }
-    job.cooldown = std::max(0.0f, sim.config.archerJob.cooldown);
+    const float intervalMul = std::max(0.01f, yuna.moraleAttackIntervalMultiplier);
+    job.cooldown = std::max(0.0f, sim.config.archerJob.cooldown * intervalMul);
     job.endlag = std::max(job.endlag, sim.config.jobCommon.endlagSeconds);
     std::uniform_real_distribution<float> dist(0.0f, 1.0f);
     if (dist(sim.rng) < sim.config.jobCommon.fizzleChance)
@@ -103,7 +104,8 @@ void triggerShieldTaunt(Unit &yuna, LegacySimulation &sim, std::vector<EnemyUnit
     {
         return;
     }
-    job.cooldown = std::max(0.0f, sim.config.shieldJob.cooldown);
+    const float intervalMul = std::max(0.01f, yuna.moraleAttackIntervalMultiplier);
+    job.cooldown = std::max(0.0f, sim.config.shieldJob.cooldown * intervalMul);
     job.endlag = std::max(job.endlag, sim.config.jobCommon.endlagSeconds);
     std::uniform_real_distribution<float> dist(0.0f, 1.0f);
     if (dist(sim.rng) < sim.config.jobCommon.fizzleChance)

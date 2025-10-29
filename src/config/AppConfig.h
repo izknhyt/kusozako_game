@@ -28,12 +28,19 @@ struct MoraleRetreatConfig
     float homewardBias = 1.0f;
 };
 
+struct MoraleRetreatCheckConfig
+{
+    float interval = 0.0f;
+    float chance = 0.0f;
+};
+
 struct MoraleBehaviorConfig
 {
-    float attackIntervalMultiplier = 1.0f;
     float ignoreOrdersChance = 0.0f;
     float detectionRadiusMultiplier = 1.0f;
     float spawnDelayMultiplier = 1.0f;
+    float retargetCooldownMultiplier = 1.0f;
+    float commandObeyBonus = 0.0f;
     MoraleRetreatConfig retreat{};
 };
 
@@ -42,6 +49,13 @@ struct MoraleStateConfig
     float duration = 0.0f;
     MoraleModifiers modifiers{};
     MoraleBehaviorConfig behavior{};
+    MoraleRetreatCheckConfig retreatCheck{};
+};
+
+struct MoraleSpawnWhileLeaderDownConfig
+{
+    bool applyLightMesomeso = false;
+    float duration = 0.0f;
 };
 
 struct MoraleConfig
@@ -60,6 +74,7 @@ struct MoraleConfig
     MoraleStateConfig recovering{};
     MoraleStateConfig shielded{};
     MoraleStateConfig spawnLightInjury{};
+    MoraleSpawnWhileLeaderDownConfig spawnWhileLeaderDown{};
 };
 
 enum class UnitJob : std::uint8_t

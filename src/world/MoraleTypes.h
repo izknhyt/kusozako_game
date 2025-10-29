@@ -16,6 +16,7 @@ enum class MoraleState : std::uint8_t
 struct MoraleModifiers
 {
     float speed = 1.0f;
+    float attackInterval = 1.0f;
     float accuracy = 1.0f;
     float defense = 1.0f;
 };
