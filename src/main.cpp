@@ -1830,6 +1830,43 @@ void BattleScene::render(SDL_Renderer *renderer, GameApplication &app)
         hudSectionStart = SDL_GetPerformanceCounter();
     }
 
+    UiView::DrawContext::InputDiagnosticsState inputDiagnostics{};
+    inputDiagnostics.bufferCapacity = m_actionBuffer.capacity();
+    inputDiagnostics.bufferedFrames = m_actionBuffer.size();
+    inputDiagnostics.configuredBufferFrames = app.inputMapper().bufferFrames();
+    inputDiagnostics.bufferExpiryMs = app.inputMapper().bufferExpiryMs();
+    if (const ActionBuffer::Frame *latest = m_actionBuffer.latest())
+    {
+        inputDiagnostics.hasLatestFrame = true;
+        inputDiagnostics.latestSequence = latest->sequence;
+        inputDiagnostics.latestDeviceTimestampMs = latest->deviceTimestampMs;
+        inputDiagnostics.hasPointerState = true;
+        inputDiagnostics.pointerState.hasPosition = latest->pointer.hasPosition;
+        inputDiagnostics.pointerState.x = latest->pointer.x;
+        inputDiagnostics.pointerState.y = latest->pointer.y;
+        inputDiagnostics.pointerState.left = latest->pointer.left;
+        inputDiagnostics.pointerState.right = latest->pointer.right;
+        inputDiagnostics.pointerState.middle = latest->pointer.middle;
+        inputDiagnostics.latestEvents.reserve(latest->events.size());
+        for (const ActionEvent &evt : latest->events)
+        {
+            UiView::DrawContext::InputDiagnosticsState::Event diagEvt;
+            diagEvt.id = evt.id;
+            diagEvt.value = evt.value;
+            diagEvt.pressed = evt.pressed;
+            diagEvt.released = evt.released;
+            if (evt.pointer)
+            {
+                diagEvt.hasPointer = true;
+                diagEvt.pointerX = evt.pointer->x;
+                diagEvt.pointerY = evt.pointer->y;
+                diagEvt.pointerPressed = evt.pointer->pressed;
+                diagEvt.pointerReleased = evt.pointer->released;
+            }
+            inputDiagnostics.latestEvents.push_back(diagEvt);
+        }
+    }
+
     UiView::DrawContext hudContext{};
     hudContext.simulation = &sim;
     hudContext.formationHud = &formationHud;
@@ -1840,6 +1877,7 @@ void BattleScene::render(SDL_Renderer *renderer, GameApplication &app)
     hudContext.showDebugHud = m_showDebugHud;
     hudContext.performanceFrequency = m_frequency;
     hudContext.hudTimeMs = &hudMs;
+    hudContext.inputDiagnostics = &inputDiagnostics;
     m_uiView.render(hudContext);
 
     if (hudSectionStart != 0)

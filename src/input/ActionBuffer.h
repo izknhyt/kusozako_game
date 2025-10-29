@@ -99,6 +99,7 @@ class ActionBuffer
 
     void expireOlderThan(double minTimestampMs);
 
+    std::size_t size() const { return m_frames.size(); }
     bool empty() const { return m_frames.empty(); }
     const Frame *latest() const;
 

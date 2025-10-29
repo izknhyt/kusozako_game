@@ -447,6 +447,61 @@ bool testWarningAndResultOverlays()
     return success;
 }
 
+bool testInputDiagnosticsPanel()
+{
+    bool success = true;
+
+    TextRenderer hudFont(20);
+    TextRenderer debugFont(16);
+    UiView view = makeView(hudFont, debugFont);
+
+    world::LegacySimulation sim{};
+    sim.config.base_hp = 100;
+    sim.baseHp = 80.0f;
+
+    RenderStats stats{};
+    UiView::DrawContext context{};
+    context.simulation = &sim;
+    context.renderStats = &stats;
+    context.showDebugHud = true;
+
+    UiView::DrawContext::InputDiagnosticsState diagnostics{};
+    diagnostics.bufferedFrames = 3;
+    diagnostics.bufferCapacity = 4;
+    diagnostics.configuredBufferFrames = 5;
+    diagnostics.bufferExpiryMs = 120.0;
+    diagnostics.hasLatestFrame = true;
+    diagnostics.latestSequence = 42;
+    diagnostics.latestDeviceTimestampMs = 1234.5;
+    diagnostics.hasPointerState = true;
+    diagnostics.pointerState.hasPosition = true;
+    diagnostics.pointerState.x = 640;
+    diagnostics.pointerState.y = 360;
+    diagnostics.pointerState.left = true;
+    UiView::DrawContext::InputDiagnosticsState::Event event{};
+    event.id = ActionId::ToggleDebugHud;
+    event.pressed = true;
+    event.hasPointer = true;
+    event.pointerX = 640;
+    event.pointerY = 360;
+    event.pointerPressed = true;
+    diagnostics.latestEvents.push_back(event);
+    context.inputDiagnostics = &diagnostics;
+
+    RecordingRenderer renderer = renderView(view, context);
+
+    success &= assertDrawPresent(renderer, "Input buffer 3/4 (cfg 5, exp 120.0ms)",
+                                 "Input diagnostics should show buffer usage and expiry");
+    success &= assertDrawPresent(renderer, "Latest frame #42 @1234.5ms",
+                                 "Latest frame info should include sequence and timestamp");
+    success &= assertDrawPresent(renderer, "Pointer 640,360 L1 R0 M0",
+                                 "Pointer state should list position and button flags");
+    success &= assertDrawPresent(renderer, "- ToggleDebugHud pressed ptr 640,360 down",
+                                 "Latest event should include action name and pointer details");
+
+    return success;
+}
+
 int main()
 {
     bool success = true;
@@ -455,6 +510,7 @@ int main()
     success &= testMoraleSummaryBullets();
     success &= testJobListFormatting();
     success &= testWarningAndResultOverlays();
+    success &= testInputDiagnosticsPanel();
 
     return success ? 0 : 1;
 }

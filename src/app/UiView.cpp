@@ -65,6 +65,77 @@ const TextRenderer &resolveDebugFont(const UiView::Dependencies &deps)
     }
     return *deps.hudFont;
 }
+
+const char *UiView::actionDisplayName(ActionId id)
+{
+    switch (id)
+    {
+    case ActionId::CommanderMoveX:
+        return "CommanderMoveX";
+    case ActionId::CommanderMoveY:
+        return "CommanderMoveY";
+    case ActionId::CommanderOrderRushNearest:
+        return "OrderRushNearest";
+    case ActionId::CommanderOrderPushForward:
+        return "OrderPushForward";
+    case ActionId::CommanderOrderFollowLeader:
+        return "OrderFollowLeader";
+    case ActionId::CommanderOrderDefendBase:
+        return "OrderDefendBase";
+    case ActionId::CycleFormationPrevious:
+        return "FormationPrev";
+    case ActionId::CycleFormationNext:
+        return "FormationNext";
+    case ActionId::ToggleDebugHud:
+        return "ToggleDebugHud";
+    case ActionId::ReloadConfig:
+        return "ReloadConfig";
+    case ActionId::DumpSpawnHistory:
+        return "DumpSpawnHistory";
+    case ActionId::RestartScenario:
+        return "RestartScenario";
+    case ActionId::SelectSkill1:
+        return "SelectSkill1";
+    case ActionId::SelectSkill2:
+        return "SelectSkill2";
+    case ActionId::SelectSkill3:
+        return "SelectSkill3";
+    case ActionId::SelectSkill4:
+        return "SelectSkill4";
+    case ActionId::SelectSkill5:
+        return "SelectSkill5";
+    case ActionId::SelectSkill6:
+        return "SelectSkill6";
+    case ActionId::SelectSkill7:
+        return "SelectSkill7";
+    case ActionId::SelectSkill8:
+        return "SelectSkill8";
+    case ActionId::FocusCommander:
+        return "FocusCommander";
+    case ActionId::FocusBase:
+        return "FocusBase";
+    case ActionId::ActivateSkill:
+        return "ActivateSkill";
+    case ActionId::QuitGame:
+        return "QuitGame";
+    case ActionId::Count:
+    default:
+        return "Unknown";
+    }
+}
+
+char UiView::indicatorFromBool(bool value)
+{
+    return value ? '1' : '0';
+}
+
+std::string UiView::formatMilliseconds(double ms, int precision)
+{
+    std::ostringstream oss;
+    oss << std::fixed << std::setprecision(precision) << ms;
+    oss << "ms";
+    return oss.str();
+}
 }
 
 void UiView::render(const DrawContext &context) const
@@ -546,6 +617,102 @@ void UiView::render(const DrawContext &context) const
             debugY += debugLineHeight;
         }
         topRightAnchorY += debugPanel.h + 12;
+    }
+
+    if (context.showDebugHud && context.inputDiagnostics)
+    {
+        const DrawContext::InputDiagnosticsState &diag = *context.inputDiagnostics;
+        std::vector<std::string> diagLines;
+        {
+            std::ostringstream line;
+            line << "Input buffer " << diag.bufferedFrames << '/' << diag.bufferCapacity;
+            if (diag.configuredBufferFrames > 0)
+            {
+                line << " (cfg " << diag.configuredBufferFrames;
+                if (diag.bufferExpiryMs > 0.0)
+                {
+                    line << ", exp " << formatMilliseconds(diag.bufferExpiryMs);
+                }
+                line << ')';
+            }
+            diagLines.push_back(line.str());
+        }
+        if (diag.hasLatestFrame)
+        {
+            std::ostringstream frameLine;
+            frameLine << "Latest frame #" << diag.latestSequence << " @"
+                      << formatMilliseconds(diag.latestDeviceTimestampMs);
+            diagLines.push_back(frameLine.str());
+        }
+        if (diag.hasPointerState)
+        {
+            std::ostringstream ptrLine;
+            ptrLine << "Pointer ";
+            if (diag.pointerState.hasPosition)
+            {
+                ptrLine << diag.pointerState.x << ',' << diag.pointerState.y;
+            }
+            else
+            {
+                ptrLine << "(none)";
+            }
+            ptrLine << " L" << indicatorFromBool(diag.pointerState.left);
+            ptrLine << " R" << indicatorFromBool(diag.pointerState.right);
+            ptrLine << " M" << indicatorFromBool(diag.pointerState.middle);
+            diagLines.push_back(ptrLine.str());
+        }
+        for (const auto &evt : diag.latestEvents)
+        {
+            std::ostringstream evtLine;
+            evtLine << "- " << actionDisplayName(evt.id);
+            if (std::fabs(evt.value) > 0.001f)
+            {
+                evtLine << " value " << std::fixed << std::setprecision(2) << evt.value;
+            }
+            if (evt.pressed)
+            {
+                evtLine << " pressed";
+            }
+            if (evt.released)
+            {
+                evtLine << " released";
+            }
+            if (evt.hasPointer)
+            {
+                evtLine << " ptr " << evt.pointerX << ',' << evt.pointerY;
+                if (evt.pointerPressed)
+                {
+                    evtLine << " down";
+                }
+                if (evt.pointerReleased)
+                {
+                    evtLine << " up";
+                }
+            }
+            diagLines.push_back(evtLine.str());
+        }
+
+        int diagWidth = 0;
+        for (const std::string &line : diagLines)
+        {
+            diagWidth = std::max(diagWidth, measureWithFallback(debugFontRef, line, debugLineHeight));
+        }
+        const int diagPadX = 10;
+        const int diagPadY = 8;
+        SDL_Rect diagPanel{screenW - (diagWidth + diagPadX * 2) - 12, topRightAnchorY,
+                           diagWidth + diagPadX * 2,
+                           static_cast<int>(diagLines.size()) * debugLineHeight + diagPadY * 2};
+        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+        SDL_SetRenderDrawColor(renderer, 0, 0, 0, 170);
+        countedRenderFillRect(renderer, &diagPanel, stats);
+        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
+        int diagY = diagPanel.y + diagPadY;
+        for (const std::string &line : diagLines)
+        {
+            debugFontRef.drawText(renderer, line, diagPanel.x + diagPadX, diagY, &stats);
+            diagY += debugLineHeight;
+        }
+        topRightAnchorY += diagPanel.h + 12;
     }
 
     if (!queue.performanceWarningText.empty() && queue.performanceWarningTimer > 0.0f)
