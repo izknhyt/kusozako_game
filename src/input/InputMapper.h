@@ -32,6 +32,9 @@ class InputMapper
 
     static bool isValidKeyBinding(const std::string &name);
 
+    std::size_t bufferFrames() const { return m_bufferFrames; }
+    double bufferExpiryMs() const { return m_bufferExpiryMs; }
+
   private:
     using AxisList = std::vector<SDL_Scancode>;
 
