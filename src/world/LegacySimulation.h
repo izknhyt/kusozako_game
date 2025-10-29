@@ -188,6 +188,8 @@ struct GateRuntime
 namespace world
 {
 
+std::string normalizeTelemetry(const std::string &text);
+
 struct LegacySimulation
 {
     enum class SpawnOrigin
@@ -1435,7 +1437,6 @@ struct LegacySimulation
         const int autoReinforceCount = std::max(0, config.commander_auto_reinforce);
         if (autoReinforceCount > 0)
         {
-            reinforcementJobs.reserve(reinforcementJobs.size() + static_cast<std::size_t>(autoReinforceCount));
             for (int i = 0; i < autoReinforceCount; ++i)
             {
                 reinforcementJobs.push_back(chooseSpawnJob());
@@ -1922,5 +1923,6 @@ struct LegacySimulation
         }
         return nullptr;
     }
+};
 
 } // namespace world

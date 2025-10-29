@@ -37,6 +37,8 @@ namespace world
 template <typename T>
 class ComponentPool;
 
+using CaptureRuntime = LegacySimulation::CaptureRuntime;
+
 namespace spawn
 {
 class WaveController;

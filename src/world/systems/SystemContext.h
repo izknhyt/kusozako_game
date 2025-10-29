@@ -20,6 +20,8 @@ class TelemetrySink;
 namespace world
 {
 
+using CaptureRuntime = LegacySimulation::CaptureRuntime;
+
 namespace systems
 {
 

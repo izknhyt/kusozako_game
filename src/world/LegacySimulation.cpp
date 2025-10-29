@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cctype>
 #include <filesystem>
 #include <fstream>
 #include <iomanip>
@@ -67,6 +68,46 @@ std::string formatTimestamp(const std::chrono::system_clock::time_point &tp)
 
 namespace world
 {
+
+std::string normalizeTelemetry(const std::string &text)
+{
+    std::string normalized;
+    normalized.reserve(text.size());
+
+    for (char ch : text)
+    {
+        unsigned char byte = static_cast<unsigned char>(ch);
+        if (ch == '\n' || ch == '\r' || ch == '\t')
+        {
+            normalized.push_back(' ');
+        }
+        else if (std::iscntrl(byte))
+        {
+            continue;
+        }
+        else
+        {
+            normalized.push_back(ch);
+        }
+    }
+
+    const auto notSpace = [](unsigned char c) { return !std::isspace(static_cast<unsigned char>(c)); };
+    auto first = std::find_if(normalized.begin(), normalized.end(), notSpace);
+    if (first == normalized.end())
+    {
+        return {};
+    }
+    auto last = std::find_if(normalized.rbegin(), normalized.rend(), notSpace).base();
+    std::string trimmed(first, last);
+
+    constexpr std::size_t kMaxLength = 200;
+    if (trimmed.size() > kMaxLength)
+    {
+        trimmed.resize(kMaxLength);
+    }
+
+    return trimmed;
+}
 
 std::filesystem::path LegacySimulation::telemetryDebugDirectory(const TelemetrySink &sink) const
 {
