@@ -299,6 +299,7 @@ void WorldState::setWorldBounds(float width, float height)
 
 void WorldState::configureSkills(const std::vector<SkillDef> &defs)
 {
+    systems::JobAbilitySystem::installDefaultHandlers(defs);
     m_sim->configureSkills(defs);
     markComponentsDirty();
 }

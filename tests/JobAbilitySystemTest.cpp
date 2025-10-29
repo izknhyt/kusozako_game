@@ -8,9 +8,12 @@
 
 #include <cmath>
 #include <iostream>
+#include <vector>
 
 namespace
 {
+
+using world::systems::JobAbilitySystem;
 
 bool almostEqual(float a, float b, float epsilon = 0.001f)
 {
@@ -127,6 +130,8 @@ bool testToggleRallySkill()
     toggleSkill.def.cooldown = 7.0f;
     sim.skills.push_back(toggleSkill);
 
+    JobAbilitySystem::installDefaultHandlers(std::vector<SkillDef>{toggleSkill.def});
+
     world::systems::JobAbilitySystem system;
     ActionBuffer actions;
     auto context = world.makeSystemContext(actions);
@@ -189,6 +194,8 @@ bool testSpawnRateTrigger()
     spawnSkill.def.multiplier = 2.0f;
     sim.skills.push_back(spawnSkill);
 
+    JobAbilitySystem::installDefaultHandlers(std::vector<SkillDef>{spawnSkill.def});
+
     world::systems::JobAbilitySystem system;
     ActionBuffer actions;
     auto context = world.makeSystemContext(actions);
@@ -223,6 +230,72 @@ bool testSpawnRateTrigger()
     return success;
 }
 
+bool testRegisteredHandlerDispatch()
+{
+    world::WorldState world;
+    world.reset();
+    auto &sim = world.legacy();
+    sim.skills.clear();
+
+    RuntimeSkill customSkill{};
+    customSkill.def.id = "custom";
+    customSkill.def.type = SkillType::ToggleFollow;
+    sim.skills.push_back(customSkill);
+
+    bool handlerInvoked = false;
+    JobAbilitySystem::clearSkillHandlers();
+    JobAbilitySystem::registerSkillHandler(
+        customSkill.def.id,
+        [&handlerInvoked](JobAbilitySystem &, world::systems::SystemContext &context, RuntimeSkill &skill,
+                          const world::systems::SkillCommand &) {
+            handlerInvoked = true;
+            skill.cooldownRemaining = 1.5f;
+            context.requestComponentSync();
+        });
+
+    world::systems::JobAbilitySystem system;
+    ActionBuffer actions;
+    auto context = world.makeSystemContext(actions);
+    context.componentsDirty = false;
+
+    world::systems::SkillCommand command{0, sim.commander.pos};
+    system.triggerSkill(context, command);
+
+    bool success = true;
+    if (!handlerInvoked)
+    {
+        std::cerr << "Registered handler did not fire" << '\n';
+        success = false;
+    }
+    if (!almostEqual(sim.skills[0].cooldownRemaining, 1.5f))
+    {
+        std::cerr << "Registered handler did not update cooldown" << '\n';
+        success = false;
+    }
+    if (!context.componentsDirty)
+    {
+        std::cerr << "Registered handler did not mark components dirty" << '\n';
+        success = false;
+    }
+
+    handlerInvoked = false;
+    context.componentsDirty = false;
+    system.triggerSkill(context, command);
+    if (handlerInvoked)
+    {
+        std::cerr << "Handler invoked despite cooldown" << '\n';
+        success = false;
+    }
+    if (context.componentsDirty)
+    {
+        std::cerr << "Cooldown prevented trigger but still marked components dirty" << '\n';
+        success = false;
+    }
+
+    JobAbilitySystem::clearSkillHandlers();
+    return success;
+}
+
 } // namespace
 
 int main()
@@ -237,6 +310,10 @@ int main()
         success = false;
     }
     if (!testSpawnRateTrigger())
+    {
+        success = false;
+    }
+    if (!testRegisteredHandlerDispatch())
     {
         success = false;
     }
