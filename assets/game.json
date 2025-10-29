@@ -40,6 +40,6 @@
     },
     "tolerance_ms": 0.5
   },
-  "on_commander_death": { "auto_reinforce_chibi": 10 },
+  "on_commander_death": { "auto_reinforce_chibi": 0 },
   "lod": { "threshold_entities": 300, "skip_draw_every": 2 }
 }

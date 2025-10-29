@@ -1386,9 +1386,11 @@ struct LegacySimulation
         respawnTime = std::max(config.commander_respawn.floor, respawnTime * penalty - bonus);
         commanderRespawnTimer = respawnTime;
         commanderInvulnTimer = 0.0f;
-        if (config.commander_auto_reinforce > 0)
+        const int autoReinforceCount = std::max(0, config.commander_auto_reinforce);
+        if (autoReinforceCount > 0)
         {
-            for (int i = 0; i < config.commander_auto_reinforce; ++i)
+            reinforcementJobs.reserve(reinforcementJobs.size() + static_cast<std::size_t>(autoReinforceCount));
+            for (int i = 0; i < autoReinforceCount; ++i)
             {
                 reinforcementJobs.push_back(chooseSpawnJob());
             }
