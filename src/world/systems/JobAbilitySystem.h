@@ -4,9 +4,12 @@
 #include "world/systems/SystemContext.h"
 
 #include <array>
+#include <functional>
+#include <string>
 #include <vector>
 
 struct RuntimeSkill;
+struct SkillDef;
 
 namespace world::systems
 {
@@ -24,6 +27,14 @@ class JobAbilitySystem : public ISystem
 
     void update(float dt, SystemContext &context) override;
     void triggerSkill(SystemContext &context, const SkillCommand &command);
+
+    using SkillHandler = std::function<void(JobAbilitySystem &, SystemContext &, RuntimeSkill &, const SkillCommand &)>;
+
+    static void clearSkillHandlers();
+    static void registerSkillHandler(const std::string &id, SkillHandler handler);
+    static void registerSkillHandler(const std::string &id,
+                                     void (JobAbilitySystem::*member)(SystemContext &, RuntimeSkill &, const SkillCommand &));
+    static void installDefaultHandlers(const std::vector<SkillDef> &defs);
 
   private:
     void toggleRally(SystemContext &context, RuntimeSkill &skill, const SkillCommand &command);

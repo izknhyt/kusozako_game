@@ -10,10 +10,106 @@
 #include <cmath>
 #include <iomanip>
 #include <sstream>
+#include <string>
+#include <unordered_map>
+#include <utility>
 #include <vector>
 
 namespace world::systems
 {
+
+namespace
+{
+
+using HandlerRegistry = std::unordered_map<std::string, JobAbilitySystem::SkillHandler>;
+
+HandlerRegistry &skillHandlerRegistry()
+{
+    static HandlerRegistry registry;
+    return registry;
+}
+
+} // namespace
+
+void JobAbilitySystem::clearSkillHandlers()
+{
+    skillHandlerRegistry().clear();
+}
+
+void JobAbilitySystem::registerSkillHandler(const std::string &id, SkillHandler handler)
+{
+    if (id.empty())
+    {
+        return;
+    }
+
+    auto &registry = skillHandlerRegistry();
+    if (handler)
+    {
+        registry[id] = std::move(handler);
+    }
+    else
+    {
+        registry.erase(id);
+    }
+}
+
+void JobAbilitySystem::registerSkillHandler(
+    const std::string &id,
+    void (JobAbilitySystem::*member)(SystemContext &, RuntimeSkill &, const SkillCommand &))
+{
+    if (!member)
+    {
+        registerSkillHandler(id, SkillHandler{});
+        return;
+    }
+
+    registerSkillHandler(
+        id,
+        [member](JobAbilitySystem &system, SystemContext &context, RuntimeSkill &skill, const SkillCommand &command) {
+            (system.*member)(context, skill, command);
+        });
+}
+
+void JobAbilitySystem::installDefaultHandlers(const std::vector<SkillDef> &defs)
+{
+    clearSkillHandlers();
+    for (const SkillDef &def : defs)
+    {
+        if (def.id.empty())
+        {
+            continue;
+        }
+
+        switch (def.type)
+        {
+        case SkillType::ToggleFollow:
+            registerSkillHandler(def.id, &JobAbilitySystem::toggleRally);
+            break;
+        case SkillType::MakeWall:
+            registerSkillHandler(
+                def.id,
+                [](JobAbilitySystem &, SystemContext &context, RuntimeSkill &skill, const SkillCommand &command) {
+                    context.simulation.spawnWallSegments(skill.def, command.worldTarget);
+                    skill.cooldownRemaining = skill.def.cooldown;
+                    context.requestComponentSync();
+                });
+            break;
+        case SkillType::SpawnRate:
+            registerSkillHandler(def.id, &JobAbilitySystem::activateSpawnRate);
+            break;
+        case SkillType::Detonate:
+            registerSkillHandler(
+                def.id,
+                [](JobAbilitySystem &, SystemContext &context, RuntimeSkill &skill, const SkillCommand &) {
+                    context.simulation.detonateCommander(skill.def);
+                    skill.cooldownRemaining = skill.def.cooldown;
+                    context.requestComponentSync();
+                });
+            break;
+        }
+    }
+}
 
 void JobAbilitySystem::update(float dt, SystemContext &context)
 {
@@ -318,25 +414,14 @@ void JobAbilitySystem::triggerSkill(SystemContext &context, const SkillCommand &
         return;
     }
 
-    switch (skill.def.type)
+    auto &registry = skillHandlerRegistry();
+    const auto handler = registry.find(skill.def.id);
+    if (handler == registry.end())
     {
-    case SkillType::ToggleFollow:
-        toggleRally(context, skill, command);
-        break;
-    case SkillType::MakeWall:
-        context.simulation.spawnWallSegments(skill.def, command.worldTarget);
-        skill.cooldownRemaining = skill.def.cooldown;
-        context.requestComponentSync();
-        break;
-    case SkillType::SpawnRate:
-        activateSpawnRate(context, skill);
-        break;
-    case SkillType::Detonate:
-        context.simulation.detonateCommander(skill.def);
-        skill.cooldownRemaining = skill.def.cooldown;
-        context.requestComponentSync();
-        break;
+        return;
     }
+
+    handler->second(*this, context, skill, command);
 }
 
 void JobAbilitySystem::toggleRally(SystemContext &context, RuntimeSkill &skill, const SkillCommand &command)
