@@ -172,7 +172,8 @@ void FormationSystem::update(float dt, SystemContext &context)
     }
     const float secondsRemaining = std::max(sim.formationAlignTimer, 0.0f);
 
-    std::vector<Unit *> followers;
+    FrameAllocator::Allocator<Unit *> followerAlloc(context.frameAllocator);
+    std::vector<Unit *, FrameAllocator::Allocator<Unit *>> followers(followerAlloc);
     followers.reserve(kFollowLimit);
 
     for (Unit &unit : yunas)
@@ -183,7 +184,9 @@ void FormationSystem::update(float dt, SystemContext &context)
 
     if (context.orderActive && sim.stance == ArmyStance::FollowLeader && commander.alive)
     {
-        std::vector<std::pair<float, Unit *>> distances;
+        using DistanceEntry = std::pair<float, Unit *>;
+        FrameAllocator::Allocator<DistanceEntry> distanceAlloc(context.frameAllocator);
+        std::vector<DistanceEntry, FrameAllocator::Allocator<DistanceEntry>> distances(distanceAlloc);
         distances.reserve(yunas.size());
         for (Unit &unit : yunas)
         {
@@ -197,7 +200,9 @@ void FormationSystem::update(float dt, SystemContext &context)
         }
     }
 
-    std::vector<std::pair<float, Unit *>> skillFollowers;
+    FrameAllocator::Allocator<std::pair<float, Unit *>> skillAlloc(context.frameAllocator);
+    std::vector<std::pair<float, Unit *>, FrameAllocator::Allocator<std::pair<float, Unit *>>> skillFollowers(
+        skillAlloc);
     skillFollowers.reserve(yunas.size());
     for (Unit &unit : yunas)
     {

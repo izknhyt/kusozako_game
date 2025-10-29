@@ -2,6 +2,7 @@
 
 #include "input/ActionBuffer.h"
 #include "world/Entity.h"
+#include "world/FrameAllocator.h"
 #include "world/LegacySimulation.h"
 #include "world/systems/SystemContext.h"
 
@@ -96,6 +97,9 @@ class WorldState
     void registerSystem(systems::SystemStage stage, std::unique_ptr<systems::ISystem> system);
     const std::vector<systems::SystemStage> &systemStageOrder() const;
 
+    std::size_t frameAllocatorCapacity() const;
+    std::size_t frameAllocatorUsage() const;
+
   private:
     std::unique_ptr<LegacySimulation> m_sim;
     mutable EntityRegistry m_registry;
@@ -113,6 +117,7 @@ class WorldState
     std::vector<systems::SystemStage> m_systemStageOrder;
     systems::FormationSystem *m_cachedFormationSystem = nullptr;
     systems::JobAbilitySystem *m_cachedJobAbilitySystem = nullptr;
+    FrameAllocator m_frameAllocator;
 
     void rebuildMissionComponents() const;
     systems::SystemContext makeSystemContext(const ActionBuffer &actions);
