@@ -383,7 +383,9 @@ void BehaviorSystem::update(float dt, SystemContext &context)
         return best;
     };
 
-    std::vector<Vec2> raidTargets = sim.collectRaidTargets();
+    FrameAllocator::Allocator<Vec2> raidAlloc(context.frameAllocator);
+    std::vector<Vec2, FrameAllocator::Allocator<Vec2>> raidTargets(raidAlloc);
+    sim.collectRaidTargets(raidTargets);
 
     for (std::size_t i = 0; i < yunas.size(); ++i)
     {
