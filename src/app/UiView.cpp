@@ -65,6 +65,7 @@ const TextRenderer &resolveDebugFont(const UiView::Dependencies &deps)
     }
     return *deps.hudFont;
 }
+}
 
 const char *UiView::actionDisplayName(ActionId id)
 {
@@ -135,7 +136,6 @@ std::string UiView::formatMilliseconds(double ms, int precision)
     oss << std::fixed << std::setprecision(precision) << ms;
     oss << "ms";
     return oss.str();
-}
 }
 
 void UiView::render(const DrawContext &context) const
