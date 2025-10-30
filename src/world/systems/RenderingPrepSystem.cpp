@@ -207,11 +207,11 @@ void RenderingPrepSystem::update(float, SystemContext &context)
         queue.alignment.secondsRemaining = sim.formationAlignTimer;
         queue.alignment.followers = followerCount;
         queue.alignment.progress = 0.0f;
-        if (sim.formationDefaults.duration > 0.0f)
+        if (sim.formationDefaults.alignDuration > 0.0f)
         {
-            const float clamped = std::clamp(sim.formationDefaults.duration - sim.formationAlignTimer, 0.0f,
-                                             sim.formationDefaults.duration);
-            queue.alignment.progress = clamped / sim.formationDefaults.duration;
+            const float clamped = std::clamp(sim.formationDefaults.alignDuration - sim.formationAlignTimer, 0.0f,
+                                             sim.formationDefaults.alignDuration);
+            queue.alignment.progress = clamped / sim.formationDefaults.alignDuration;
         }
         queue.alignment.label = formationLabel(sim.formation);
     }
