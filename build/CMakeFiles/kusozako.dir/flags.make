@@ -4,7 +4,7 @@
 # compile CXX with /usr/bin/c++
 CXX_DEFINES = -DSDL_HINT_VIDEO_HIGHDPI=1
 
-CXX_INCLUDES = -I/Users/izumimotohayato/development/kusozako/include -isystem /opt/homebrew/Cellar/sdl2/2.32.10/include/SDL2 -isystem /opt/homebrew/Cellar/sdl2_image/2.8.8/include/SDL2 -isystem /opt/homebrew/Cellar/sdl2_ttf/2.24.0/include/SDL2
+CXX_INCLUDES = -I/Users/izumimotohayato/development/kusozako/include -I/Users/izumimotohayato/development/kusozako/src -isystem /opt/homebrew/Cellar/sdl2/2.32.10/include/SDL2 -isystem /opt/homebrew/Cellar/sdl2_image/2.8.8/include/SDL2 -isystem /opt/homebrew/Cellar/sdl2_ttf/2.24.0/include/SDL2
 
 CXX_FLAGS = -std=c++17 -Wall -Wextra -Wpedantic -Werror
 

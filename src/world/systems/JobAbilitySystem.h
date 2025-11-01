@@ -36,9 +36,10 @@ class JobAbilitySystem : public ISystem
                                      void (JobAbilitySystem::*member)(SystemContext &, RuntimeSkill &, const SkillCommand &));
     static void installDefaultHandlers(const std::vector<SkillDef> &defs);
 
-  private:
     void toggleRally(SystemContext &context, RuntimeSkill &skill, const SkillCommand &command);
     void activateSpawnRate(SystemContext &context, RuntimeSkill &skill);
+
+  private:
 
     struct JobHudSnapshot
     {
@@ -60,4 +61,3 @@ class JobAbilitySystem : public ISystem
 };
 
 } // namespace world::systems
-

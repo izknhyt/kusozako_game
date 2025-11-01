@@ -442,8 +442,7 @@ void CombatSystem::update(float dt, SystemContext &context)
 
     if (!yunaDamage.empty())
     {
-        FrameAllocator::Allocator<Unit> survivorAlloc(context.frameAllocator);
-        std::vector<Unit, FrameAllocator::Allocator<Unit>> survivors(survivorAlloc);
+        std::vector<Unit> survivors;
         survivors.reserve(yunas.size());
         for (std::size_t i = 0; i < yunas.size(); ++i)
         {
@@ -512,4 +511,3 @@ void CombatSystem::update(float dt, SystemContext &context)
 }
 
 } // namespace world::systems
-

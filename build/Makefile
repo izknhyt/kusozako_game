@@ -65,6 +65,16 @@ CMAKE_BINARY_DIR = /Users/izumimotohayato/development/kusozako/build
 #=============================================================================
 # Targets provided globally by CMake.
 
+# Special rule for the target test
+test:
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --cyan "Running tests..."
+	/opt/homebrew/bin/ctest $(ARGS)
+.PHONY : test
+
+# Special rule for the target test
+test/fast: test
+.PHONY : test/fast
+
 # Special rule for the target edit_cache
 edit_cache:
 	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --cyan "Running CMake cache editor..."
@@ -129,12 +139,568 @@ kusozako/fast:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/kusozako.dir/build.make CMakeFiles/kusozako.dir/build
 .PHONY : kusozako/fast
 
+#=============================================================================
+# Target rules for targets named config_schema_test
+
+# Build rule for target.
+config_schema_test: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 config_schema_test
+.PHONY : config_schema_test
+
+# fast build rule for target.
+config_schema_test/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/config_schema_test.dir/build.make CMakeFiles/config_schema_test.dir/build
+.PHONY : config_schema_test/fast
+
+#=============================================================================
+# Target rules for targets named world_state_step_order_test
+
+# Build rule for target.
+world_state_step_order_test: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 world_state_step_order_test
+.PHONY : world_state_step_order_test
+
+# fast build rule for target.
+world_state_step_order_test/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/world_state_step_order_test.dir/build.make CMakeFiles/world_state_step_order_test.dir/build
+.PHONY : world_state_step_order_test/fast
+
+#=============================================================================
+# Target rules for targets named systems_behavior_test
+
+# Build rule for target.
+systems_behavior_test: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 systems_behavior_test
+.PHONY : systems_behavior_test
+
+# fast build rule for target.
+systems_behavior_test/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/systems_behavior_test.dir/build.make CMakeFiles/systems_behavior_test.dir/build
+.PHONY : systems_behavior_test/fast
+
+#=============================================================================
+# Target rules for targets named job_ability_system_test
+
+# Build rule for target.
+job_ability_system_test: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 job_ability_system_test
+.PHONY : job_ability_system_test
+
+# fast build rule for target.
+job_ability_system_test/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/job_ability_system_test.dir/build.make CMakeFiles/job_ability_system_test.dir/build
+.PHONY : job_ability_system_test/fast
+
+#=============================================================================
+# Target rules for targets named event_bus_test
+
+# Build rule for target.
+event_bus_test: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 event_bus_test
+.PHONY : event_bus_test
+
+# fast build rule for target.
+event_bus_test/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/event_bus_test.dir/build.make CMakeFiles/event_bus_test.dir/build
+.PHONY : event_bus_test/fast
+
+#=============================================================================
+# Target rules for targets named spawner_test
+
+# Build rule for target.
+spawner_test: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 spawner_test
+.PHONY : spawner_test
+
+# fast build rule for target.
+spawner_test/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/spawner_test.dir/build.make CMakeFiles/spawner_test.dir/build
+.PHONY : spawner_test/fast
+
+#=============================================================================
+# Target rules for targets named performance_budget_monitor_test
+
+# Build rule for target.
+performance_budget_monitor_test: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 performance_budget_monitor_test
+.PHONY : performance_budget_monitor_test
+
+# fast build rule for target.
+performance_budget_monitor_test/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/performance_budget_monitor_test.dir/build.make CMakeFiles/performance_budget_monitor_test.dir/build
+.PHONY : performance_budget_monitor_test/fast
+
+#=============================================================================
+# Target rules for targets named asset_manager_memory_warning_test
+
+# Build rule for target.
+asset_manager_memory_warning_test: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 asset_manager_memory_warning_test
+.PHONY : asset_manager_memory_warning_test
+
+# fast build rule for target.
+asset_manager_memory_warning_test/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/asset_manager_memory_warning_test.dir/build.make CMakeFiles/asset_manager_memory_warning_test.dir/build
+.PHONY : asset_manager_memory_warning_test/fast
+
+#=============================================================================
+# Target rules for targets named ui_presenter_test
+
+# Build rule for target.
+ui_presenter_test: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 ui_presenter_test
+.PHONY : ui_presenter_test
+
+# fast build rule for target.
+ui_presenter_test/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/ui_presenter_test.dir/build.make CMakeFiles/ui_presenter_test.dir/build
+.PHONY : ui_presenter_test/fast
+
+#=============================================================================
+# Target rules for targets named ui_view_test
+
+# Build rule for target.
+ui_view_test: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 ui_view_test
+.PHONY : ui_view_test
+
+# fast build rule for target.
+ui_view_test/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/ui_view_test.dir/build.make CMakeFiles/ui_view_test.dir/build
+.PHONY : ui_view_test/fast
+
+src/app/GameApplication.o: src/app/GameApplication.cpp.o
+.PHONY : src/app/GameApplication.o
+
+# target to build an object file
+src/app/GameApplication.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/kusozako.dir/build.make CMakeFiles/kusozako.dir/src/app/GameApplication.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/world_state_step_order_test.dir/build.make CMakeFiles/world_state_step_order_test.dir/src/app/GameApplication.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/systems_behavior_test.dir/build.make CMakeFiles/systems_behavior_test.dir/src/app/GameApplication.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/job_ability_system_test.dir/build.make CMakeFiles/job_ability_system_test.dir/src/app/GameApplication.cpp.o
+.PHONY : src/app/GameApplication.cpp.o
+
+src/app/GameApplication.i: src/app/GameApplication.cpp.i
+.PHONY : src/app/GameApplication.i
+
+# target to preprocess a source file
+src/app/GameApplication.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/kusozako.dir/build.make CMakeFiles/kusozako.dir/src/app/GameApplication.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/world_state_step_order_test.dir/build.make CMakeFiles/world_state_step_order_test.dir/src/app/GameApplication.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/systems_behavior_test.dir/build.make CMakeFiles/systems_behavior_test.dir/src/app/GameApplication.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/job_ability_system_test.dir/build.make CMakeFiles/job_ability_system_test.dir/src/app/GameApplication.cpp.i
+.PHONY : src/app/GameApplication.cpp.i
+
+src/app/GameApplication.s: src/app/GameApplication.cpp.s
+.PHONY : src/app/GameApplication.s
+
+# target to generate assembly for a file
+src/app/GameApplication.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/kusozako.dir/build.make CMakeFiles/kusozako.dir/src/app/GameApplication.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/world_state_step_order_test.dir/build.make CMakeFiles/world_state_step_order_test.dir/src/app/GameApplication.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/systems_behavior_test.dir/build.make CMakeFiles/systems_behavior_test.dir/src/app/GameApplication.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/job_ability_system_test.dir/build.make CMakeFiles/job_ability_system_test.dir/src/app/GameApplication.cpp.s
+.PHONY : src/app/GameApplication.cpp.s
+
+src/app/TextRenderer.o: src/app/TextRenderer.cpp.o
+.PHONY : src/app/TextRenderer.o
+
+# target to build an object file
+src/app/TextRenderer.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/kusozako.dir/build.make CMakeFiles/kusozako.dir/src/app/TextRenderer.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/world_state_step_order_test.dir/build.make CMakeFiles/world_state_step_order_test.dir/src/app/TextRenderer.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/systems_behavior_test.dir/build.make CMakeFiles/systems_behavior_test.dir/src/app/TextRenderer.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/job_ability_system_test.dir/build.make CMakeFiles/job_ability_system_test.dir/src/app/TextRenderer.cpp.o
+.PHONY : src/app/TextRenderer.cpp.o
+
+src/app/TextRenderer.i: src/app/TextRenderer.cpp.i
+.PHONY : src/app/TextRenderer.i
+
+# target to preprocess a source file
+src/app/TextRenderer.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/kusozako.dir/build.make CMakeFiles/kusozako.dir/src/app/TextRenderer.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/world_state_step_order_test.dir/build.make CMakeFiles/world_state_step_order_test.dir/src/app/TextRenderer.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/systems_behavior_test.dir/build.make CMakeFiles/systems_behavior_test.dir/src/app/TextRenderer.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/job_ability_system_test.dir/build.make CMakeFiles/job_ability_system_test.dir/src/app/TextRenderer.cpp.i
+.PHONY : src/app/TextRenderer.cpp.i
+
+src/app/TextRenderer.s: src/app/TextRenderer.cpp.s
+.PHONY : src/app/TextRenderer.s
+
+# target to generate assembly for a file
+src/app/TextRenderer.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/kusozako.dir/build.make CMakeFiles/kusozako.dir/src/app/TextRenderer.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/world_state_step_order_test.dir/build.make CMakeFiles/world_state_step_order_test.dir/src/app/TextRenderer.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/systems_behavior_test.dir/build.make CMakeFiles/systems_behavior_test.dir/src/app/TextRenderer.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/job_ability_system_test.dir/build.make CMakeFiles/job_ability_system_test.dir/src/app/TextRenderer.cpp.s
+.PHONY : src/app/TextRenderer.cpp.s
+
+src/app/UiPresenter.o: src/app/UiPresenter.cpp.o
+.PHONY : src/app/UiPresenter.o
+
+# target to build an object file
+src/app/UiPresenter.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/kusozako.dir/build.make CMakeFiles/kusozako.dir/src/app/UiPresenter.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/world_state_step_order_test.dir/build.make CMakeFiles/world_state_step_order_test.dir/src/app/UiPresenter.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/systems_behavior_test.dir/build.make CMakeFiles/systems_behavior_test.dir/src/app/UiPresenter.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/job_ability_system_test.dir/build.make CMakeFiles/job_ability_system_test.dir/src/app/UiPresenter.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/ui_presenter_test.dir/build.make CMakeFiles/ui_presenter_test.dir/src/app/UiPresenter.cpp.o
+.PHONY : src/app/UiPresenter.cpp.o
+
+src/app/UiPresenter.i: src/app/UiPresenter.cpp.i
+.PHONY : src/app/UiPresenter.i
+
+# target to preprocess a source file
+src/app/UiPresenter.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/kusozako.dir/build.make CMakeFiles/kusozako.dir/src/app/UiPresenter.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/world_state_step_order_test.dir/build.make CMakeFiles/world_state_step_order_test.dir/src/app/UiPresenter.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/systems_behavior_test.dir/build.make CMakeFiles/systems_behavior_test.dir/src/app/UiPresenter.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/job_ability_system_test.dir/build.make CMakeFiles/job_ability_system_test.dir/src/app/UiPresenter.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/ui_presenter_test.dir/build.make CMakeFiles/ui_presenter_test.dir/src/app/UiPresenter.cpp.i
+.PHONY : src/app/UiPresenter.cpp.i
+
+src/app/UiPresenter.s: src/app/UiPresenter.cpp.s
+.PHONY : src/app/UiPresenter.s
+
+# target to generate assembly for a file
+src/app/UiPresenter.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/kusozako.dir/build.make CMakeFiles/kusozako.dir/src/app/UiPresenter.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/world_state_step_order_test.dir/build.make CMakeFiles/world_state_step_order_test.dir/src/app/UiPresenter.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/systems_behavior_test.dir/build.make CMakeFiles/systems_behavior_test.dir/src/app/UiPresenter.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/job_ability_system_test.dir/build.make CMakeFiles/job_ability_system_test.dir/src/app/UiPresenter.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/ui_presenter_test.dir/build.make CMakeFiles/ui_presenter_test.dir/src/app/UiPresenter.cpp.s
+.PHONY : src/app/UiPresenter.cpp.s
+
+src/app/UiView.o: src/app/UiView.cpp.o
+.PHONY : src/app/UiView.o
+
+# target to build an object file
+src/app/UiView.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/kusozako.dir/build.make CMakeFiles/kusozako.dir/src/app/UiView.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/world_state_step_order_test.dir/build.make CMakeFiles/world_state_step_order_test.dir/src/app/UiView.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/systems_behavior_test.dir/build.make CMakeFiles/systems_behavior_test.dir/src/app/UiView.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/job_ability_system_test.dir/build.make CMakeFiles/job_ability_system_test.dir/src/app/UiView.cpp.o
+.PHONY : src/app/UiView.cpp.o
+
+src/app/UiView.i: src/app/UiView.cpp.i
+.PHONY : src/app/UiView.i
+
+# target to preprocess a source file
+src/app/UiView.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/kusozako.dir/build.make CMakeFiles/kusozako.dir/src/app/UiView.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/world_state_step_order_test.dir/build.make CMakeFiles/world_state_step_order_test.dir/src/app/UiView.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/systems_behavior_test.dir/build.make CMakeFiles/systems_behavior_test.dir/src/app/UiView.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/job_ability_system_test.dir/build.make CMakeFiles/job_ability_system_test.dir/src/app/UiView.cpp.i
+.PHONY : src/app/UiView.cpp.i
+
+src/app/UiView.s: src/app/UiView.cpp.s
+.PHONY : src/app/UiView.s
+
+# target to generate assembly for a file
+src/app/UiView.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/kusozako.dir/build.make CMakeFiles/kusozako.dir/src/app/UiView.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/world_state_step_order_test.dir/build.make CMakeFiles/world_state_step_order_test.dir/src/app/UiView.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/systems_behavior_test.dir/build.make CMakeFiles/systems_behavior_test.dir/src/app/UiView.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/job_ability_system_test.dir/build.make CMakeFiles/job_ability_system_test.dir/src/app/UiView.cpp.s
+.PHONY : src/app/UiView.cpp.s
+
+src/assets/AssetManager.o: src/assets/AssetManager.cpp.o
+.PHONY : src/assets/AssetManager.o
+
+# target to build an object file
+src/assets/AssetManager.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/kusozako.dir/build.make CMakeFiles/kusozako.dir/src/assets/AssetManager.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/config_schema_test.dir/build.make CMakeFiles/config_schema_test.dir/src/assets/AssetManager.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/world_state_step_order_test.dir/build.make CMakeFiles/world_state_step_order_test.dir/src/assets/AssetManager.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/systems_behavior_test.dir/build.make CMakeFiles/systems_behavior_test.dir/src/assets/AssetManager.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/job_ability_system_test.dir/build.make CMakeFiles/job_ability_system_test.dir/src/assets/AssetManager.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/asset_manager_memory_warning_test.dir/build.make CMakeFiles/asset_manager_memory_warning_test.dir/src/assets/AssetManager.cpp.o
+.PHONY : src/assets/AssetManager.cpp.o
+
+src/assets/AssetManager.i: src/assets/AssetManager.cpp.i
+.PHONY : src/assets/AssetManager.i
+
+# target to preprocess a source file
+src/assets/AssetManager.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/kusozako.dir/build.make CMakeFiles/kusozako.dir/src/assets/AssetManager.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/config_schema_test.dir/build.make CMakeFiles/config_schema_test.dir/src/assets/AssetManager.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/world_state_step_order_test.dir/build.make CMakeFiles/world_state_step_order_test.dir/src/assets/AssetManager.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/systems_behavior_test.dir/build.make CMakeFiles/systems_behavior_test.dir/src/assets/AssetManager.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/job_ability_system_test.dir/build.make CMakeFiles/job_ability_system_test.dir/src/assets/AssetManager.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/asset_manager_memory_warning_test.dir/build.make CMakeFiles/asset_manager_memory_warning_test.dir/src/assets/AssetManager.cpp.i
+.PHONY : src/assets/AssetManager.cpp.i
+
+src/assets/AssetManager.s: src/assets/AssetManager.cpp.s
+.PHONY : src/assets/AssetManager.s
+
+# target to generate assembly for a file
+src/assets/AssetManager.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/kusozako.dir/build.make CMakeFiles/kusozako.dir/src/assets/AssetManager.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/config_schema_test.dir/build.make CMakeFiles/config_schema_test.dir/src/assets/AssetManager.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/world_state_step_order_test.dir/build.make CMakeFiles/world_state_step_order_test.dir/src/assets/AssetManager.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/systems_behavior_test.dir/build.make CMakeFiles/systems_behavior_test.dir/src/assets/AssetManager.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/job_ability_system_test.dir/build.make CMakeFiles/job_ability_system_test.dir/src/assets/AssetManager.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/asset_manager_memory_warning_test.dir/build.make CMakeFiles/asset_manager_memory_warning_test.dir/src/assets/AssetManager.cpp.s
+.PHONY : src/assets/AssetManager.cpp.s
+
+src/config/AppConfig.o: src/config/AppConfig.cpp.o
+.PHONY : src/config/AppConfig.o
+
+# target to build an object file
+src/config/AppConfig.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/kusozako.dir/build.make CMakeFiles/kusozako.dir/src/config/AppConfig.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/config_schema_test.dir/build.make CMakeFiles/config_schema_test.dir/src/config/AppConfig.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/world_state_step_order_test.dir/build.make CMakeFiles/world_state_step_order_test.dir/src/config/AppConfig.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/systems_behavior_test.dir/build.make CMakeFiles/systems_behavior_test.dir/src/config/AppConfig.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/job_ability_system_test.dir/build.make CMakeFiles/job_ability_system_test.dir/src/config/AppConfig.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/performance_budget_monitor_test.dir/build.make CMakeFiles/performance_budget_monitor_test.dir/src/config/AppConfig.cpp.o
+.PHONY : src/config/AppConfig.cpp.o
+
+src/config/AppConfig.i: src/config/AppConfig.cpp.i
+.PHONY : src/config/AppConfig.i
+
+# target to preprocess a source file
+src/config/AppConfig.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/kusozako.dir/build.make CMakeFiles/kusozako.dir/src/config/AppConfig.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/config_schema_test.dir/build.make CMakeFiles/config_schema_test.dir/src/config/AppConfig.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/world_state_step_order_test.dir/build.make CMakeFiles/world_state_step_order_test.dir/src/config/AppConfig.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/systems_behavior_test.dir/build.make CMakeFiles/systems_behavior_test.dir/src/config/AppConfig.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/job_ability_system_test.dir/build.make CMakeFiles/job_ability_system_test.dir/src/config/AppConfig.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/performance_budget_monitor_test.dir/build.make CMakeFiles/performance_budget_monitor_test.dir/src/config/AppConfig.cpp.i
+.PHONY : src/config/AppConfig.cpp.i
+
+src/config/AppConfig.s: src/config/AppConfig.cpp.s
+.PHONY : src/config/AppConfig.s
+
+# target to generate assembly for a file
+src/config/AppConfig.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/kusozako.dir/build.make CMakeFiles/kusozako.dir/src/config/AppConfig.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/config_schema_test.dir/build.make CMakeFiles/config_schema_test.dir/src/config/AppConfig.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/world_state_step_order_test.dir/build.make CMakeFiles/world_state_step_order_test.dir/src/config/AppConfig.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/systems_behavior_test.dir/build.make CMakeFiles/systems_behavior_test.dir/src/config/AppConfig.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/job_ability_system_test.dir/build.make CMakeFiles/job_ability_system_test.dir/src/config/AppConfig.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/performance_budget_monitor_test.dir/build.make CMakeFiles/performance_budget_monitor_test.dir/src/config/AppConfig.cpp.s
+.PHONY : src/config/AppConfig.cpp.s
+
+src/config/AppConfigLoader.o: src/config/AppConfigLoader.cpp.o
+.PHONY : src/config/AppConfigLoader.o
+
+# target to build an object file
+src/config/AppConfigLoader.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/kusozako.dir/build.make CMakeFiles/kusozako.dir/src/config/AppConfigLoader.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/config_schema_test.dir/build.make CMakeFiles/config_schema_test.dir/src/config/AppConfigLoader.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/world_state_step_order_test.dir/build.make CMakeFiles/world_state_step_order_test.dir/src/config/AppConfigLoader.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/systems_behavior_test.dir/build.make CMakeFiles/systems_behavior_test.dir/src/config/AppConfigLoader.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/job_ability_system_test.dir/build.make CMakeFiles/job_ability_system_test.dir/src/config/AppConfigLoader.cpp.o
+.PHONY : src/config/AppConfigLoader.cpp.o
+
+src/config/AppConfigLoader.i: src/config/AppConfigLoader.cpp.i
+.PHONY : src/config/AppConfigLoader.i
+
+# target to preprocess a source file
+src/config/AppConfigLoader.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/kusozako.dir/build.make CMakeFiles/kusozako.dir/src/config/AppConfigLoader.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/config_schema_test.dir/build.make CMakeFiles/config_schema_test.dir/src/config/AppConfigLoader.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/world_state_step_order_test.dir/build.make CMakeFiles/world_state_step_order_test.dir/src/config/AppConfigLoader.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/systems_behavior_test.dir/build.make CMakeFiles/systems_behavior_test.dir/src/config/AppConfigLoader.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/job_ability_system_test.dir/build.make CMakeFiles/job_ability_system_test.dir/src/config/AppConfigLoader.cpp.i
+.PHONY : src/config/AppConfigLoader.cpp.i
+
+src/config/AppConfigLoader.s: src/config/AppConfigLoader.cpp.s
+.PHONY : src/config/AppConfigLoader.s
+
+# target to generate assembly for a file
+src/config/AppConfigLoader.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/kusozako.dir/build.make CMakeFiles/kusozako.dir/src/config/AppConfigLoader.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/config_schema_test.dir/build.make CMakeFiles/config_schema_test.dir/src/config/AppConfigLoader.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/world_state_step_order_test.dir/build.make CMakeFiles/world_state_step_order_test.dir/src/config/AppConfigLoader.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/systems_behavior_test.dir/build.make CMakeFiles/systems_behavior_test.dir/src/config/AppConfigLoader.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/job_ability_system_test.dir/build.make CMakeFiles/job_ability_system_test.dir/src/config/AppConfigLoader.cpp.s
+.PHONY : src/config/AppConfigLoader.cpp.s
+
+src/debug/DebugController.o: src/debug/DebugController.cpp.o
+.PHONY : src/debug/DebugController.o
+
+# target to build an object file
+src/debug/DebugController.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/kusozako.dir/build.make CMakeFiles/kusozako.dir/src/debug/DebugController.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/world_state_step_order_test.dir/build.make CMakeFiles/world_state_step_order_test.dir/src/debug/DebugController.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/systems_behavior_test.dir/build.make CMakeFiles/systems_behavior_test.dir/src/debug/DebugController.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/job_ability_system_test.dir/build.make CMakeFiles/job_ability_system_test.dir/src/debug/DebugController.cpp.o
+.PHONY : src/debug/DebugController.cpp.o
+
+src/debug/DebugController.i: src/debug/DebugController.cpp.i
+.PHONY : src/debug/DebugController.i
+
+# target to preprocess a source file
+src/debug/DebugController.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/kusozako.dir/build.make CMakeFiles/kusozako.dir/src/debug/DebugController.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/world_state_step_order_test.dir/build.make CMakeFiles/world_state_step_order_test.dir/src/debug/DebugController.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/systems_behavior_test.dir/build.make CMakeFiles/systems_behavior_test.dir/src/debug/DebugController.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/job_ability_system_test.dir/build.make CMakeFiles/job_ability_system_test.dir/src/debug/DebugController.cpp.i
+.PHONY : src/debug/DebugController.cpp.i
+
+src/debug/DebugController.s: src/debug/DebugController.cpp.s
+.PHONY : src/debug/DebugController.s
+
+# target to generate assembly for a file
+src/debug/DebugController.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/kusozako.dir/build.make CMakeFiles/kusozako.dir/src/debug/DebugController.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/world_state_step_order_test.dir/build.make CMakeFiles/world_state_step_order_test.dir/src/debug/DebugController.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/systems_behavior_test.dir/build.make CMakeFiles/systems_behavior_test.dir/src/debug/DebugController.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/job_ability_system_test.dir/build.make CMakeFiles/job_ability_system_test.dir/src/debug/DebugController.cpp.s
+.PHONY : src/debug/DebugController.cpp.s
+
+src/debug/DebugOverlayView.o: src/debug/DebugOverlayView.cpp.o
+.PHONY : src/debug/DebugOverlayView.o
+
+# target to build an object file
+src/debug/DebugOverlayView.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/kusozako.dir/build.make CMakeFiles/kusozako.dir/src/debug/DebugOverlayView.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/world_state_step_order_test.dir/build.make CMakeFiles/world_state_step_order_test.dir/src/debug/DebugOverlayView.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/systems_behavior_test.dir/build.make CMakeFiles/systems_behavior_test.dir/src/debug/DebugOverlayView.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/job_ability_system_test.dir/build.make CMakeFiles/job_ability_system_test.dir/src/debug/DebugOverlayView.cpp.o
+.PHONY : src/debug/DebugOverlayView.cpp.o
+
+src/debug/DebugOverlayView.i: src/debug/DebugOverlayView.cpp.i
+.PHONY : src/debug/DebugOverlayView.i
+
+# target to preprocess a source file
+src/debug/DebugOverlayView.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/kusozako.dir/build.make CMakeFiles/kusozako.dir/src/debug/DebugOverlayView.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/world_state_step_order_test.dir/build.make CMakeFiles/world_state_step_order_test.dir/src/debug/DebugOverlayView.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/systems_behavior_test.dir/build.make CMakeFiles/systems_behavior_test.dir/src/debug/DebugOverlayView.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/job_ability_system_test.dir/build.make CMakeFiles/job_ability_system_test.dir/src/debug/DebugOverlayView.cpp.i
+.PHONY : src/debug/DebugOverlayView.cpp.i
+
+src/debug/DebugOverlayView.s: src/debug/DebugOverlayView.cpp.s
+.PHONY : src/debug/DebugOverlayView.s
+
+# target to generate assembly for a file
+src/debug/DebugOverlayView.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/kusozako.dir/build.make CMakeFiles/kusozako.dir/src/debug/DebugOverlayView.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/world_state_step_order_test.dir/build.make CMakeFiles/world_state_step_order_test.dir/src/debug/DebugOverlayView.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/systems_behavior_test.dir/build.make CMakeFiles/systems_behavior_test.dir/src/debug/DebugOverlayView.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/job_ability_system_test.dir/build.make CMakeFiles/job_ability_system_test.dir/src/debug/DebugOverlayView.cpp.s
+.PHONY : src/debug/DebugOverlayView.cpp.s
+
+src/events/EventBus.o: src/events/EventBus.cpp.o
+.PHONY : src/events/EventBus.o
+
+# target to build an object file
+src/events/EventBus.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/kusozako.dir/build.make CMakeFiles/kusozako.dir/src/events/EventBus.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/world_state_step_order_test.dir/build.make CMakeFiles/world_state_step_order_test.dir/src/events/EventBus.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/systems_behavior_test.dir/build.make CMakeFiles/systems_behavior_test.dir/src/events/EventBus.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/job_ability_system_test.dir/build.make CMakeFiles/job_ability_system_test.dir/src/events/EventBus.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/event_bus_test.dir/build.make CMakeFiles/event_bus_test.dir/src/events/EventBus.cpp.o
+.PHONY : src/events/EventBus.cpp.o
+
+src/events/EventBus.i: src/events/EventBus.cpp.i
+.PHONY : src/events/EventBus.i
+
+# target to preprocess a source file
+src/events/EventBus.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/kusozako.dir/build.make CMakeFiles/kusozako.dir/src/events/EventBus.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/world_state_step_order_test.dir/build.make CMakeFiles/world_state_step_order_test.dir/src/events/EventBus.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/systems_behavior_test.dir/build.make CMakeFiles/systems_behavior_test.dir/src/events/EventBus.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/job_ability_system_test.dir/build.make CMakeFiles/job_ability_system_test.dir/src/events/EventBus.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/event_bus_test.dir/build.make CMakeFiles/event_bus_test.dir/src/events/EventBus.cpp.i
+.PHONY : src/events/EventBus.cpp.i
+
+src/events/EventBus.s: src/events/EventBus.cpp.s
+.PHONY : src/events/EventBus.s
+
+# target to generate assembly for a file
+src/events/EventBus.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/kusozako.dir/build.make CMakeFiles/kusozako.dir/src/events/EventBus.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/world_state_step_order_test.dir/build.make CMakeFiles/world_state_step_order_test.dir/src/events/EventBus.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/systems_behavior_test.dir/build.make CMakeFiles/systems_behavior_test.dir/src/events/EventBus.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/job_ability_system_test.dir/build.make CMakeFiles/job_ability_system_test.dir/src/events/EventBus.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/event_bus_test.dir/build.make CMakeFiles/event_bus_test.dir/src/events/EventBus.cpp.s
+.PHONY : src/events/EventBus.cpp.s
+
+src/input/ActionBuffer.o: src/input/ActionBuffer.cpp.o
+.PHONY : src/input/ActionBuffer.o
+
+# target to build an object file
+src/input/ActionBuffer.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/kusozako.dir/build.make CMakeFiles/kusozako.dir/src/input/ActionBuffer.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/config_schema_test.dir/build.make CMakeFiles/config_schema_test.dir/src/input/ActionBuffer.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/world_state_step_order_test.dir/build.make CMakeFiles/world_state_step_order_test.dir/src/input/ActionBuffer.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/systems_behavior_test.dir/build.make CMakeFiles/systems_behavior_test.dir/src/input/ActionBuffer.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/job_ability_system_test.dir/build.make CMakeFiles/job_ability_system_test.dir/src/input/ActionBuffer.cpp.o
+.PHONY : src/input/ActionBuffer.cpp.o
+
+src/input/ActionBuffer.i: src/input/ActionBuffer.cpp.i
+.PHONY : src/input/ActionBuffer.i
+
+# target to preprocess a source file
+src/input/ActionBuffer.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/kusozako.dir/build.make CMakeFiles/kusozako.dir/src/input/ActionBuffer.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/config_schema_test.dir/build.make CMakeFiles/config_schema_test.dir/src/input/ActionBuffer.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/world_state_step_order_test.dir/build.make CMakeFiles/world_state_step_order_test.dir/src/input/ActionBuffer.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/systems_behavior_test.dir/build.make CMakeFiles/systems_behavior_test.dir/src/input/ActionBuffer.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/job_ability_system_test.dir/build.make CMakeFiles/job_ability_system_test.dir/src/input/ActionBuffer.cpp.i
+.PHONY : src/input/ActionBuffer.cpp.i
+
+src/input/ActionBuffer.s: src/input/ActionBuffer.cpp.s
+.PHONY : src/input/ActionBuffer.s
+
+# target to generate assembly for a file
+src/input/ActionBuffer.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/kusozako.dir/build.make CMakeFiles/kusozako.dir/src/input/ActionBuffer.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/config_schema_test.dir/build.make CMakeFiles/config_schema_test.dir/src/input/ActionBuffer.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/world_state_step_order_test.dir/build.make CMakeFiles/world_state_step_order_test.dir/src/input/ActionBuffer.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/systems_behavior_test.dir/build.make CMakeFiles/systems_behavior_test.dir/src/input/ActionBuffer.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/job_ability_system_test.dir/build.make CMakeFiles/job_ability_system_test.dir/src/input/ActionBuffer.cpp.s
+.PHONY : src/input/ActionBuffer.cpp.s
+
+src/input/InputMapper.o: src/input/InputMapper.cpp.o
+.PHONY : src/input/InputMapper.o
+
+# target to build an object file
+src/input/InputMapper.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/kusozako.dir/build.make CMakeFiles/kusozako.dir/src/input/InputMapper.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/config_schema_test.dir/build.make CMakeFiles/config_schema_test.dir/src/input/InputMapper.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/world_state_step_order_test.dir/build.make CMakeFiles/world_state_step_order_test.dir/src/input/InputMapper.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/systems_behavior_test.dir/build.make CMakeFiles/systems_behavior_test.dir/src/input/InputMapper.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/job_ability_system_test.dir/build.make CMakeFiles/job_ability_system_test.dir/src/input/InputMapper.cpp.o
+.PHONY : src/input/InputMapper.cpp.o
+
+src/input/InputMapper.i: src/input/InputMapper.cpp.i
+.PHONY : src/input/InputMapper.i
+
+# target to preprocess a source file
+src/input/InputMapper.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/kusozako.dir/build.make CMakeFiles/kusozako.dir/src/input/InputMapper.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/config_schema_test.dir/build.make CMakeFiles/config_schema_test.dir/src/input/InputMapper.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/world_state_step_order_test.dir/build.make CMakeFiles/world_state_step_order_test.dir/src/input/InputMapper.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/systems_behavior_test.dir/build.make CMakeFiles/systems_behavior_test.dir/src/input/InputMapper.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/job_ability_system_test.dir/build.make CMakeFiles/job_ability_system_test.dir/src/input/InputMapper.cpp.i
+.PHONY : src/input/InputMapper.cpp.i
+
+src/input/InputMapper.s: src/input/InputMapper.cpp.s
+.PHONY : src/input/InputMapper.s
+
+# target to generate assembly for a file
+src/input/InputMapper.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/kusozako.dir/build.make CMakeFiles/kusozako.dir/src/input/InputMapper.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/config_schema_test.dir/build.make CMakeFiles/config_schema_test.dir/src/input/InputMapper.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/world_state_step_order_test.dir/build.make CMakeFiles/world_state_step_order_test.dir/src/input/InputMapper.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/systems_behavior_test.dir/build.make CMakeFiles/systems_behavior_test.dir/src/input/InputMapper.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/job_ability_system_test.dir/build.make CMakeFiles/job_ability_system_test.dir/src/input/InputMapper.cpp.s
+.PHONY : src/input/InputMapper.cpp.s
+
 src/main.o: src/main.cpp.o
 .PHONY : src/main.o
 
 # target to build an object file
 src/main.cpp.o:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/kusozako.dir/build.make CMakeFiles/kusozako.dir/src/main.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/world_state_step_order_test.dir/build.make CMakeFiles/world_state_step_order_test.dir/src/main.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/systems_behavior_test.dir/build.make CMakeFiles/systems_behavior_test.dir/src/main.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/job_ability_system_test.dir/build.make CMakeFiles/job_ability_system_test.dir/src/main.cpp.o
 .PHONY : src/main.cpp.o
 
 src/main.i: src/main.cpp.i
@@ -143,6 +709,9 @@ src/main.i: src/main.cpp.i
 # target to preprocess a source file
 src/main.cpp.i:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/kusozako.dir/build.make CMakeFiles/kusozako.dir/src/main.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/world_state_step_order_test.dir/build.make CMakeFiles/world_state_step_order_test.dir/src/main.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/systems_behavior_test.dir/build.make CMakeFiles/systems_behavior_test.dir/src/main.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/job_ability_system_test.dir/build.make CMakeFiles/job_ability_system_test.dir/src/main.cpp.i
 .PHONY : src/main.cpp.i
 
 src/main.s: src/main.cpp.s
@@ -151,7 +720,862 @@ src/main.s: src/main.cpp.s
 # target to generate assembly for a file
 src/main.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/kusozako.dir/build.make CMakeFiles/kusozako.dir/src/main.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/world_state_step_order_test.dir/build.make CMakeFiles/world_state_step_order_test.dir/src/main.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/systems_behavior_test.dir/build.make CMakeFiles/systems_behavior_test.dir/src/main.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/job_ability_system_test.dir/build.make CMakeFiles/job_ability_system_test.dir/src/main.cpp.s
 .PHONY : src/main.cpp.s
+
+src/scenes/SceneStack.o: src/scenes/SceneStack.cpp.o
+.PHONY : src/scenes/SceneStack.o
+
+# target to build an object file
+src/scenes/SceneStack.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/kusozako.dir/build.make CMakeFiles/kusozako.dir/src/scenes/SceneStack.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/world_state_step_order_test.dir/build.make CMakeFiles/world_state_step_order_test.dir/src/scenes/SceneStack.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/systems_behavior_test.dir/build.make CMakeFiles/systems_behavior_test.dir/src/scenes/SceneStack.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/job_ability_system_test.dir/build.make CMakeFiles/job_ability_system_test.dir/src/scenes/SceneStack.cpp.o
+.PHONY : src/scenes/SceneStack.cpp.o
+
+src/scenes/SceneStack.i: src/scenes/SceneStack.cpp.i
+.PHONY : src/scenes/SceneStack.i
+
+# target to preprocess a source file
+src/scenes/SceneStack.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/kusozako.dir/build.make CMakeFiles/kusozako.dir/src/scenes/SceneStack.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/world_state_step_order_test.dir/build.make CMakeFiles/world_state_step_order_test.dir/src/scenes/SceneStack.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/systems_behavior_test.dir/build.make CMakeFiles/systems_behavior_test.dir/src/scenes/SceneStack.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/job_ability_system_test.dir/build.make CMakeFiles/job_ability_system_test.dir/src/scenes/SceneStack.cpp.i
+.PHONY : src/scenes/SceneStack.cpp.i
+
+src/scenes/SceneStack.s: src/scenes/SceneStack.cpp.s
+.PHONY : src/scenes/SceneStack.s
+
+# target to generate assembly for a file
+src/scenes/SceneStack.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/kusozako.dir/build.make CMakeFiles/kusozako.dir/src/scenes/SceneStack.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/world_state_step_order_test.dir/build.make CMakeFiles/world_state_step_order_test.dir/src/scenes/SceneStack.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/systems_behavior_test.dir/build.make CMakeFiles/systems_behavior_test.dir/src/scenes/SceneStack.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/job_ability_system_test.dir/build.make CMakeFiles/job_ability_system_test.dir/src/scenes/SceneStack.cpp.s
+.PHONY : src/scenes/SceneStack.cpp.s
+
+src/services/ServiceLocator.o: src/services/ServiceLocator.cpp.o
+.PHONY : src/services/ServiceLocator.o
+
+# target to build an object file
+src/services/ServiceLocator.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/kusozako.dir/build.make CMakeFiles/kusozako.dir/src/services/ServiceLocator.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/config_schema_test.dir/build.make CMakeFiles/config_schema_test.dir/src/services/ServiceLocator.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/world_state_step_order_test.dir/build.make CMakeFiles/world_state_step_order_test.dir/src/services/ServiceLocator.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/systems_behavior_test.dir/build.make CMakeFiles/systems_behavior_test.dir/src/services/ServiceLocator.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/job_ability_system_test.dir/build.make CMakeFiles/job_ability_system_test.dir/src/services/ServiceLocator.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/asset_manager_memory_warning_test.dir/build.make CMakeFiles/asset_manager_memory_warning_test.dir/src/services/ServiceLocator.cpp.o
+.PHONY : src/services/ServiceLocator.cpp.o
+
+src/services/ServiceLocator.i: src/services/ServiceLocator.cpp.i
+.PHONY : src/services/ServiceLocator.i
+
+# target to preprocess a source file
+src/services/ServiceLocator.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/kusozako.dir/build.make CMakeFiles/kusozako.dir/src/services/ServiceLocator.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/config_schema_test.dir/build.make CMakeFiles/config_schema_test.dir/src/services/ServiceLocator.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/world_state_step_order_test.dir/build.make CMakeFiles/world_state_step_order_test.dir/src/services/ServiceLocator.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/systems_behavior_test.dir/build.make CMakeFiles/systems_behavior_test.dir/src/services/ServiceLocator.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/job_ability_system_test.dir/build.make CMakeFiles/job_ability_system_test.dir/src/services/ServiceLocator.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/asset_manager_memory_warning_test.dir/build.make CMakeFiles/asset_manager_memory_warning_test.dir/src/services/ServiceLocator.cpp.i
+.PHONY : src/services/ServiceLocator.cpp.i
+
+src/services/ServiceLocator.s: src/services/ServiceLocator.cpp.s
+.PHONY : src/services/ServiceLocator.s
+
+# target to generate assembly for a file
+src/services/ServiceLocator.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/kusozako.dir/build.make CMakeFiles/kusozako.dir/src/services/ServiceLocator.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/config_schema_test.dir/build.make CMakeFiles/config_schema_test.dir/src/services/ServiceLocator.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/world_state_step_order_test.dir/build.make CMakeFiles/world_state_step_order_test.dir/src/services/ServiceLocator.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/systems_behavior_test.dir/build.make CMakeFiles/systems_behavior_test.dir/src/services/ServiceLocator.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/job_ability_system_test.dir/build.make CMakeFiles/job_ability_system_test.dir/src/services/ServiceLocator.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/asset_manager_memory_warning_test.dir/build.make CMakeFiles/asset_manager_memory_warning_test.dir/src/services/ServiceLocator.cpp.s
+.PHONY : src/services/ServiceLocator.cpp.s
+
+src/telemetry/ConsoleTelemetrySink.o: src/telemetry/ConsoleTelemetrySink.cpp.o
+.PHONY : src/telemetry/ConsoleTelemetrySink.o
+
+# target to build an object file
+src/telemetry/ConsoleTelemetrySink.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/kusozako.dir/build.make CMakeFiles/kusozako.dir/src/telemetry/ConsoleTelemetrySink.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/world_state_step_order_test.dir/build.make CMakeFiles/world_state_step_order_test.dir/src/telemetry/ConsoleTelemetrySink.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/systems_behavior_test.dir/build.make CMakeFiles/systems_behavior_test.dir/src/telemetry/ConsoleTelemetrySink.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/job_ability_system_test.dir/build.make CMakeFiles/job_ability_system_test.dir/src/telemetry/ConsoleTelemetrySink.cpp.o
+.PHONY : src/telemetry/ConsoleTelemetrySink.cpp.o
+
+src/telemetry/ConsoleTelemetrySink.i: src/telemetry/ConsoleTelemetrySink.cpp.i
+.PHONY : src/telemetry/ConsoleTelemetrySink.i
+
+# target to preprocess a source file
+src/telemetry/ConsoleTelemetrySink.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/kusozako.dir/build.make CMakeFiles/kusozako.dir/src/telemetry/ConsoleTelemetrySink.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/world_state_step_order_test.dir/build.make CMakeFiles/world_state_step_order_test.dir/src/telemetry/ConsoleTelemetrySink.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/systems_behavior_test.dir/build.make CMakeFiles/systems_behavior_test.dir/src/telemetry/ConsoleTelemetrySink.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/job_ability_system_test.dir/build.make CMakeFiles/job_ability_system_test.dir/src/telemetry/ConsoleTelemetrySink.cpp.i
+.PHONY : src/telemetry/ConsoleTelemetrySink.cpp.i
+
+src/telemetry/ConsoleTelemetrySink.s: src/telemetry/ConsoleTelemetrySink.cpp.s
+.PHONY : src/telemetry/ConsoleTelemetrySink.s
+
+# target to generate assembly for a file
+src/telemetry/ConsoleTelemetrySink.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/kusozako.dir/build.make CMakeFiles/kusozako.dir/src/telemetry/ConsoleTelemetrySink.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/world_state_step_order_test.dir/build.make CMakeFiles/world_state_step_order_test.dir/src/telemetry/ConsoleTelemetrySink.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/systems_behavior_test.dir/build.make CMakeFiles/systems_behavior_test.dir/src/telemetry/ConsoleTelemetrySink.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/job_ability_system_test.dir/build.make CMakeFiles/job_ability_system_test.dir/src/telemetry/ConsoleTelemetrySink.cpp.s
+.PHONY : src/telemetry/ConsoleTelemetrySink.cpp.s
+
+src/telemetry/FileTelemetrySink.o: src/telemetry/FileTelemetrySink.cpp.o
+.PHONY : src/telemetry/FileTelemetrySink.o
+
+# target to build an object file
+src/telemetry/FileTelemetrySink.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/kusozako.dir/build.make CMakeFiles/kusozako.dir/src/telemetry/FileTelemetrySink.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/world_state_step_order_test.dir/build.make CMakeFiles/world_state_step_order_test.dir/src/telemetry/FileTelemetrySink.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/systems_behavior_test.dir/build.make CMakeFiles/systems_behavior_test.dir/src/telemetry/FileTelemetrySink.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/job_ability_system_test.dir/build.make CMakeFiles/job_ability_system_test.dir/src/telemetry/FileTelemetrySink.cpp.o
+.PHONY : src/telemetry/FileTelemetrySink.cpp.o
+
+src/telemetry/FileTelemetrySink.i: src/telemetry/FileTelemetrySink.cpp.i
+.PHONY : src/telemetry/FileTelemetrySink.i
+
+# target to preprocess a source file
+src/telemetry/FileTelemetrySink.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/kusozako.dir/build.make CMakeFiles/kusozako.dir/src/telemetry/FileTelemetrySink.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/world_state_step_order_test.dir/build.make CMakeFiles/world_state_step_order_test.dir/src/telemetry/FileTelemetrySink.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/systems_behavior_test.dir/build.make CMakeFiles/systems_behavior_test.dir/src/telemetry/FileTelemetrySink.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/job_ability_system_test.dir/build.make CMakeFiles/job_ability_system_test.dir/src/telemetry/FileTelemetrySink.cpp.i
+.PHONY : src/telemetry/FileTelemetrySink.cpp.i
+
+src/telemetry/FileTelemetrySink.s: src/telemetry/FileTelemetrySink.cpp.s
+.PHONY : src/telemetry/FileTelemetrySink.s
+
+# target to generate assembly for a file
+src/telemetry/FileTelemetrySink.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/kusozako.dir/build.make CMakeFiles/kusozako.dir/src/telemetry/FileTelemetrySink.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/world_state_step_order_test.dir/build.make CMakeFiles/world_state_step_order_test.dir/src/telemetry/FileTelemetrySink.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/systems_behavior_test.dir/build.make CMakeFiles/systems_behavior_test.dir/src/telemetry/FileTelemetrySink.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/job_ability_system_test.dir/build.make CMakeFiles/job_ability_system_test.dir/src/telemetry/FileTelemetrySink.cpp.s
+.PHONY : src/telemetry/FileTelemetrySink.cpp.s
+
+src/telemetry/PerformanceBudgetMonitor.o: src/telemetry/PerformanceBudgetMonitor.cpp.o
+.PHONY : src/telemetry/PerformanceBudgetMonitor.o
+
+# target to build an object file
+src/telemetry/PerformanceBudgetMonitor.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/kusozako.dir/build.make CMakeFiles/kusozako.dir/src/telemetry/PerformanceBudgetMonitor.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/world_state_step_order_test.dir/build.make CMakeFiles/world_state_step_order_test.dir/src/telemetry/PerformanceBudgetMonitor.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/systems_behavior_test.dir/build.make CMakeFiles/systems_behavior_test.dir/src/telemetry/PerformanceBudgetMonitor.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/job_ability_system_test.dir/build.make CMakeFiles/job_ability_system_test.dir/src/telemetry/PerformanceBudgetMonitor.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/performance_budget_monitor_test.dir/build.make CMakeFiles/performance_budget_monitor_test.dir/src/telemetry/PerformanceBudgetMonitor.cpp.o
+.PHONY : src/telemetry/PerformanceBudgetMonitor.cpp.o
+
+src/telemetry/PerformanceBudgetMonitor.i: src/telemetry/PerformanceBudgetMonitor.cpp.i
+.PHONY : src/telemetry/PerformanceBudgetMonitor.i
+
+# target to preprocess a source file
+src/telemetry/PerformanceBudgetMonitor.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/kusozako.dir/build.make CMakeFiles/kusozako.dir/src/telemetry/PerformanceBudgetMonitor.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/world_state_step_order_test.dir/build.make CMakeFiles/world_state_step_order_test.dir/src/telemetry/PerformanceBudgetMonitor.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/systems_behavior_test.dir/build.make CMakeFiles/systems_behavior_test.dir/src/telemetry/PerformanceBudgetMonitor.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/job_ability_system_test.dir/build.make CMakeFiles/job_ability_system_test.dir/src/telemetry/PerformanceBudgetMonitor.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/performance_budget_monitor_test.dir/build.make CMakeFiles/performance_budget_monitor_test.dir/src/telemetry/PerformanceBudgetMonitor.cpp.i
+.PHONY : src/telemetry/PerformanceBudgetMonitor.cpp.i
+
+src/telemetry/PerformanceBudgetMonitor.s: src/telemetry/PerformanceBudgetMonitor.cpp.s
+.PHONY : src/telemetry/PerformanceBudgetMonitor.s
+
+# target to generate assembly for a file
+src/telemetry/PerformanceBudgetMonitor.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/kusozako.dir/build.make CMakeFiles/kusozako.dir/src/telemetry/PerformanceBudgetMonitor.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/world_state_step_order_test.dir/build.make CMakeFiles/world_state_step_order_test.dir/src/telemetry/PerformanceBudgetMonitor.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/systems_behavior_test.dir/build.make CMakeFiles/systems_behavior_test.dir/src/telemetry/PerformanceBudgetMonitor.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/job_ability_system_test.dir/build.make CMakeFiles/job_ability_system_test.dir/src/telemetry/PerformanceBudgetMonitor.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/performance_budget_monitor_test.dir/build.make CMakeFiles/performance_budget_monitor_test.dir/src/telemetry/PerformanceBudgetMonitor.cpp.s
+.PHONY : src/telemetry/PerformanceBudgetMonitor.cpp.s
+
+src/telemetry/TelemetrySink.o: src/telemetry/TelemetrySink.cpp.o
+.PHONY : src/telemetry/TelemetrySink.o
+
+# target to build an object file
+src/telemetry/TelemetrySink.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/kusozako.dir/build.make CMakeFiles/kusozako.dir/src/telemetry/TelemetrySink.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/config_schema_test.dir/build.make CMakeFiles/config_schema_test.dir/src/telemetry/TelemetrySink.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/world_state_step_order_test.dir/build.make CMakeFiles/world_state_step_order_test.dir/src/telemetry/TelemetrySink.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/systems_behavior_test.dir/build.make CMakeFiles/systems_behavior_test.dir/src/telemetry/TelemetrySink.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/job_ability_system_test.dir/build.make CMakeFiles/job_ability_system_test.dir/src/telemetry/TelemetrySink.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/event_bus_test.dir/build.make CMakeFiles/event_bus_test.dir/src/telemetry/TelemetrySink.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/performance_budget_monitor_test.dir/build.make CMakeFiles/performance_budget_monitor_test.dir/src/telemetry/TelemetrySink.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/asset_manager_memory_warning_test.dir/build.make CMakeFiles/asset_manager_memory_warning_test.dir/src/telemetry/TelemetrySink.cpp.o
+.PHONY : src/telemetry/TelemetrySink.cpp.o
+
+src/telemetry/TelemetrySink.i: src/telemetry/TelemetrySink.cpp.i
+.PHONY : src/telemetry/TelemetrySink.i
+
+# target to preprocess a source file
+src/telemetry/TelemetrySink.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/kusozako.dir/build.make CMakeFiles/kusozako.dir/src/telemetry/TelemetrySink.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/config_schema_test.dir/build.make CMakeFiles/config_schema_test.dir/src/telemetry/TelemetrySink.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/world_state_step_order_test.dir/build.make CMakeFiles/world_state_step_order_test.dir/src/telemetry/TelemetrySink.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/systems_behavior_test.dir/build.make CMakeFiles/systems_behavior_test.dir/src/telemetry/TelemetrySink.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/job_ability_system_test.dir/build.make CMakeFiles/job_ability_system_test.dir/src/telemetry/TelemetrySink.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/event_bus_test.dir/build.make CMakeFiles/event_bus_test.dir/src/telemetry/TelemetrySink.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/performance_budget_monitor_test.dir/build.make CMakeFiles/performance_budget_monitor_test.dir/src/telemetry/TelemetrySink.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/asset_manager_memory_warning_test.dir/build.make CMakeFiles/asset_manager_memory_warning_test.dir/src/telemetry/TelemetrySink.cpp.i
+.PHONY : src/telemetry/TelemetrySink.cpp.i
+
+src/telemetry/TelemetrySink.s: src/telemetry/TelemetrySink.cpp.s
+.PHONY : src/telemetry/TelemetrySink.s
+
+# target to generate assembly for a file
+src/telemetry/TelemetrySink.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/kusozako.dir/build.make CMakeFiles/kusozako.dir/src/telemetry/TelemetrySink.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/config_schema_test.dir/build.make CMakeFiles/config_schema_test.dir/src/telemetry/TelemetrySink.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/world_state_step_order_test.dir/build.make CMakeFiles/world_state_step_order_test.dir/src/telemetry/TelemetrySink.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/systems_behavior_test.dir/build.make CMakeFiles/systems_behavior_test.dir/src/telemetry/TelemetrySink.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/job_ability_system_test.dir/build.make CMakeFiles/job_ability_system_test.dir/src/telemetry/TelemetrySink.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/event_bus_test.dir/build.make CMakeFiles/event_bus_test.dir/src/telemetry/TelemetrySink.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/performance_budget_monitor_test.dir/build.make CMakeFiles/performance_budget_monitor_test.dir/src/telemetry/TelemetrySink.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/asset_manager_memory_warning_test.dir/build.make CMakeFiles/asset_manager_memory_warning_test.dir/src/telemetry/TelemetrySink.cpp.s
+.PHONY : src/telemetry/TelemetrySink.cpp.s
+
+src/world/LegacySimulation.o: src/world/LegacySimulation.cpp.o
+.PHONY : src/world/LegacySimulation.o
+
+# target to build an object file
+src/world/LegacySimulation.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/kusozako.dir/build.make CMakeFiles/kusozako.dir/src/world/LegacySimulation.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/world_state_step_order_test.dir/build.make CMakeFiles/world_state_step_order_test.dir/src/world/LegacySimulation.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/systems_behavior_test.dir/build.make CMakeFiles/systems_behavior_test.dir/src/world/LegacySimulation.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/job_ability_system_test.dir/build.make CMakeFiles/job_ability_system_test.dir/src/world/LegacySimulation.cpp.o
+.PHONY : src/world/LegacySimulation.cpp.o
+
+src/world/LegacySimulation.i: src/world/LegacySimulation.cpp.i
+.PHONY : src/world/LegacySimulation.i
+
+# target to preprocess a source file
+src/world/LegacySimulation.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/kusozako.dir/build.make CMakeFiles/kusozako.dir/src/world/LegacySimulation.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/world_state_step_order_test.dir/build.make CMakeFiles/world_state_step_order_test.dir/src/world/LegacySimulation.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/systems_behavior_test.dir/build.make CMakeFiles/systems_behavior_test.dir/src/world/LegacySimulation.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/job_ability_system_test.dir/build.make CMakeFiles/job_ability_system_test.dir/src/world/LegacySimulation.cpp.i
+.PHONY : src/world/LegacySimulation.cpp.i
+
+src/world/LegacySimulation.s: src/world/LegacySimulation.cpp.s
+.PHONY : src/world/LegacySimulation.s
+
+# target to generate assembly for a file
+src/world/LegacySimulation.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/kusozako.dir/build.make CMakeFiles/kusozako.dir/src/world/LegacySimulation.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/world_state_step_order_test.dir/build.make CMakeFiles/world_state_step_order_test.dir/src/world/LegacySimulation.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/systems_behavior_test.dir/build.make CMakeFiles/systems_behavior_test.dir/src/world/LegacySimulation.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/job_ability_system_test.dir/build.make CMakeFiles/job_ability_system_test.dir/src/world/LegacySimulation.cpp.s
+.PHONY : src/world/LegacySimulation.cpp.s
+
+src/world/spawn/Spawner.o: src/world/spawn/Spawner.cpp.o
+.PHONY : src/world/spawn/Spawner.o
+
+# target to build an object file
+src/world/spawn/Spawner.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/kusozako.dir/build.make CMakeFiles/kusozako.dir/src/world/spawn/Spawner.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/world_state_step_order_test.dir/build.make CMakeFiles/world_state_step_order_test.dir/src/world/spawn/Spawner.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/systems_behavior_test.dir/build.make CMakeFiles/systems_behavior_test.dir/src/world/spawn/Spawner.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/job_ability_system_test.dir/build.make CMakeFiles/job_ability_system_test.dir/src/world/spawn/Spawner.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/spawner_test.dir/build.make CMakeFiles/spawner_test.dir/src/world/spawn/Spawner.cpp.o
+.PHONY : src/world/spawn/Spawner.cpp.o
+
+src/world/spawn/Spawner.i: src/world/spawn/Spawner.cpp.i
+.PHONY : src/world/spawn/Spawner.i
+
+# target to preprocess a source file
+src/world/spawn/Spawner.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/kusozako.dir/build.make CMakeFiles/kusozako.dir/src/world/spawn/Spawner.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/world_state_step_order_test.dir/build.make CMakeFiles/world_state_step_order_test.dir/src/world/spawn/Spawner.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/systems_behavior_test.dir/build.make CMakeFiles/systems_behavior_test.dir/src/world/spawn/Spawner.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/job_ability_system_test.dir/build.make CMakeFiles/job_ability_system_test.dir/src/world/spawn/Spawner.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/spawner_test.dir/build.make CMakeFiles/spawner_test.dir/src/world/spawn/Spawner.cpp.i
+.PHONY : src/world/spawn/Spawner.cpp.i
+
+src/world/spawn/Spawner.s: src/world/spawn/Spawner.cpp.s
+.PHONY : src/world/spawn/Spawner.s
+
+# target to generate assembly for a file
+src/world/spawn/Spawner.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/kusozako.dir/build.make CMakeFiles/kusozako.dir/src/world/spawn/Spawner.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/world_state_step_order_test.dir/build.make CMakeFiles/world_state_step_order_test.dir/src/world/spawn/Spawner.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/systems_behavior_test.dir/build.make CMakeFiles/systems_behavior_test.dir/src/world/spawn/Spawner.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/job_ability_system_test.dir/build.make CMakeFiles/job_ability_system_test.dir/src/world/spawn/Spawner.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/spawner_test.dir/build.make CMakeFiles/spawner_test.dir/src/world/spawn/Spawner.cpp.s
+.PHONY : src/world/spawn/Spawner.cpp.s
+
+src/world/spawn/WaveController.o: src/world/spawn/WaveController.cpp.o
+.PHONY : src/world/spawn/WaveController.o
+
+# target to build an object file
+src/world/spawn/WaveController.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/kusozako.dir/build.make CMakeFiles/kusozako.dir/src/world/spawn/WaveController.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/world_state_step_order_test.dir/build.make CMakeFiles/world_state_step_order_test.dir/src/world/spawn/WaveController.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/systems_behavior_test.dir/build.make CMakeFiles/systems_behavior_test.dir/src/world/spawn/WaveController.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/job_ability_system_test.dir/build.make CMakeFiles/job_ability_system_test.dir/src/world/spawn/WaveController.cpp.o
+.PHONY : src/world/spawn/WaveController.cpp.o
+
+src/world/spawn/WaveController.i: src/world/spawn/WaveController.cpp.i
+.PHONY : src/world/spawn/WaveController.i
+
+# target to preprocess a source file
+src/world/spawn/WaveController.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/kusozako.dir/build.make CMakeFiles/kusozako.dir/src/world/spawn/WaveController.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/world_state_step_order_test.dir/build.make CMakeFiles/world_state_step_order_test.dir/src/world/spawn/WaveController.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/systems_behavior_test.dir/build.make CMakeFiles/systems_behavior_test.dir/src/world/spawn/WaveController.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/job_ability_system_test.dir/build.make CMakeFiles/job_ability_system_test.dir/src/world/spawn/WaveController.cpp.i
+.PHONY : src/world/spawn/WaveController.cpp.i
+
+src/world/spawn/WaveController.s: src/world/spawn/WaveController.cpp.s
+.PHONY : src/world/spawn/WaveController.s
+
+# target to generate assembly for a file
+src/world/spawn/WaveController.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/kusozako.dir/build.make CMakeFiles/kusozako.dir/src/world/spawn/WaveController.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/world_state_step_order_test.dir/build.make CMakeFiles/world_state_step_order_test.dir/src/world/spawn/WaveController.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/systems_behavior_test.dir/build.make CMakeFiles/systems_behavior_test.dir/src/world/spawn/WaveController.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/job_ability_system_test.dir/build.make CMakeFiles/job_ability_system_test.dir/src/world/spawn/WaveController.cpp.s
+.PHONY : src/world/spawn/WaveController.cpp.s
+
+src/world/systems/BehaviorSystem.o: src/world/systems/BehaviorSystem.cpp.o
+.PHONY : src/world/systems/BehaviorSystem.o
+
+# target to build an object file
+src/world/systems/BehaviorSystem.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/kusozako.dir/build.make CMakeFiles/kusozako.dir/src/world/systems/BehaviorSystem.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/world_state_step_order_test.dir/build.make CMakeFiles/world_state_step_order_test.dir/src/world/systems/BehaviorSystem.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/systems_behavior_test.dir/build.make CMakeFiles/systems_behavior_test.dir/src/world/systems/BehaviorSystem.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/job_ability_system_test.dir/build.make CMakeFiles/job_ability_system_test.dir/src/world/systems/BehaviorSystem.cpp.o
+.PHONY : src/world/systems/BehaviorSystem.cpp.o
+
+src/world/systems/BehaviorSystem.i: src/world/systems/BehaviorSystem.cpp.i
+.PHONY : src/world/systems/BehaviorSystem.i
+
+# target to preprocess a source file
+src/world/systems/BehaviorSystem.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/kusozako.dir/build.make CMakeFiles/kusozako.dir/src/world/systems/BehaviorSystem.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/world_state_step_order_test.dir/build.make CMakeFiles/world_state_step_order_test.dir/src/world/systems/BehaviorSystem.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/systems_behavior_test.dir/build.make CMakeFiles/systems_behavior_test.dir/src/world/systems/BehaviorSystem.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/job_ability_system_test.dir/build.make CMakeFiles/job_ability_system_test.dir/src/world/systems/BehaviorSystem.cpp.i
+.PHONY : src/world/systems/BehaviorSystem.cpp.i
+
+src/world/systems/BehaviorSystem.s: src/world/systems/BehaviorSystem.cpp.s
+.PHONY : src/world/systems/BehaviorSystem.s
+
+# target to generate assembly for a file
+src/world/systems/BehaviorSystem.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/kusozako.dir/build.make CMakeFiles/kusozako.dir/src/world/systems/BehaviorSystem.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/world_state_step_order_test.dir/build.make CMakeFiles/world_state_step_order_test.dir/src/world/systems/BehaviorSystem.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/systems_behavior_test.dir/build.make CMakeFiles/systems_behavior_test.dir/src/world/systems/BehaviorSystem.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/job_ability_system_test.dir/build.make CMakeFiles/job_ability_system_test.dir/src/world/systems/BehaviorSystem.cpp.s
+.PHONY : src/world/systems/BehaviorSystem.cpp.s
+
+src/world/systems/CombatSystem.o: src/world/systems/CombatSystem.cpp.o
+.PHONY : src/world/systems/CombatSystem.o
+
+# target to build an object file
+src/world/systems/CombatSystem.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/kusozako.dir/build.make CMakeFiles/kusozako.dir/src/world/systems/CombatSystem.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/world_state_step_order_test.dir/build.make CMakeFiles/world_state_step_order_test.dir/src/world/systems/CombatSystem.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/systems_behavior_test.dir/build.make CMakeFiles/systems_behavior_test.dir/src/world/systems/CombatSystem.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/job_ability_system_test.dir/build.make CMakeFiles/job_ability_system_test.dir/src/world/systems/CombatSystem.cpp.o
+.PHONY : src/world/systems/CombatSystem.cpp.o
+
+src/world/systems/CombatSystem.i: src/world/systems/CombatSystem.cpp.i
+.PHONY : src/world/systems/CombatSystem.i
+
+# target to preprocess a source file
+src/world/systems/CombatSystem.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/kusozako.dir/build.make CMakeFiles/kusozako.dir/src/world/systems/CombatSystem.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/world_state_step_order_test.dir/build.make CMakeFiles/world_state_step_order_test.dir/src/world/systems/CombatSystem.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/systems_behavior_test.dir/build.make CMakeFiles/systems_behavior_test.dir/src/world/systems/CombatSystem.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/job_ability_system_test.dir/build.make CMakeFiles/job_ability_system_test.dir/src/world/systems/CombatSystem.cpp.i
+.PHONY : src/world/systems/CombatSystem.cpp.i
+
+src/world/systems/CombatSystem.s: src/world/systems/CombatSystem.cpp.s
+.PHONY : src/world/systems/CombatSystem.s
+
+# target to generate assembly for a file
+src/world/systems/CombatSystem.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/kusozako.dir/build.make CMakeFiles/kusozako.dir/src/world/systems/CombatSystem.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/world_state_step_order_test.dir/build.make CMakeFiles/world_state_step_order_test.dir/src/world/systems/CombatSystem.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/systems_behavior_test.dir/build.make CMakeFiles/systems_behavior_test.dir/src/world/systems/CombatSystem.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/job_ability_system_test.dir/build.make CMakeFiles/job_ability_system_test.dir/src/world/systems/CombatSystem.cpp.s
+.PHONY : src/world/systems/CombatSystem.cpp.s
+
+src/world/systems/CommanderInputSystem.o: src/world/systems/CommanderInputSystem.cpp.o
+.PHONY : src/world/systems/CommanderInputSystem.o
+
+# target to build an object file
+src/world/systems/CommanderInputSystem.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/kusozako.dir/build.make CMakeFiles/kusozako.dir/src/world/systems/CommanderInputSystem.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/world_state_step_order_test.dir/build.make CMakeFiles/world_state_step_order_test.dir/src/world/systems/CommanderInputSystem.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/systems_behavior_test.dir/build.make CMakeFiles/systems_behavior_test.dir/src/world/systems/CommanderInputSystem.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/job_ability_system_test.dir/build.make CMakeFiles/job_ability_system_test.dir/src/world/systems/CommanderInputSystem.cpp.o
+.PHONY : src/world/systems/CommanderInputSystem.cpp.o
+
+src/world/systems/CommanderInputSystem.i: src/world/systems/CommanderInputSystem.cpp.i
+.PHONY : src/world/systems/CommanderInputSystem.i
+
+# target to preprocess a source file
+src/world/systems/CommanderInputSystem.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/kusozako.dir/build.make CMakeFiles/kusozako.dir/src/world/systems/CommanderInputSystem.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/world_state_step_order_test.dir/build.make CMakeFiles/world_state_step_order_test.dir/src/world/systems/CommanderInputSystem.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/systems_behavior_test.dir/build.make CMakeFiles/systems_behavior_test.dir/src/world/systems/CommanderInputSystem.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/job_ability_system_test.dir/build.make CMakeFiles/job_ability_system_test.dir/src/world/systems/CommanderInputSystem.cpp.i
+.PHONY : src/world/systems/CommanderInputSystem.cpp.i
+
+src/world/systems/CommanderInputSystem.s: src/world/systems/CommanderInputSystem.cpp.s
+.PHONY : src/world/systems/CommanderInputSystem.s
+
+# target to generate assembly for a file
+src/world/systems/CommanderInputSystem.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/kusozako.dir/build.make CMakeFiles/kusozako.dir/src/world/systems/CommanderInputSystem.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/world_state_step_order_test.dir/build.make CMakeFiles/world_state_step_order_test.dir/src/world/systems/CommanderInputSystem.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/systems_behavior_test.dir/build.make CMakeFiles/systems_behavior_test.dir/src/world/systems/CommanderInputSystem.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/job_ability_system_test.dir/build.make CMakeFiles/job_ability_system_test.dir/src/world/systems/CommanderInputSystem.cpp.s
+.PHONY : src/world/systems/CommanderInputSystem.cpp.s
+
+src/world/systems/FormationSystem.o: src/world/systems/FormationSystem.cpp.o
+.PHONY : src/world/systems/FormationSystem.o
+
+# target to build an object file
+src/world/systems/FormationSystem.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/kusozako.dir/build.make CMakeFiles/kusozako.dir/src/world/systems/FormationSystem.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/world_state_step_order_test.dir/build.make CMakeFiles/world_state_step_order_test.dir/src/world/systems/FormationSystem.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/systems_behavior_test.dir/build.make CMakeFiles/systems_behavior_test.dir/src/world/systems/FormationSystem.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/job_ability_system_test.dir/build.make CMakeFiles/job_ability_system_test.dir/src/world/systems/FormationSystem.cpp.o
+.PHONY : src/world/systems/FormationSystem.cpp.o
+
+src/world/systems/FormationSystem.i: src/world/systems/FormationSystem.cpp.i
+.PHONY : src/world/systems/FormationSystem.i
+
+# target to preprocess a source file
+src/world/systems/FormationSystem.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/kusozako.dir/build.make CMakeFiles/kusozako.dir/src/world/systems/FormationSystem.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/world_state_step_order_test.dir/build.make CMakeFiles/world_state_step_order_test.dir/src/world/systems/FormationSystem.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/systems_behavior_test.dir/build.make CMakeFiles/systems_behavior_test.dir/src/world/systems/FormationSystem.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/job_ability_system_test.dir/build.make CMakeFiles/job_ability_system_test.dir/src/world/systems/FormationSystem.cpp.i
+.PHONY : src/world/systems/FormationSystem.cpp.i
+
+src/world/systems/FormationSystem.s: src/world/systems/FormationSystem.cpp.s
+.PHONY : src/world/systems/FormationSystem.s
+
+# target to generate assembly for a file
+src/world/systems/FormationSystem.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/kusozako.dir/build.make CMakeFiles/kusozako.dir/src/world/systems/FormationSystem.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/world_state_step_order_test.dir/build.make CMakeFiles/world_state_step_order_test.dir/src/world/systems/FormationSystem.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/systems_behavior_test.dir/build.make CMakeFiles/systems_behavior_test.dir/src/world/systems/FormationSystem.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/job_ability_system_test.dir/build.make CMakeFiles/job_ability_system_test.dir/src/world/systems/FormationSystem.cpp.s
+.PHONY : src/world/systems/FormationSystem.cpp.s
+
+src/world/systems/JobAbilitySystem.o: src/world/systems/JobAbilitySystem.cpp.o
+.PHONY : src/world/systems/JobAbilitySystem.o
+
+# target to build an object file
+src/world/systems/JobAbilitySystem.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/kusozako.dir/build.make CMakeFiles/kusozako.dir/src/world/systems/JobAbilitySystem.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/world_state_step_order_test.dir/build.make CMakeFiles/world_state_step_order_test.dir/src/world/systems/JobAbilitySystem.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/systems_behavior_test.dir/build.make CMakeFiles/systems_behavior_test.dir/src/world/systems/JobAbilitySystem.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/job_ability_system_test.dir/build.make CMakeFiles/job_ability_system_test.dir/src/world/systems/JobAbilitySystem.cpp.o
+.PHONY : src/world/systems/JobAbilitySystem.cpp.o
+
+src/world/systems/JobAbilitySystem.i: src/world/systems/JobAbilitySystem.cpp.i
+.PHONY : src/world/systems/JobAbilitySystem.i
+
+# target to preprocess a source file
+src/world/systems/JobAbilitySystem.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/kusozako.dir/build.make CMakeFiles/kusozako.dir/src/world/systems/JobAbilitySystem.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/world_state_step_order_test.dir/build.make CMakeFiles/world_state_step_order_test.dir/src/world/systems/JobAbilitySystem.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/systems_behavior_test.dir/build.make CMakeFiles/systems_behavior_test.dir/src/world/systems/JobAbilitySystem.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/job_ability_system_test.dir/build.make CMakeFiles/job_ability_system_test.dir/src/world/systems/JobAbilitySystem.cpp.i
+.PHONY : src/world/systems/JobAbilitySystem.cpp.i
+
+src/world/systems/JobAbilitySystem.s: src/world/systems/JobAbilitySystem.cpp.s
+.PHONY : src/world/systems/JobAbilitySystem.s
+
+# target to generate assembly for a file
+src/world/systems/JobAbilitySystem.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/kusozako.dir/build.make CMakeFiles/kusozako.dir/src/world/systems/JobAbilitySystem.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/world_state_step_order_test.dir/build.make CMakeFiles/world_state_step_order_test.dir/src/world/systems/JobAbilitySystem.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/systems_behavior_test.dir/build.make CMakeFiles/systems_behavior_test.dir/src/world/systems/JobAbilitySystem.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/job_ability_system_test.dir/build.make CMakeFiles/job_ability_system_test.dir/src/world/systems/JobAbilitySystem.cpp.s
+.PHONY : src/world/systems/JobAbilitySystem.cpp.s
+
+src/world/systems/MoraleSystem.o: src/world/systems/MoraleSystem.cpp.o
+.PHONY : src/world/systems/MoraleSystem.o
+
+# target to build an object file
+src/world/systems/MoraleSystem.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/kusozako.dir/build.make CMakeFiles/kusozako.dir/src/world/systems/MoraleSystem.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/world_state_step_order_test.dir/build.make CMakeFiles/world_state_step_order_test.dir/src/world/systems/MoraleSystem.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/systems_behavior_test.dir/build.make CMakeFiles/systems_behavior_test.dir/src/world/systems/MoraleSystem.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/job_ability_system_test.dir/build.make CMakeFiles/job_ability_system_test.dir/src/world/systems/MoraleSystem.cpp.o
+.PHONY : src/world/systems/MoraleSystem.cpp.o
+
+src/world/systems/MoraleSystem.i: src/world/systems/MoraleSystem.cpp.i
+.PHONY : src/world/systems/MoraleSystem.i
+
+# target to preprocess a source file
+src/world/systems/MoraleSystem.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/kusozako.dir/build.make CMakeFiles/kusozako.dir/src/world/systems/MoraleSystem.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/world_state_step_order_test.dir/build.make CMakeFiles/world_state_step_order_test.dir/src/world/systems/MoraleSystem.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/systems_behavior_test.dir/build.make CMakeFiles/systems_behavior_test.dir/src/world/systems/MoraleSystem.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/job_ability_system_test.dir/build.make CMakeFiles/job_ability_system_test.dir/src/world/systems/MoraleSystem.cpp.i
+.PHONY : src/world/systems/MoraleSystem.cpp.i
+
+src/world/systems/MoraleSystem.s: src/world/systems/MoraleSystem.cpp.s
+.PHONY : src/world/systems/MoraleSystem.s
+
+# target to generate assembly for a file
+src/world/systems/MoraleSystem.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/kusozako.dir/build.make CMakeFiles/kusozako.dir/src/world/systems/MoraleSystem.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/world_state_step_order_test.dir/build.make CMakeFiles/world_state_step_order_test.dir/src/world/systems/MoraleSystem.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/systems_behavior_test.dir/build.make CMakeFiles/systems_behavior_test.dir/src/world/systems/MoraleSystem.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/job_ability_system_test.dir/build.make CMakeFiles/job_ability_system_test.dir/src/world/systems/MoraleSystem.cpp.s
+.PHONY : src/world/systems/MoraleSystem.cpp.s
+
+src/world/systems/MovementSystem.o: src/world/systems/MovementSystem.cpp.o
+.PHONY : src/world/systems/MovementSystem.o
+
+# target to build an object file
+src/world/systems/MovementSystem.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/kusozako.dir/build.make CMakeFiles/kusozako.dir/src/world/systems/MovementSystem.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/world_state_step_order_test.dir/build.make CMakeFiles/world_state_step_order_test.dir/src/world/systems/MovementSystem.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/systems_behavior_test.dir/build.make CMakeFiles/systems_behavior_test.dir/src/world/systems/MovementSystem.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/job_ability_system_test.dir/build.make CMakeFiles/job_ability_system_test.dir/src/world/systems/MovementSystem.cpp.o
+.PHONY : src/world/systems/MovementSystem.cpp.o
+
+src/world/systems/MovementSystem.i: src/world/systems/MovementSystem.cpp.i
+.PHONY : src/world/systems/MovementSystem.i
+
+# target to preprocess a source file
+src/world/systems/MovementSystem.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/kusozako.dir/build.make CMakeFiles/kusozako.dir/src/world/systems/MovementSystem.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/world_state_step_order_test.dir/build.make CMakeFiles/world_state_step_order_test.dir/src/world/systems/MovementSystem.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/systems_behavior_test.dir/build.make CMakeFiles/systems_behavior_test.dir/src/world/systems/MovementSystem.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/job_ability_system_test.dir/build.make CMakeFiles/job_ability_system_test.dir/src/world/systems/MovementSystem.cpp.i
+.PHONY : src/world/systems/MovementSystem.cpp.i
+
+src/world/systems/MovementSystem.s: src/world/systems/MovementSystem.cpp.s
+.PHONY : src/world/systems/MovementSystem.s
+
+# target to generate assembly for a file
+src/world/systems/MovementSystem.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/kusozako.dir/build.make CMakeFiles/kusozako.dir/src/world/systems/MovementSystem.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/world_state_step_order_test.dir/build.make CMakeFiles/world_state_step_order_test.dir/src/world/systems/MovementSystem.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/systems_behavior_test.dir/build.make CMakeFiles/systems_behavior_test.dir/src/world/systems/MovementSystem.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/job_ability_system_test.dir/build.make CMakeFiles/job_ability_system_test.dir/src/world/systems/MovementSystem.cpp.s
+.PHONY : src/world/systems/MovementSystem.cpp.s
+
+src/world/systems/RenderingPrepSystem.o: src/world/systems/RenderingPrepSystem.cpp.o
+.PHONY : src/world/systems/RenderingPrepSystem.o
+
+# target to build an object file
+src/world/systems/RenderingPrepSystem.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/kusozako.dir/build.make CMakeFiles/kusozako.dir/src/world/systems/RenderingPrepSystem.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/world_state_step_order_test.dir/build.make CMakeFiles/world_state_step_order_test.dir/src/world/systems/RenderingPrepSystem.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/systems_behavior_test.dir/build.make CMakeFiles/systems_behavior_test.dir/src/world/systems/RenderingPrepSystem.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/job_ability_system_test.dir/build.make CMakeFiles/job_ability_system_test.dir/src/world/systems/RenderingPrepSystem.cpp.o
+.PHONY : src/world/systems/RenderingPrepSystem.cpp.o
+
+src/world/systems/RenderingPrepSystem.i: src/world/systems/RenderingPrepSystem.cpp.i
+.PHONY : src/world/systems/RenderingPrepSystem.i
+
+# target to preprocess a source file
+src/world/systems/RenderingPrepSystem.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/kusozako.dir/build.make CMakeFiles/kusozako.dir/src/world/systems/RenderingPrepSystem.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/world_state_step_order_test.dir/build.make CMakeFiles/world_state_step_order_test.dir/src/world/systems/RenderingPrepSystem.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/systems_behavior_test.dir/build.make CMakeFiles/systems_behavior_test.dir/src/world/systems/RenderingPrepSystem.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/job_ability_system_test.dir/build.make CMakeFiles/job_ability_system_test.dir/src/world/systems/RenderingPrepSystem.cpp.i
+.PHONY : src/world/systems/RenderingPrepSystem.cpp.i
+
+src/world/systems/RenderingPrepSystem.s: src/world/systems/RenderingPrepSystem.cpp.s
+.PHONY : src/world/systems/RenderingPrepSystem.s
+
+# target to generate assembly for a file
+src/world/systems/RenderingPrepSystem.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/kusozako.dir/build.make CMakeFiles/kusozako.dir/src/world/systems/RenderingPrepSystem.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/world_state_step_order_test.dir/build.make CMakeFiles/world_state_step_order_test.dir/src/world/systems/RenderingPrepSystem.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/systems_behavior_test.dir/build.make CMakeFiles/systems_behavior_test.dir/src/world/systems/RenderingPrepSystem.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/job_ability_system_test.dir/build.make CMakeFiles/job_ability_system_test.dir/src/world/systems/RenderingPrepSystem.cpp.s
+.PHONY : src/world/systems/RenderingPrepSystem.cpp.s
+
+tests/AssetManagerMemoryWarningTest.o: tests/AssetManagerMemoryWarningTest.cpp.o
+.PHONY : tests/AssetManagerMemoryWarningTest.o
+
+# target to build an object file
+tests/AssetManagerMemoryWarningTest.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/asset_manager_memory_warning_test.dir/build.make CMakeFiles/asset_manager_memory_warning_test.dir/tests/AssetManagerMemoryWarningTest.cpp.o
+.PHONY : tests/AssetManagerMemoryWarningTest.cpp.o
+
+tests/AssetManagerMemoryWarningTest.i: tests/AssetManagerMemoryWarningTest.cpp.i
+.PHONY : tests/AssetManagerMemoryWarningTest.i
+
+# target to preprocess a source file
+tests/AssetManagerMemoryWarningTest.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/asset_manager_memory_warning_test.dir/build.make CMakeFiles/asset_manager_memory_warning_test.dir/tests/AssetManagerMemoryWarningTest.cpp.i
+.PHONY : tests/AssetManagerMemoryWarningTest.cpp.i
+
+tests/AssetManagerMemoryWarningTest.s: tests/AssetManagerMemoryWarningTest.cpp.s
+.PHONY : tests/AssetManagerMemoryWarningTest.s
+
+# target to generate assembly for a file
+tests/AssetManagerMemoryWarningTest.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/asset_manager_memory_warning_test.dir/build.make CMakeFiles/asset_manager_memory_warning_test.dir/tests/AssetManagerMemoryWarningTest.cpp.s
+.PHONY : tests/AssetManagerMemoryWarningTest.cpp.s
+
+tests/ConfigSchemaTest.o: tests/ConfigSchemaTest.cpp.o
+.PHONY : tests/ConfigSchemaTest.o
+
+# target to build an object file
+tests/ConfigSchemaTest.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/config_schema_test.dir/build.make CMakeFiles/config_schema_test.dir/tests/ConfigSchemaTest.cpp.o
+.PHONY : tests/ConfigSchemaTest.cpp.o
+
+tests/ConfigSchemaTest.i: tests/ConfigSchemaTest.cpp.i
+.PHONY : tests/ConfigSchemaTest.i
+
+# target to preprocess a source file
+tests/ConfigSchemaTest.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/config_schema_test.dir/build.make CMakeFiles/config_schema_test.dir/tests/ConfigSchemaTest.cpp.i
+.PHONY : tests/ConfigSchemaTest.cpp.i
+
+tests/ConfigSchemaTest.s: tests/ConfigSchemaTest.cpp.s
+.PHONY : tests/ConfigSchemaTest.s
+
+# target to generate assembly for a file
+tests/ConfigSchemaTest.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/config_schema_test.dir/build.make CMakeFiles/config_schema_test.dir/tests/ConfigSchemaTest.cpp.s
+.PHONY : tests/ConfigSchemaTest.cpp.s
+
+tests/EventBusTest.o: tests/EventBusTest.cpp.o
+.PHONY : tests/EventBusTest.o
+
+# target to build an object file
+tests/EventBusTest.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/event_bus_test.dir/build.make CMakeFiles/event_bus_test.dir/tests/EventBusTest.cpp.o
+.PHONY : tests/EventBusTest.cpp.o
+
+tests/EventBusTest.i: tests/EventBusTest.cpp.i
+.PHONY : tests/EventBusTest.i
+
+# target to preprocess a source file
+tests/EventBusTest.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/event_bus_test.dir/build.make CMakeFiles/event_bus_test.dir/tests/EventBusTest.cpp.i
+.PHONY : tests/EventBusTest.cpp.i
+
+tests/EventBusTest.s: tests/EventBusTest.cpp.s
+.PHONY : tests/EventBusTest.s
+
+# target to generate assembly for a file
+tests/EventBusTest.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/event_bus_test.dir/build.make CMakeFiles/event_bus_test.dir/tests/EventBusTest.cpp.s
+.PHONY : tests/EventBusTest.cpp.s
+
+tests/JobAbilitySystemTest.o: tests/JobAbilitySystemTest.cpp.o
+.PHONY : tests/JobAbilitySystemTest.o
+
+# target to build an object file
+tests/JobAbilitySystemTest.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/job_ability_system_test.dir/build.make CMakeFiles/job_ability_system_test.dir/tests/JobAbilitySystemTest.cpp.o
+.PHONY : tests/JobAbilitySystemTest.cpp.o
+
+tests/JobAbilitySystemTest.i: tests/JobAbilitySystemTest.cpp.i
+.PHONY : tests/JobAbilitySystemTest.i
+
+# target to preprocess a source file
+tests/JobAbilitySystemTest.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/job_ability_system_test.dir/build.make CMakeFiles/job_ability_system_test.dir/tests/JobAbilitySystemTest.cpp.i
+.PHONY : tests/JobAbilitySystemTest.cpp.i
+
+tests/JobAbilitySystemTest.s: tests/JobAbilitySystemTest.cpp.s
+.PHONY : tests/JobAbilitySystemTest.s
+
+# target to generate assembly for a file
+tests/JobAbilitySystemTest.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/job_ability_system_test.dir/build.make CMakeFiles/job_ability_system_test.dir/tests/JobAbilitySystemTest.cpp.s
+.PHONY : tests/JobAbilitySystemTest.cpp.s
+
+tests/PerformanceBudgetMonitorTest.o: tests/PerformanceBudgetMonitorTest.cpp.o
+.PHONY : tests/PerformanceBudgetMonitorTest.o
+
+# target to build an object file
+tests/PerformanceBudgetMonitorTest.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/performance_budget_monitor_test.dir/build.make CMakeFiles/performance_budget_monitor_test.dir/tests/PerformanceBudgetMonitorTest.cpp.o
+.PHONY : tests/PerformanceBudgetMonitorTest.cpp.o
+
+tests/PerformanceBudgetMonitorTest.i: tests/PerformanceBudgetMonitorTest.cpp.i
+.PHONY : tests/PerformanceBudgetMonitorTest.i
+
+# target to preprocess a source file
+tests/PerformanceBudgetMonitorTest.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/performance_budget_monitor_test.dir/build.make CMakeFiles/performance_budget_monitor_test.dir/tests/PerformanceBudgetMonitorTest.cpp.i
+.PHONY : tests/PerformanceBudgetMonitorTest.cpp.i
+
+tests/PerformanceBudgetMonitorTest.s: tests/PerformanceBudgetMonitorTest.cpp.s
+.PHONY : tests/PerformanceBudgetMonitorTest.s
+
+# target to generate assembly for a file
+tests/PerformanceBudgetMonitorTest.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/performance_budget_monitor_test.dir/build.make CMakeFiles/performance_budget_monitor_test.dir/tests/PerformanceBudgetMonitorTest.cpp.s
+.PHONY : tests/PerformanceBudgetMonitorTest.cpp.s
+
+tests/SpawnerTest.o: tests/SpawnerTest.cpp.o
+.PHONY : tests/SpawnerTest.o
+
+# target to build an object file
+tests/SpawnerTest.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/spawner_test.dir/build.make CMakeFiles/spawner_test.dir/tests/SpawnerTest.cpp.o
+.PHONY : tests/SpawnerTest.cpp.o
+
+tests/SpawnerTest.i: tests/SpawnerTest.cpp.i
+.PHONY : tests/SpawnerTest.i
+
+# target to preprocess a source file
+tests/SpawnerTest.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/spawner_test.dir/build.make CMakeFiles/spawner_test.dir/tests/SpawnerTest.cpp.i
+.PHONY : tests/SpawnerTest.cpp.i
+
+tests/SpawnerTest.s: tests/SpawnerTest.cpp.s
+.PHONY : tests/SpawnerTest.s
+
+# target to generate assembly for a file
+tests/SpawnerTest.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/spawner_test.dir/build.make CMakeFiles/spawner_test.dir/tests/SpawnerTest.cpp.s
+.PHONY : tests/SpawnerTest.cpp.s
+
+tests/StubUiPresenter.o: tests/StubUiPresenter.cpp.o
+.PHONY : tests/StubUiPresenter.o
+
+# target to build an object file
+tests/StubUiPresenter.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/config_schema_test.dir/build.make CMakeFiles/config_schema_test.dir/tests/StubUiPresenter.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/asset_manager_memory_warning_test.dir/build.make CMakeFiles/asset_manager_memory_warning_test.dir/tests/StubUiPresenter.cpp.o
+.PHONY : tests/StubUiPresenter.cpp.o
+
+tests/StubUiPresenter.i: tests/StubUiPresenter.cpp.i
+.PHONY : tests/StubUiPresenter.i
+
+# target to preprocess a source file
+tests/StubUiPresenter.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/config_schema_test.dir/build.make CMakeFiles/config_schema_test.dir/tests/StubUiPresenter.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/asset_manager_memory_warning_test.dir/build.make CMakeFiles/asset_manager_memory_warning_test.dir/tests/StubUiPresenter.cpp.i
+.PHONY : tests/StubUiPresenter.cpp.i
+
+tests/StubUiPresenter.s: tests/StubUiPresenter.cpp.s
+.PHONY : tests/StubUiPresenter.s
+
+# target to generate assembly for a file
+tests/StubUiPresenter.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/config_schema_test.dir/build.make CMakeFiles/config_schema_test.dir/tests/StubUiPresenter.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/asset_manager_memory_warning_test.dir/build.make CMakeFiles/asset_manager_memory_warning_test.dir/tests/StubUiPresenter.cpp.s
+.PHONY : tests/StubUiPresenter.cpp.s
+
+tests/SystemsBehaviorTest.o: tests/SystemsBehaviorTest.cpp.o
+.PHONY : tests/SystemsBehaviorTest.o
+
+# target to build an object file
+tests/SystemsBehaviorTest.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/systems_behavior_test.dir/build.make CMakeFiles/systems_behavior_test.dir/tests/SystemsBehaviorTest.cpp.o
+.PHONY : tests/SystemsBehaviorTest.cpp.o
+
+tests/SystemsBehaviorTest.i: tests/SystemsBehaviorTest.cpp.i
+.PHONY : tests/SystemsBehaviorTest.i
+
+# target to preprocess a source file
+tests/SystemsBehaviorTest.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/systems_behavior_test.dir/build.make CMakeFiles/systems_behavior_test.dir/tests/SystemsBehaviorTest.cpp.i
+.PHONY : tests/SystemsBehaviorTest.cpp.i
+
+tests/SystemsBehaviorTest.s: tests/SystemsBehaviorTest.cpp.s
+.PHONY : tests/SystemsBehaviorTest.s
+
+# target to generate assembly for a file
+tests/SystemsBehaviorTest.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/systems_behavior_test.dir/build.make CMakeFiles/systems_behavior_test.dir/tests/SystemsBehaviorTest.cpp.s
+.PHONY : tests/SystemsBehaviorTest.cpp.s
+
+tests/UiPresenterTest.o: tests/UiPresenterTest.cpp.o
+.PHONY : tests/UiPresenterTest.o
+
+# target to build an object file
+tests/UiPresenterTest.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/ui_presenter_test.dir/build.make CMakeFiles/ui_presenter_test.dir/tests/UiPresenterTest.cpp.o
+.PHONY : tests/UiPresenterTest.cpp.o
+
+tests/UiPresenterTest.i: tests/UiPresenterTest.cpp.i
+.PHONY : tests/UiPresenterTest.i
+
+# target to preprocess a source file
+tests/UiPresenterTest.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/ui_presenter_test.dir/build.make CMakeFiles/ui_presenter_test.dir/tests/UiPresenterTest.cpp.i
+.PHONY : tests/UiPresenterTest.cpp.i
+
+tests/UiPresenterTest.s: tests/UiPresenterTest.cpp.s
+.PHONY : tests/UiPresenterTest.s
+
+# target to generate assembly for a file
+tests/UiPresenterTest.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/ui_presenter_test.dir/build.make CMakeFiles/ui_presenter_test.dir/tests/UiPresenterTest.cpp.s
+.PHONY : tests/UiPresenterTest.cpp.s
+
+tests/UiViewTest.o: tests/UiViewTest.cpp.o
+.PHONY : tests/UiViewTest.o
+
+# target to build an object file
+tests/UiViewTest.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/ui_view_test.dir/build.make CMakeFiles/ui_view_test.dir/tests/UiViewTest.cpp.o
+.PHONY : tests/UiViewTest.cpp.o
+
+tests/UiViewTest.i: tests/UiViewTest.cpp.i
+.PHONY : tests/UiViewTest.i
+
+# target to preprocess a source file
+tests/UiViewTest.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/ui_view_test.dir/build.make CMakeFiles/ui_view_test.dir/tests/UiViewTest.cpp.i
+.PHONY : tests/UiViewTest.cpp.i
+
+tests/UiViewTest.s: tests/UiViewTest.cpp.s
+.PHONY : tests/UiViewTest.s
+
+# target to generate assembly for a file
+tests/UiViewTest.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/ui_view_test.dir/build.make CMakeFiles/ui_view_test.dir/tests/UiViewTest.cpp.s
+.PHONY : tests/UiViewTest.cpp.s
+
+tests/WorldStateStepOrderTest.o: tests/WorldStateStepOrderTest.cpp.o
+.PHONY : tests/WorldStateStepOrderTest.o
+
+# target to build an object file
+tests/WorldStateStepOrderTest.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/world_state_step_order_test.dir/build.make CMakeFiles/world_state_step_order_test.dir/tests/WorldStateStepOrderTest.cpp.o
+.PHONY : tests/WorldStateStepOrderTest.cpp.o
+
+tests/WorldStateStepOrderTest.i: tests/WorldStateStepOrderTest.cpp.i
+.PHONY : tests/WorldStateStepOrderTest.i
+
+# target to preprocess a source file
+tests/WorldStateStepOrderTest.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/world_state_step_order_test.dir/build.make CMakeFiles/world_state_step_order_test.dir/tests/WorldStateStepOrderTest.cpp.i
+.PHONY : tests/WorldStateStepOrderTest.cpp.i
+
+tests/WorldStateStepOrderTest.s: tests/WorldStateStepOrderTest.cpp.s
+.PHONY : tests/WorldStateStepOrderTest.s
+
+# target to generate assembly for a file
+tests/WorldStateStepOrderTest.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/world_state_step_order_test.dir/build.make CMakeFiles/world_state_step_order_test.dir/tests/WorldStateStepOrderTest.cpp.s
+.PHONY : tests/WorldStateStepOrderTest.cpp.s
 
 # Help Target
 help:
@@ -161,10 +1585,141 @@ help:
 	@echo "... depend"
 	@echo "... edit_cache"
 	@echo "... rebuild_cache"
+	@echo "... test"
+	@echo "... asset_manager_memory_warning_test"
+	@echo "... config_schema_test"
+	@echo "... event_bus_test"
+	@echo "... job_ability_system_test"
 	@echo "... kusozako"
+	@echo "... performance_budget_monitor_test"
+	@echo "... spawner_test"
+	@echo "... systems_behavior_test"
+	@echo "... ui_presenter_test"
+	@echo "... ui_view_test"
+	@echo "... world_state_step_order_test"
+	@echo "... src/app/GameApplication.o"
+	@echo "... src/app/GameApplication.i"
+	@echo "... src/app/GameApplication.s"
+	@echo "... src/app/TextRenderer.o"
+	@echo "... src/app/TextRenderer.i"
+	@echo "... src/app/TextRenderer.s"
+	@echo "... src/app/UiPresenter.o"
+	@echo "... src/app/UiPresenter.i"
+	@echo "... src/app/UiPresenter.s"
+	@echo "... src/app/UiView.o"
+	@echo "... src/app/UiView.i"
+	@echo "... src/app/UiView.s"
+	@echo "... src/assets/AssetManager.o"
+	@echo "... src/assets/AssetManager.i"
+	@echo "... src/assets/AssetManager.s"
+	@echo "... src/config/AppConfig.o"
+	@echo "... src/config/AppConfig.i"
+	@echo "... src/config/AppConfig.s"
+	@echo "... src/config/AppConfigLoader.o"
+	@echo "... src/config/AppConfigLoader.i"
+	@echo "... src/config/AppConfigLoader.s"
+	@echo "... src/debug/DebugController.o"
+	@echo "... src/debug/DebugController.i"
+	@echo "... src/debug/DebugController.s"
+	@echo "... src/debug/DebugOverlayView.o"
+	@echo "... src/debug/DebugOverlayView.i"
+	@echo "... src/debug/DebugOverlayView.s"
+	@echo "... src/events/EventBus.o"
+	@echo "... src/events/EventBus.i"
+	@echo "... src/events/EventBus.s"
+	@echo "... src/input/ActionBuffer.o"
+	@echo "... src/input/ActionBuffer.i"
+	@echo "... src/input/ActionBuffer.s"
+	@echo "... src/input/InputMapper.o"
+	@echo "... src/input/InputMapper.i"
+	@echo "... src/input/InputMapper.s"
 	@echo "... src/main.o"
 	@echo "... src/main.i"
 	@echo "... src/main.s"
+	@echo "... src/scenes/SceneStack.o"
+	@echo "... src/scenes/SceneStack.i"
+	@echo "... src/scenes/SceneStack.s"
+	@echo "... src/services/ServiceLocator.o"
+	@echo "... src/services/ServiceLocator.i"
+	@echo "... src/services/ServiceLocator.s"
+	@echo "... src/telemetry/ConsoleTelemetrySink.o"
+	@echo "... src/telemetry/ConsoleTelemetrySink.i"
+	@echo "... src/telemetry/ConsoleTelemetrySink.s"
+	@echo "... src/telemetry/FileTelemetrySink.o"
+	@echo "... src/telemetry/FileTelemetrySink.i"
+	@echo "... src/telemetry/FileTelemetrySink.s"
+	@echo "... src/telemetry/PerformanceBudgetMonitor.o"
+	@echo "... src/telemetry/PerformanceBudgetMonitor.i"
+	@echo "... src/telemetry/PerformanceBudgetMonitor.s"
+	@echo "... src/telemetry/TelemetrySink.o"
+	@echo "... src/telemetry/TelemetrySink.i"
+	@echo "... src/telemetry/TelemetrySink.s"
+	@echo "... src/world/LegacySimulation.o"
+	@echo "... src/world/LegacySimulation.i"
+	@echo "... src/world/LegacySimulation.s"
+	@echo "... src/world/spawn/Spawner.o"
+	@echo "... src/world/spawn/Spawner.i"
+	@echo "... src/world/spawn/Spawner.s"
+	@echo "... src/world/spawn/WaveController.o"
+	@echo "... src/world/spawn/WaveController.i"
+	@echo "... src/world/spawn/WaveController.s"
+	@echo "... src/world/systems/BehaviorSystem.o"
+	@echo "... src/world/systems/BehaviorSystem.i"
+	@echo "... src/world/systems/BehaviorSystem.s"
+	@echo "... src/world/systems/CombatSystem.o"
+	@echo "... src/world/systems/CombatSystem.i"
+	@echo "... src/world/systems/CombatSystem.s"
+	@echo "... src/world/systems/CommanderInputSystem.o"
+	@echo "... src/world/systems/CommanderInputSystem.i"
+	@echo "... src/world/systems/CommanderInputSystem.s"
+	@echo "... src/world/systems/FormationSystem.o"
+	@echo "... src/world/systems/FormationSystem.i"
+	@echo "... src/world/systems/FormationSystem.s"
+	@echo "... src/world/systems/JobAbilitySystem.o"
+	@echo "... src/world/systems/JobAbilitySystem.i"
+	@echo "... src/world/systems/JobAbilitySystem.s"
+	@echo "... src/world/systems/MoraleSystem.o"
+	@echo "... src/world/systems/MoraleSystem.i"
+	@echo "... src/world/systems/MoraleSystem.s"
+	@echo "... src/world/systems/MovementSystem.o"
+	@echo "... src/world/systems/MovementSystem.i"
+	@echo "... src/world/systems/MovementSystem.s"
+	@echo "... src/world/systems/RenderingPrepSystem.o"
+	@echo "... src/world/systems/RenderingPrepSystem.i"
+	@echo "... src/world/systems/RenderingPrepSystem.s"
+	@echo "... tests/AssetManagerMemoryWarningTest.o"
+	@echo "... tests/AssetManagerMemoryWarningTest.i"
+	@echo "... tests/AssetManagerMemoryWarningTest.s"
+	@echo "... tests/ConfigSchemaTest.o"
+	@echo "... tests/ConfigSchemaTest.i"
+	@echo "... tests/ConfigSchemaTest.s"
+	@echo "... tests/EventBusTest.o"
+	@echo "... tests/EventBusTest.i"
+	@echo "... tests/EventBusTest.s"
+	@echo "... tests/JobAbilitySystemTest.o"
+	@echo "... tests/JobAbilitySystemTest.i"
+	@echo "... tests/JobAbilitySystemTest.s"
+	@echo "... tests/PerformanceBudgetMonitorTest.o"
+	@echo "... tests/PerformanceBudgetMonitorTest.i"
+	@echo "... tests/PerformanceBudgetMonitorTest.s"
+	@echo "... tests/SpawnerTest.o"
+	@echo "... tests/SpawnerTest.i"
+	@echo "... tests/SpawnerTest.s"
+	@echo "... tests/StubUiPresenter.o"
+	@echo "... tests/StubUiPresenter.i"
+	@echo "... tests/StubUiPresenter.s"
+	@echo "... tests/SystemsBehaviorTest.o"
+	@echo "... tests/SystemsBehaviorTest.i"
+	@echo "... tests/SystemsBehaviorTest.s"
+	@echo "... tests/UiPresenterTest.o"
+	@echo "... tests/UiPresenterTest.i"
+	@echo "... tests/UiPresenterTest.s"
+	@echo "... tests/UiViewTest.o"
+	@echo "... tests/UiViewTest.i"
+	@echo "... tests/UiViewTest.s"
+	@echo "... tests/WorldStateStepOrderTest.o"
+	@echo "... tests/WorldStateStepOrderTest.i"
+	@echo "... tests/WorldStateStepOrderTest.s"
 .PHONY : help
 
 

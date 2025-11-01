@@ -12,6 +12,7 @@
 #include <sstream>
 #include <string>
 #include <vector>
+#include <type_traits>
 
 namespace world::systems
 {
@@ -22,8 +23,11 @@ namespace
 constexpr std::size_t kFollowLimit = 30;
 constexpr float kFollowerSnapDistSq = 16.0f;
 
-float computeAlignmentProgress(const CommanderUnit &commander, const std::vector<Unit *> &followers)
+template <typename Container>
+float computeAlignmentProgress(const CommanderUnit &commander, const Container &followers)
 {
+    static_assert(std::is_same_v<typename Container::value_type, Unit *>,
+                  "followers container must hold Unit pointers");
     if (!commander.alive || followers.empty())
     {
         return 0.0f;
@@ -334,8 +338,9 @@ void FormationSystem::emitFormationProgress(Formation formation, FormationAlignm
 }
 
 void FormationSystem::emitFormationCountdown(Formation formation, bool active, float secondsRemaining, float progress,
-                                            std::size_t followers, const std::string &label)
+                                             std::size_t followers, const std::string &label)
 {
+    (void)formation;
     const float clampedSeconds = std::max(secondsRemaining, 0.0f);
     const float clampedProgress = std::clamp(progress, 0.0f, 1.0f);
     const bool changed = m_lastCountdownActive != active ||
@@ -382,4 +387,3 @@ void FormationSystem::emitFormationCountdown(Formation formation, bool active, f
 }
 
 } // namespace world::systems
-

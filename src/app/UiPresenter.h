@@ -13,7 +13,7 @@ class TelemetrySink;
 
 namespace world
 {
-class LegacySimulation;
+struct LegacySimulation;
 }
 
 struct FormationHudStatus
@@ -121,4 +121,3 @@ class UiPresenter
     std::string m_lastWarningMessage;
     float m_lastWarningDuration = 0.0f;
 };
-

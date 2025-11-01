@@ -13,6 +13,7 @@ struct CaptureRuntime;
 #include "input/ActionBuffer.h"
 #include "world/SkillRuntime.h"
 #include "world/WorldState.h"
+#include "world/LegacyTypes.h"
 
 namespace world
 {
@@ -24,6 +25,64 @@ namespace
 {
 
 using world::systems::JobAbilitySystem;
+using world::systems::MissionContext;
+using world::systems::SystemContext;
+using world::CaptureRuntime;
+
+struct ContextHarness
+{
+    world::EntityRegistry registry;
+    world::ComponentPool<Unit> allies;
+    world::ComponentPool<EnemyUnit> enemies;
+    world::ComponentPool<WallSegment> walls;
+    world::ComponentPool<CaptureRuntime> missionZones;
+    HUDState hud{};
+    world::FrameAllocator frameAllocator{};
+    MissionContext mission;
+    SystemContext context;
+
+    ContextHarness(world::LegacySimulation &sim, const ActionBuffer &actions)
+        : mission{sim.hasMission,
+                  sim.missionConfig,
+                  sim.missionMode,
+                  sim.missionUI,
+                  sim.missionFail,
+                  sim.missionTimer,
+                  sim.missionVictoryCountdown},
+          context{sim,
+                  registry,
+                  allies,
+                  enemies,
+                  walls,
+                  missionZones,
+                  sim.commander,
+                  hud,
+                  sim.baseHp,
+                  sim.orderActive,
+                  sim.orderTimer,
+                  sim.waveScriptComplete,
+                  sim.spawnerIdle,
+                  sim.timeSinceLastEnemySpawn,
+                  sim.skills,
+                  sim.selectedSkill,
+                  sim.rallyState,
+                  sim.spawnRateMultiplier,
+                  sim.spawnSlowMultiplier,
+                  sim.spawnSlowTimer,
+                  sim.yunas,
+                  sim.enemies,
+                  sim.walls,
+                  sim.gates,
+                  sim.yunaRespawns,
+                  sim.commanderRespawnTimer,
+                  sim.commanderInvulnTimer,
+                  frameAllocator,
+                  mission,
+                  actions,
+                  nullptr,
+                  nullptr}
+    {}
+};
 
 bool almostEqual(float a, float b, float epsilon = 0.001f)
 {
@@ -71,7 +130,8 @@ bool testUpdateTimersAndFlags()
 
     world::systems::JobAbilitySystem system;
     ActionBuffer actions;
-    auto context = world.makeSystemContext(actions);
+    ContextHarness harness(sim, actions);
+    auto &context = harness.context;
     context.componentsDirty = false;
 
     system.update(0.5f, context);
@@ -156,7 +216,8 @@ bool testToggleRallySkill()
 
     world::systems::JobAbilitySystem system;
     ActionBuffer actions;
-    auto context = world.makeSystemContext(actions);
+    ContextHarness harness(sim, actions);
+    auto &context = harness.context;
     context.componentsDirty = false;
 
     world::systems::SkillCommand command{0, sim.commander.pos + Vec2{16.0f, 0.0f}};
@@ -216,7 +277,8 @@ bool testSpawnRateTrigger()
 
     world::systems::JobAbilitySystem system;
     ActionBuffer actions;
-    auto context = world.makeSystemContext(actions);
+    ContextHarness harness(sim, actions);
+    auto &context = harness.context;
     context.componentsDirty = false;
 
     world::systems::SkillCommand command{0, sim.commander.pos};
@@ -273,7 +335,8 @@ bool testRegisteredHandlerDispatch()
 
     world::systems::JobAbilitySystem system;
     ActionBuffer actions;
-    auto context = world.makeSystemContext(actions);
+    ContextHarness harness(sim, actions);
+    auto &context = harness.context;
     context.componentsDirty = false;
 
     world::systems::SkillCommand command{0, sim.commander.pos};

@@ -5,11 +5,15 @@
 #include "app/GameApplication.h"
 #include "app/UiPresenter.h"
 #include "app/RenderUtils.h"
+#include "app/FramePerf.h"
 #include "app/UiView.h"
+#include "app/TextRenderer.h"
 #include "assets/AssetManager.h"
 #include "config/AppConfig.h"
 #include "config/AppConfigLoader.h"
 #include "json/JsonUtils.h"
+#include "debug/DebugController.h"
+#include "debug/DebugOverlayView.h"
 #include "scenes/Scene.h"
 #include "scenes/SceneStack.h"
 #include "events/EventBus.h"
@@ -72,6 +76,31 @@ class SpawnSystem : public ISystem
 
 } // namespace world::systems
 
+struct TileMap
+{
+    int width = 0;
+    int height = 0;
+    int tileWidth = 0;
+    int tileHeight = 0;
+    int tilesetColumns = 0;
+    AssetManager::TextureReference tileset;
+    std::vector<int> floor;
+    std::vector<int> block;
+    std::vector<int> deco;
+};
+
+struct Atlas
+{
+    AssetManager::TextureReference texture;
+    std::unordered_map<std::string, SDL_Rect> frames;
+
+    const SDL_Rect *getFrame(const std::string &name) const
+    {
+        auto it = frames.find(name);
+        return it != frames.end() ? &it->second : nullptr;
+    }
+};
+
 Vec2 operator+(const Vec2 &a, const Vec2 &b) { return {a.x + b.x, a.y + b.y}; }
 Vec2 operator-(const Vec2 &a, const Vec2 &b) { return {a.x - b.x, a.y - b.y}; }
 Vec2 operator*(const Vec2 &a, float s) { return {a.x * s, a.y * s}; }
@@ -116,22 +145,318 @@ std::optional<JsonValue> loadJsonDocument(AssetManager &assets, const std::strin
     return value;
 }
 
-
-
-enum class TemperamentBehavior
+namespace
 {
-    ChargeNearest,
-    FleeNearest,
-    FollowYuna,
-    RaidGate,
-    Homebound,
-    Wander,
-    Doze,
-    GuardBase,
-    TargetTag,
-    Mimic
+
+std::string trimCopy(const std::string &text)
+{
+    std::size_t begin = 0;
+    while (begin < text.size() && std::isspace(static_cast<unsigned char>(text[begin])))
+    {
+        ++begin;
+    }
+    std::size_t end = text.size();
+    while (end > begin && std::isspace(static_cast<unsigned char>(text[end - 1])))
+    {
+        --end;
+    }
+    return text.substr(begin, end - begin);
+}
+
+struct TagResult
+{
+    std::string tag;
+    std::size_t start = 0;
+    std::size_t end = 0;
 };
 
+std::optional<TagResult> findTag(const std::string &xml, const std::string &name, std::size_t begin = 0)
+{
+    const std::string needle = "<" + name;
+    const std::size_t pos = xml.find(needle, begin);
+    if (pos == std::string::npos)
+    {
+        return std::nullopt;
+    }
+    const std::size_t end = xml.find('>', pos);
+    if (end == std::string::npos)
+    {
+        return std::nullopt;
+    }
+    TagResult result;
+    result.tag = xml.substr(pos, end - pos + 1);
+    result.start = pos;
+    result.end = end;
+    return result;
+}
+
+std::optional<int> parseXmlIntAttribute(const std::string &tag, const std::string &attr)
+{
+    const std::string needle = attr + "=\"";
+    std::size_t pos = tag.find(needle);
+    if (pos == std::string::npos)
+    {
+        return std::nullopt;
+    }
+    pos += needle.size();
+    const std::size_t end = tag.find('"', pos);
+    if (end == std::string::npos)
+    {
+        return std::nullopt;
+    }
+    try
+    {
+        return std::stoi(tag.substr(pos, end - pos));
+    }
+    catch (...)
+    {
+        return std::nullopt;
+    }
+}
+
+std::optional<std::string> parseXmlStringAttribute(const std::string &tag, const std::string &attr)
+{
+    const std::string needle = attr + "=\"";
+    std::size_t pos = tag.find(needle);
+    if (pos == std::string::npos)
+    {
+        return std::nullopt;
+    }
+    pos += needle.size();
+    const std::size_t end = tag.find('"', pos);
+    if (end == std::string::npos)
+    {
+        return std::nullopt;
+    }
+    return tag.substr(pos, end - pos);
+}
+
+bool parseCsvLayer(const std::string &csv, int expectedCount, std::vector<int> &out)
+{
+    out.clear();
+    if (expectedCount > 0)
+    {
+        out.reserve(static_cast<std::size_t>(expectedCount));
+    }
+    std::stringstream ss(csv);
+    std::string token;
+    while (std::getline(ss, token, ','))
+    {
+        const std::string trimmed = trimCopy(token);
+        if (trimmed.empty())
+        {
+            continue;
+        }
+        try
+        {
+            out.push_back(std::stoi(trimmed));
+        }
+        catch (...)
+        {
+            return false;
+        }
+    }
+    if (expectedCount > 0)
+    {
+        if (static_cast<int>(out.size()) < expectedCount)
+        {
+            out.resize(static_cast<std::size_t>(expectedCount), 0);
+        }
+        else if (static_cast<int>(out.size()) > expectedCount)
+        {
+            out.resize(static_cast<std::size_t>(expectedCount));
+        }
+    }
+    return true;
+}
+
+} // namespace
+
+bool loadAtlas(AssetManager &assets, const std::string &path, Atlas &out)
+{
+    out = {};
+
+    AssetManager::AssetLoadStatus status{};
+    auto document = loadJsonDocument(assets, path, &status);
+    if (!document)
+    {
+        return false;
+    }
+
+    const JsonValue &root = *document;
+    std::string imagePathStr;
+    if (const JsonValue *meta = getObjectField(root, "meta"))
+    {
+        imagePathStr = getString(*meta, "image", "");
+    }
+    std::filesystem::path atlasDir = std::filesystem::path(path).parent_path();
+    std::filesystem::path imagePath;
+    if (imagePathStr.empty())
+    {
+        imagePath = std::filesystem::path(path).replace_extension(".png");
+    }
+    else
+    {
+        std::filesystem::path candidate(imagePathStr);
+        imagePath = candidate.is_absolute() ? candidate : (atlasDir / candidate);
+    }
+    out.texture = assets.acquireTexture(imagePath.lexically_normal().string());
+    if (!out.texture.get())
+    {
+        return false;
+    }
+
+    if (const JsonValue *frames = getObjectField(root, "frames"))
+    {
+        if (frames->type == JsonValue::Type::Object)
+        {
+            for (const auto &entry : frames->object)
+            {
+                const JsonValue *frame = &entry.second;
+                const JsonValue *xywh = getObjectField(*frame, "xywh");
+                if (!xywh || xywh->type != JsonValue::Type::Array || xywh->array.size() < 4)
+                {
+                    continue;
+                }
+                SDL_Rect rect{};
+                rect.x = static_cast<int>(xywh->array[0].number);
+                rect.y = static_cast<int>(xywh->array[1].number);
+                rect.w = static_cast<int>(xywh->array[2].number);
+                rect.h = static_cast<int>(xywh->array[3].number);
+                out.frames[entry.first] = rect;
+            }
+        }
+    }
+
+    return true;
+}
+
+bool loadTileMap(AssetManager &assets, const std::string &path, TileMap &out)
+{
+    out = {};
+
+    const std::string resolvedPath = assets.resolvePath(path);
+    std::ifstream file(resolvedPath);
+    if (!file)
+    {
+        return false;
+    }
+    const std::string xml((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+
+    auto mapTag = findTag(xml, "map");
+    if (!mapTag)
+    {
+        return false;
+    }
+    out.width = parseXmlIntAttribute(mapTag->tag, "width").value_or(0);
+    out.height = parseXmlIntAttribute(mapTag->tag, "height").value_or(0);
+    out.tileWidth = parseXmlIntAttribute(mapTag->tag, "tilewidth").value_or(0);
+    out.tileHeight = parseXmlIntAttribute(mapTag->tag, "tileheight").value_or(0);
+
+    auto tilesetTag = findTag(xml, "tileset", mapTag->end);
+    if (!tilesetTag)
+    {
+        return false;
+    }
+    out.tilesetColumns = parseXmlIntAttribute(tilesetTag->tag, "columns").value_or(0);
+
+    const std::size_t tilesetClose = xml.find("</tileset", tilesetTag->end);
+    auto imageTag = findTag(xml, "image", tilesetTag->end);
+    std::string imageSource;
+    if (imageTag && (tilesetClose == std::string::npos || imageTag->start < tilesetClose))
+    {
+        imageSource = parseXmlStringAttribute(imageTag->tag, "source").value_or("");
+    }
+    std::filesystem::path mapDir = std::filesystem::path(path).parent_path();
+    std::filesystem::path imagePath;
+    if (imageSource.empty())
+    {
+        imagePath = mapDir / "tileset.png";
+    }
+    else
+    {
+        std::filesystem::path candidate(imageSource);
+        imagePath = candidate.is_absolute() ? candidate : (mapDir / candidate);
+    }
+    out.tileset = assets.acquireTexture(imagePath.lexically_normal().string());
+
+    if (out.tilesetColumns <= 0 && out.tileset.get() && out.tileWidth > 0)
+    {
+        int texW = 0;
+        if (SDL_QueryTexture(out.tileset.getRaw(), nullptr, nullptr, &texW, nullptr) == 0 && texW > 0)
+        {
+            out.tilesetColumns = std::max(1, texW / out.tileWidth);
+        }
+    }
+    if (out.tilesetColumns <= 0)
+    {
+        out.tilesetColumns = 1;
+    }
+
+    const int expectedTiles = (out.width > 0 && out.height > 0) ? out.width * out.height : 0;
+    std::size_t searchPos = tilesetTag->end;
+    while (searchPos < xml.size())
+    {
+        auto layerTag = findTag(xml, "layer", searchPos);
+        if (!layerTag)
+        {
+            break;
+        }
+        searchPos = layerTag->end + 1;
+
+        const std::size_t layerClose = xml.find("</layer", layerTag->end);
+        if (layerClose == std::string::npos)
+        {
+            break;
+        }
+
+        auto dataTag = findTag(xml, "data", layerTag->end);
+        if (!dataTag || dataTag->start > layerClose)
+        {
+            searchPos = layerClose;
+            continue;
+        }
+        const std::size_t dataClose = xml.find("</data>", dataTag->end);
+        if (dataClose == std::string::npos || dataClose > layerClose)
+        {
+            searchPos = layerClose;
+            continue;
+        }
+        const std::string dataContent = xml.substr(dataTag->end + 1, dataClose - dataTag->end - 1);
+        std::vector<int> tiles;
+        if (!parseCsvLayer(dataContent, expectedTiles, tiles))
+        {
+            searchPos = layerClose;
+            continue;
+        }
+
+        auto layerName = parseXmlStringAttribute(layerTag->tag, "name");
+        if (layerName)
+        {
+            std::string lower = *layerName;
+            std::transform(lower.begin(), lower.end(), lower.begin(), [](unsigned char ch) {
+                return static_cast<char>(std::tolower(ch));
+            });
+            if (lower == "floor")
+            {
+                out.floor = std::move(tiles);
+            }
+            else if (lower == "block")
+            {
+                out.block = std::move(tiles);
+            }
+            else if (lower == "deco" || lower == "decor" || lower == "decoration")
+            {
+                out.deco = std::move(tiles);
+            }
+        }
+
+        searchPos = layerClose;
+    }
+
+    const bool dimensionsValid = out.width > 0 && out.height > 0 && out.tileWidth > 0 && out.tileHeight > 0;
+    return dimensionsValid && out.tileset.get();
+}
 const char *temperamentBehaviorName(TemperamentBehavior behavior)
 {
     switch (behavior)
@@ -313,6 +638,11 @@ void WorldState::reset()
         spawn::SpawnBudget budget;
         budget.maxPerFrame = m_sim->config.spawnBudget.maxPerFrame;
         m_spawner->setBudget(budget);
+        m_baseSpawnBudgetMax = budget.maxPerFrame;
+        if (m_enemySpawnMultiplier != 1.0f)
+        {
+            setEnemySpawnMultiplier(m_enemySpawnMultiplier);
+        }
     }
     if (m_waveController)
     {
@@ -495,15 +825,19 @@ void WorldState::runSpawnStage(float dt, systems::SystemContext &context)
 
         if (m_spawner)
         {
-            if (m_sim->missionMode == MissionMode::Survival && m_sim->survival.spawnMultiplier > 0.0f)
+            const float survivalMult = (m_sim->missionMode == MissionMode::Survival && m_sim->survival.spawnMultiplier > 0.0f)
+                                           ? std::max(m_sim->survival.spawnMultiplier, 0.1f)
+                                           : 1.0f;
+            const float debugMult = std::max(m_enemySpawnMultiplier, 0.1f);
+            const float combinedMult = std::max(survivalMult * debugMult, 0.1f);
+            if (std::fabs(combinedMult - 1.0f) > 0.0001f)
             {
-                const float mult = std::max(m_sim->survival.spawnMultiplier, 0.1f);
-                m_spawner->setIntervalModifier([mult](float base) {
-                    if (mult <= 0.0f)
+                m_spawner->setIntervalModifier([combinedMult](float base) {
+                    if (combinedMult <= 0.0f)
                     {
                         return base;
                     }
-                    return base / mult;
+                    return base / combinedMult;
                 });
             }
             else
@@ -720,6 +1054,50 @@ void WorldState::markComponentsDirty()
     m_componentsDirty = true;
 }
 
+void WorldState::setEnemySpawnMultiplier(float multiplier)
+{
+    const float clamped = std::clamp(multiplier, 0.1f, 5.0f);
+    m_enemySpawnMultiplier = clamped;
+    if (m_spawner)
+    {
+        const int baseBudget = m_baseSpawnBudgetMax > 0 ? m_baseSpawnBudgetMax : m_sim->config.spawnBudget.maxPerFrame;
+        const float effective = std::max(clamped, 0.1f);
+        const int adjustedBudget = std::max(1, static_cast<int>(std::round(static_cast<float>(baseBudget) * effective)));
+        spawn::SpawnBudget budget;
+        budget.maxPerFrame = adjustedBudget;
+        m_spawner->setBudget(budget);
+    }
+    markComponentsDirty();
+}
+
+float WorldState::enemySpawnMultiplier() const
+{
+    return m_enemySpawnMultiplier;
+}
+
+bool WorldState::skipNextWave()
+{
+    if (!m_waveController)
+    {
+        return false;
+    }
+    std::vector<std::string> announcements;
+    const bool triggered = m_waveController->triggerNextWave(m_sim->simTime, announcements);
+    if (!triggered)
+    {
+        return false;
+    }
+    for (const std::string &text : announcements)
+    {
+        if (!text.empty())
+        {
+            m_sim->pushTelemetry(text);
+        }
+    }
+    markComponentsDirty();
+    return true;
+}
+
 void WorldState::rebuildMissionComponents() const
 {
     m_captureZones->clear(m_registry);
@@ -789,21 +1167,6 @@ struct Camera
     float speed = 320.0f;
 };
 
-struct FramePerf
-{
-    float fps = 0.0f;
-    float msUpdate = 0.0f;
-    float msRender = 0.0f;
-    float msInput = 0.0f;
-    float msHud = 0.0f;
-    int drawCalls = 0;
-    int entities = 0;
-    bool budgetExceeded = false;
-    std::string budgetStage;
-    float budgetSampleMs = 0.0f;
-    float budgetTargetMs = 0.0f;
-};
-
 Vec2 worldToScreen(const Vec2 &world, const Camera &camera)
 {
     return {world.x - camera.position.x, world.y - camera.position.y};
@@ -814,7 +1177,7 @@ Vec2 screenToWorld(int screenX, int screenY, const Camera &camera)
     return {static_cast<float>(screenX) + camera.position.x, static_cast<float>(screenY) + camera.position.y};
 }
 
-er(SDL_Renderer *renderer, const TileMap &map, const std::vector<int> &tiles, const Camera &camera, int screenW,
+void drawTileLayer(SDL_Renderer *renderer, const TileMap &map, const std::vector<int> &tiles, const Camera &camera, int screenW,
                    int screenH, RenderStats &stats)
 {
     if (!map.tileset.get())
@@ -863,8 +1226,10 @@ void renderWorld(SDL_Renderer *renderer, const LegacySimulation &sim, const Form
                  const TextRenderer &font, const TextRenderer &debugFont, const TileMap &map,
                  const Atlas &atlas, int screenW, int screenH, RenderStats &stats)
 {
+    (void)formationHud;
+    (void)jobHud;
+
     const LegacySimulation::RenderQueue &queue = sim.renderQueue;
-    const bool lodActive = queue.lodActive;
     const bool skipActors = queue.skipActors;
     const int lineHeight = std::max(font.getLineHeight(), 18);
     const int debugLineHeight = std::max(debugFont.isLoaded() ? debugFont.getLineHeight() : lineHeight, 14);
@@ -1373,7 +1738,7 @@ void renderWorld(SDL_Renderer *renderer, const LegacySimulation &sim, const Form
 class BattleScene : public Scene
 {
   public:
-    BattleScene() = default;
+    BattleScene();
 
     void onEnter(GameApplication &app, SceneStack &stack) override;
     void onExit(GameApplication &app, SceneStack &stack) override;
@@ -1388,6 +1753,20 @@ class BattleScene : public Scene
     void showTelemetryMessage(const std::string &message);
     void evaluatePerformanceBudgets(GameApplication &app);
     void raisePerformanceWarning(const telemetry::BudgetViolation &violation, GameApplication &app);
+
+    class DebugSimulationAccessor : public debug::DebugBindings::SimulationAccessor
+    {
+      public:
+        explicit DebugSimulationAccessor(BattleScene &scene) : m_scene(scene) {}
+
+        void markComponentsDirty() override;
+        void setEnemySpawnMultiplier(float multiplier) override;
+        float enemySpawnMultiplier() const override;
+        bool skipNextWave() override;
+
+      private:
+        BattleScene &m_scene;
+    };
 
     bool m_initialized = false;
     world::WorldState m_world;
@@ -1441,7 +1820,17 @@ class BattleScene : public Scene
     telemetry::PerformanceBudgetMonitor m_budgetMonitor{};
     Uint64 m_lastBudgetWarningTick = 0;
     static constexpr Uint64 BudgetWarningCooldownMs = 1000;
+    void initializeDebugBindings(GameApplication &app);
+    void updateDebugToggles();
+    debug::DebugController m_debugController;
+    debug::DebugOverlayView m_debugOverlay;
+    debug::DisplayState m_debugDisplayState;
+    DebugSimulationAccessor m_debugAccessor;
+    bool m_showTelemetryOverlay = false;
+    int m_cursorRestoreState = SDL_QUERY;
 };
+
+BattleScene::BattleScene() : m_debugAccessor(*this) {}
 
 void BattleScene::onEnter(GameApplication &app, SceneStack &stack)
 {
@@ -1492,6 +1881,17 @@ void BattleScene::onExit(GameApplication &app, SceneStack &stack)
     (void)app;
     (void)stack;
 
+    if (m_debugController.active())
+    {
+        if (m_cursorRestoreState != SDL_QUERY)
+        {
+            SDL_ShowCursor(m_cursorRestoreState);
+        }
+        m_debugController.toggle();
+    }
+    m_cursorRestoreState = SDL_QUERY;
+    m_showTelemetryOverlay = false;
+    m_debugController.bindWorld({});
     ServiceLocator &locator = ServiceLocator::instance();
 
     m_ui.bindSimulation(nullptr);
@@ -1520,6 +1920,7 @@ void BattleScene::handleEvent(const SDL_Event &event, GameApplication &app, Scen
     (void)event;
     (void)app;
     (void)stack;
+    m_debugController.handleEvent(event);
 }
 
 void BattleScene::handleActionFrame(const ActionBuffer::Frame &frame, GameApplication &app)
@@ -1547,6 +1948,32 @@ void BattleScene::handleActionFrame(const ActionBuffer::Frame &frame, GameApplic
     for (const ActionEvent &evt : frame.events)
     {
         if (!evt.pressed && evt.id != ActionId::ActivateSkill)
+        {
+            continue;
+        }
+
+        if (evt.id == ActionId::ToggleDebugOverlay && evt.pressed)
+        {
+            const bool wasActive = m_debugController.active();
+            if (!wasActive)
+            {
+                m_cursorRestoreState = SDL_ShowCursor(SDL_QUERY);
+            }
+            m_debugController.handleActionToggle();
+            const bool nowActive = m_debugController.active();
+            if (nowActive)
+            {
+                SDL_ShowCursor(SDL_ENABLE);
+            }
+            else if (wasActive && m_cursorRestoreState != SDL_QUERY)
+            {
+                SDL_ShowCursor(m_cursorRestoreState);
+                m_cursorRestoreState = SDL_QUERY;
+            }
+            continue;
+        }
+
+        if (m_debugController.active())
         {
             continue;
         }
@@ -1677,6 +2104,9 @@ void BattleScene::update(double deltaSeconds, GameApplication &app, SceneStack &
         return;
     }
 
+    m_debugController.update(deltaSeconds);
+    updateDebugToggles();
+
     if (m_pendingBudgetCheck)
     {
         evaluatePerformanceBudgets(app);
@@ -1685,8 +2115,9 @@ void BattleScene::update(double deltaSeconds, GameApplication &app, SceneStack &
 
     LegacySimulation &sim = m_world.legacy();
 
+    const float timeScale = std::clamp(m_debugController.timeScale(), 0.25f, 4.0f);
     m_lastFrameSeconds = deltaSeconds;
-    m_accumulator += deltaSeconds;
+    m_accumulator += deltaSeconds * timeScale;
     m_fpsTimer += deltaSeconds;
     ++m_frames;
     if (m_fpsTimer >= 1.0)
@@ -1783,6 +2214,48 @@ void BattleScene::update(double deltaSeconds, GameApplication &app, SceneStack &
     }
 
     m_framePerf.fps = m_currentFps;
+}
+
+void BattleScene::updateDebugToggles()
+{
+    if (m_debugController.consumeHudToggle())
+    {
+        m_showDebugHud = !m_showDebugHud;
+    }
+    if (m_debugController.consumeTelemetryToggle())
+    {
+        m_showTelemetryOverlay = !m_showTelemetryOverlay;
+    }
+}
+
+void BattleScene::initializeDebugBindings(GameApplication &app)
+{
+    (void)app;
+    debug::DebugBindings bindings;
+    bindings.simulation = &m_world.legacy();
+    bindings.accessor = &m_debugAccessor;
+    m_debugController.bindWorld(bindings);
+    m_debugController.onConfigReloaded();
+}
+
+void BattleScene::DebugSimulationAccessor::markComponentsDirty()
+{
+    m_scene.m_world.markComponentsDirty();
+}
+
+void BattleScene::DebugSimulationAccessor::setEnemySpawnMultiplier(float multiplier)
+{
+    m_scene.m_world.setEnemySpawnMultiplier(multiplier);
+}
+
+float BattleScene::DebugSimulationAccessor::enemySpawnMultiplier() const
+{
+    return m_scene.m_world.enemySpawnMultiplier();
+}
+
+bool BattleScene::DebugSimulationAccessor::skipNextWave()
+{
+    return m_scene.m_world.skipNextWave();
 }
 
 void BattleScene::render(SDL_Renderer *renderer, GameApplication &app)
@@ -1893,6 +2366,20 @@ void BattleScene::render(SDL_Renderer *renderer, GameApplication &app)
     hudContext.hudTimeMs = &hudMs;
     hudContext.inputDiagnostics = &inputDiagnostics;
     m_uiView.render(hudContext);
+
+    if (renderer && m_debugController.active())
+    {
+        m_debugController.gatherDisplay(m_debugDisplayState);
+        m_debugDisplayState.showTelemetry = m_showTelemetryOverlay;
+        m_debugOverlay.render(renderer,
+                              m_debugFont,
+                              m_debugFont,
+                              m_debugDisplayState,
+                              m_framePerf,
+                              renderStats,
+                              m_screenWidth,
+                              m_screenHeight);
+    }
 
     if (hudSectionStart != 0)
     {
@@ -2182,6 +2669,7 @@ void BattleScene::applyAppConfig(GameApplication &app)
     m_frequency = static_cast<double>(SDL_GetPerformanceFrequency());
     m_lastFrameSeconds = 0.0;
     m_lastUpdateMs = 0.0;
+    initializeDebugBindings(app);
 }
 
 void BattleScene::onConfigReloaded(GameApplication &app, SceneStack &stack)
@@ -2204,4 +2692,3 @@ void BattleScene::showTelemetryMessage(const std::string &message)
     }
     m_world.legacy().pushTelemetry(message);
 }
-

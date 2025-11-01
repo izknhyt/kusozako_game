@@ -1,5 +1,6 @@
 #include "world/WorldState.h"
 #include "world/FrameAllocator.h"
+#include "world/LegacyTypes.h"
 
 #include "config/AppConfig.h"
 #include "input/ActionBuffer.h"
@@ -17,6 +18,8 @@
 
 namespace
 {
+
+using namespace world;
 
 bool almostEqual(float a, float b, float epsilon = 0.001f)
 {
@@ -710,9 +713,18 @@ bool testCombatSpatialGridParity()
     ComponentPool<Unit> alliesPool;
     ComponentPool<EnemyUnit> enemyPool;
     ComponentPool<WallSegment> wallPool;
-    using CaptureRuntime = world::LegacySimulation::CaptureRuntime;
     ComponentPool<CaptureRuntime> missionPool;
     HUDState hud;
+
+    FrameAllocator frameAllocator;
+    systems::MissionContext missionContext{
+        hasMission,
+        missionConfig,
+        missionMode,
+        missionUI,
+        missionFail,
+        missionTimer,
+        missionVictoryCountdown};
 
     world::systems::CombatSystem system;
     world::systems::SystemContext context{
@@ -743,7 +755,8 @@ bool testCombatSpatialGridParity()
         respawns,
         commanderRespawnTimer,
         commanderInvulnTimer,
-        {hasMission, missionConfig, missionMode, missionUI, missionFail, missionTimer, missionVictoryCountdown},
+        frameAllocator,
+        missionContext,
         actions,
         nullptr,
         nullptr};

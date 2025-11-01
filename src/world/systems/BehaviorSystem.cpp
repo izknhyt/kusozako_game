@@ -9,6 +9,7 @@
 #include <limits>
 #include <random>
 #include <vector>
+#include <type_traits>
 
 namespace world::systems
 {
@@ -18,13 +19,17 @@ namespace
 
 constexpr float kMoraleIgnoreDecisionInterval = 0.6f;
 
+template <typename Container>
 Vec2 computeTemperamentVelocity(LegacySimulation &sim,
                                 Unit &yuna,
                                 float dt,
                                 float baseSpeed,
                                 const std::function<EnemyUnit *(const Vec2 &)> &nearestEnemy,
-                                const std::vector<Vec2> &raidTargets)
+                                const std::function<EnemyUnit *(const Vec2 &)> &nearestEnemyUnbounded,
+                                const Container &raidTargets)
 {
+    static_assert(std::is_same_v<typename Container::value_type, Vec2>,
+                  "raidTargets container must hold Vec2 values");
     TemperamentState &state = yuna.temperament;
     if (!state.definition)
     {
@@ -200,7 +205,7 @@ Vec2 computeTemperamentVelocity(LegacySimulation &sim,
     {
     case TemperamentBehavior::ChargeNearest:
     {
-        if (EnemyUnit *target = nearestEnemy(yuna.pos))
+        if (EnemyUnit *target = nearestEnemyUnbounded(yuna.pos))
         {
             Vec2 dir = normalize(target->pos - yuna.pos);
             if (dashTime > 0.0f)
@@ -209,7 +214,22 @@ Vec2 computeTemperamentVelocity(LegacySimulation &sim,
             }
             return dir * speed;
         }
-        Vec2 dir = normalize(basePos - yuna.pos);
+        Vec2 fallback = basePos;
+        float closest = std::numeric_limits<float>::max();
+        for (const Vec2 &candidate : raidTargets)
+        {
+            const float distSq = lengthSq(candidate - yuna.pos);
+            if (distSq < closest)
+            {
+                closest = distSq;
+                fallback = candidate;
+            }
+        }
+        Vec2 dir = normalize(fallback - yuna.pos);
+        if (lengthSq(dir) < 0.0001f)
+        {
+            dir = normalize(basePos - yuna.pos);
+        }
         return dir * speed;
     }
     case TemperamentBehavior::FleeNearest:
@@ -417,6 +437,25 @@ void BehaviorSystem::update(float dt, SystemContext &context)
         return best;
     };
 
+    auto nearestEnemyUnbounded = [&](const Vec2 &pos) -> EnemyUnit * {
+        EnemyUnit *best = nullptr;
+        float bestDist = std::numeric_limits<float>::max();
+        for (EnemyUnit &enemy : enemies)
+        {
+            if (enemy.hp <= 0.0f)
+            {
+                continue;
+            }
+            const float dist = lengthSq(enemy.pos - pos);
+            if (dist < bestDist)
+            {
+                bestDist = dist;
+                best = &enemy;
+            }
+        }
+        return best;
+    };
+
     FrameAllocator::Allocator<Vec2> raidAlloc(context.frameAllocator);
     std::vector<Vec2, FrameAllocator::Allocator<Vec2>> raidTargets(raidAlloc);
     sim.collectRaidTargets(raidTargets);
@@ -440,7 +479,7 @@ void BehaviorSystem::update(float dt, SystemContext &context)
         float effectiveSpeed = immobilized ? 0.0f : unitSpeed * jobSpeedMultiplier * retreatSpeedMultiplier;
         detectionUnit = &yuna;
         Vec2 temperamentVelocity =
-            computeTemperamentVelocity(sim, yuna, dt, yunaSpeedPx, nearestEnemy, raidTargets);
+            computeTemperamentVelocity(sim, yuna, dt, yunaSpeedPx, nearestEnemy, nearestEnemyUnbounded, raidTargets);
         Vec2 velocity{0.0f, 0.0f};
         const bool panicActive = yuna.temperament.panicTimer > 0.0f;
 
@@ -591,7 +630,7 @@ void BehaviorSystem::update(float dt, SystemContext &context)
                 {
                     const float targetSpeed = std::min(effectiveSpeed, currentSpeed);
                     const float scale = targetSpeed / currentSpeed;
-                    velocity *= scale;
+                    velocity = velocity * scale;
                 }
             }
         }
@@ -607,4 +646,3 @@ void BehaviorSystem::update(float dt, SystemContext &context)
 }
 
 } // namespace world::systems
-

@@ -1,20 +1,20 @@
 #pragma once
 
 #include "app/UiPresenter.h"
+#include "app/FramePerf.h"
 #include "input/ActionBuffer.h"
+
+#include <SDL.h>
 
 #include <cstddef>
 #include <vector>
 
-struct SDL_Renderer;
-
 class TextRenderer;
-struct FramePerf;
 struct RenderStats;
 
 namespace world
 {
-class LegacySimulation;
+struct LegacySimulation;
 }
 
 class UiView
@@ -109,4 +109,3 @@ class UiView
 
     Dependencies m_dependencies{};
 };
-

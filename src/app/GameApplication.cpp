@@ -179,6 +179,7 @@ int GameApplication::run()
                 m_quitRequested = true;
             }
             m_inputMapper.handleEvent(event);
+            m_sceneStack.handleEvent(event);
         }
 
         if (m_quitRequested)
@@ -410,4 +411,3 @@ void GameApplication::shutdown()
     m_quitRequested = false;
     m_initialized = false;
 }
-

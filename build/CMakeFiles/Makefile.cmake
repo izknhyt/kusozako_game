@@ -69,4 +69,14 @@ set(CMAKE_MAKEFILE_PRODUCTS
 # Dependency information for all targets:
 set(CMAKE_DEPEND_INFO_FILES
   "CMakeFiles/kusozako.dir/DependInfo.cmake"
+  "CMakeFiles/config_schema_test.dir/DependInfo.cmake"
+  "CMakeFiles/world_state_step_order_test.dir/DependInfo.cmake"
+  "CMakeFiles/systems_behavior_test.dir/DependInfo.cmake"
+  "CMakeFiles/job_ability_system_test.dir/DependInfo.cmake"
+  "CMakeFiles/event_bus_test.dir/DependInfo.cmake"
+  "CMakeFiles/spawner_test.dir/DependInfo.cmake"
+  "CMakeFiles/performance_budget_monitor_test.dir/DependInfo.cmake"
+  "CMakeFiles/asset_manager_memory_warning_test.dir/DependInfo.cmake"
+  "CMakeFiles/ui_presenter_test.dir/DependInfo.cmake"
+  "CMakeFiles/ui_view_test.dir/DependInfo.cmake"
   )

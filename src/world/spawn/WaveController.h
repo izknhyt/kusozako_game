@@ -38,6 +38,7 @@ class WaveController
     void reset();
 
     std::vector<std::string> advance(float currentTime);
+    bool triggerNextWave(float currentTime, std::vector<std::string> &announcements);
 
     bool isComplete() const;
 
@@ -70,4 +71,3 @@ class WaveController
 };
 
 } // namespace world::spawn
-

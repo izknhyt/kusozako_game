@@ -1,3 +1,14 @@
 /Users/izumimotohayato/development/kusozako/build/CMakeFiles/kusozako.dir
+/Users/izumimotohayato/development/kusozako/build/CMakeFiles/config_schema_test.dir
+/Users/izumimotohayato/development/kusozako/build/CMakeFiles/world_state_step_order_test.dir
+/Users/izumimotohayato/development/kusozako/build/CMakeFiles/systems_behavior_test.dir
+/Users/izumimotohayato/development/kusozako/build/CMakeFiles/job_ability_system_test.dir
+/Users/izumimotohayato/development/kusozako/build/CMakeFiles/event_bus_test.dir
+/Users/izumimotohayato/development/kusozako/build/CMakeFiles/spawner_test.dir
+/Users/izumimotohayato/development/kusozako/build/CMakeFiles/performance_budget_monitor_test.dir
+/Users/izumimotohayato/development/kusozako/build/CMakeFiles/asset_manager_memory_warning_test.dir
+/Users/izumimotohayato/development/kusozako/build/CMakeFiles/ui_presenter_test.dir
+/Users/izumimotohayato/development/kusozako/build/CMakeFiles/ui_view_test.dir
+/Users/izumimotohayato/development/kusozako/build/CMakeFiles/test.dir
 /Users/izumimotohayato/development/kusozako/build/CMakeFiles/edit_cache.dir
 /Users/izumimotohayato/development/kusozako/build/CMakeFiles/rebuild_cache.dir

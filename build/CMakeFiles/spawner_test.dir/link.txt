@@ -1,0 +1,1 @@
+/usr/bin/c++ -Wl,-search_paths_first -Wl,-headerpad_max_install_names CMakeFiles/spawner_test.dir/tests/SpawnerTest.cpp.o CMakeFiles/spawner_test.dir/src/world/spawn/Spawner.cpp.o -o spawner_test

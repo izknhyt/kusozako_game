@@ -7,6 +7,7 @@
   "SummonMode": ["1", "2", "3", "4", "5"],
   "Restart": "R",
   "ToggleDebugHud": "F10",
+  "ToggleDebugOverlay": "Ctrl+F5",
   "ReloadConfig": "F9",
   "DumpSpawnHistory": "Shift+F10",
   "Quit": "Escape",

@@ -85,6 +85,42 @@ std::vector<std::string> WaveController::advance(float currentTime)
     return announcements;
 }
 
+bool WaveController::triggerNextWave(float currentTime, std::vector<std::string> &announcements)
+{
+    if (!m_spawner || m_nextWave >= m_script.waves.size())
+    {
+        return false;
+    }
+
+    const Wave &wave = m_script.waves[m_nextWave];
+    for (const SpawnSet &set : wave.sets)
+    {
+        auto worldPos = resolveGateWorld(set.gate);
+        if (!worldPos)
+        {
+            continue;
+        }
+
+        SpawnRequest request;
+        request.gateId = set.gate;
+        request.position = *worldPos;
+        request.type = set.type;
+        request.count = set.count;
+        request.interval = set.interval;
+        m_spawner->enqueue(request);
+    }
+
+    if (!wave.telemetry.empty())
+    {
+        announcements.push_back(wave.telemetry);
+    }
+
+    recordHistory(m_nextWave, wave, currentTime);
+    notifyWave(m_nextWave, wave);
+    ++m_nextWave;
+    return true;
+}
+
 bool WaveController::isComplete() const
 {
     return m_nextWave >= m_script.waves.size();
@@ -169,4 +205,3 @@ void WaveController::recordHistory(std::size_t index, const Wave &wave, float tr
 }
 
 } // namespace world::spawn
-

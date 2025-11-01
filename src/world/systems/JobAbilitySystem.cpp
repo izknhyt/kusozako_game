@@ -340,7 +340,7 @@ void JobAbilitySystem::update(float dt, SystemContext &context)
     m_lastHud.maxEndlag = maxEndlag;
     m_lastHud.specialTimer = specialTimer;
     m_lastHud.specialActive = specialActive;
-    m_lastHud.skills = skillSnapshot;
+    m_lastHud.skills.assign(skillSnapshot.begin(), skillSnapshot.end());
 
     if (hudChanged)
     {
@@ -470,4 +470,3 @@ void JobAbilitySystem::activateSpawnRate(SystemContext &context, RuntimeSkill &s
 }
 
 } // namespace world::systems
-

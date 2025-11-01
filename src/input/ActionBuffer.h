@@ -27,6 +27,7 @@ enum class ActionId : std::uint16_t
     CycleFormationPrevious,
     CycleFormationNext,
     ToggleDebugHud,
+    ToggleDebugOverlay,
     ReloadConfig,
     DumpSpawnHistory,
     RestartScenario,
@@ -109,4 +110,3 @@ class ActionBuffer
     std::size_t m_capacity;
     std::deque<Frame> m_frames;
 };
-

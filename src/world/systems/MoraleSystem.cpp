@@ -138,6 +138,7 @@ void MoraleSystem::update(float dt, SystemContext &context)
     }
 
     std::vector<Unit> &yunas = context.yunaUnits;
+    bool moraleChanged = false;
     if (m_lastStates.size() != yunas.size())
     {
         m_lastStates.assign(yunas.size(), MoraleState::Stable);
@@ -150,7 +151,6 @@ void MoraleSystem::update(float dt, SystemContext &context)
     }
 
     MoraleUpdateEvent moraleEvent;
-    bool moraleChanged = false;
 
     const MoraleConfig &moraleCfg = sim.config.morale;
     auto applyEffects = [&](Unit &unit, const MoraleModifiers &mods, const MoraleBehaviorConfig &behavior,
@@ -828,4 +828,3 @@ void MoraleSystem::update(float dt, SystemContext &context)
 }
 
 } // namespace world::systems
-

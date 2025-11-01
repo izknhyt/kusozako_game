@@ -1,6 +1,9 @@
 #include "app/UiView.h"
 
 #include "app/RenderUtils.h"
+#ifndef KUSOZAKO_UIVIEW_STUB_TEXT_RENDERER
+#include "app/TextRenderer.h"
+#endif
 #include "world/LegacySimulation.h"
 #include "world/LegacyTypes.h"
 #include "world/MoraleTypes.h"
@@ -89,6 +92,8 @@ const char *UiView::actionDisplayName(ActionId id)
         return "FormationNext";
     case ActionId::ToggleDebugHud:
         return "ToggleDebugHud";
+    case ActionId::ToggleDebugOverlay:
+        return "ToggleDebugOverlay";
     case ActionId::ReloadConfig:
         return "ReloadConfig";
     case ActionId::DumpSpawnHistory:
@@ -907,4 +912,3 @@ const char *UiView::stanceDisplayName(ArmyStance stance)
     }
     return "Unknown";
 }
-

@@ -95,6 +95,10 @@ class WorldState
     void markComponentsDirty();
     void syncComponents() const;
 
+    void setEnemySpawnMultiplier(float multiplier);
+    float enemySpawnMultiplier() const;
+    bool skipNextWave();
+
     void clearSystems();
     void registerSystem(systems::SystemStage stage, std::unique_ptr<systems::ISystem> system);
     const std::vector<systems::SystemStage> &systemStageOrder() const;
@@ -120,6 +124,8 @@ class WorldState
     systems::FormationSystem *m_cachedFormationSystem = nullptr;
     systems::JobAbilitySystem *m_cachedJobAbilitySystem = nullptr;
     FrameAllocator m_frameAllocator;
+    float m_enemySpawnMultiplier = 1.0f;
+    int m_baseSpawnBudgetMax = 0;
 
     void rebuildMissionComponents() const;
     systems::SystemContext makeSystemContext(const ActionBuffer &actions);
@@ -130,4 +136,3 @@ class WorldState
 };
 
 } // namespace world
-

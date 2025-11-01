@@ -1572,6 +1572,7 @@ InputBindings parseInputBindings(const json::JsonValue &root, std::vector<AppCon
     }
     bindings.restart = json::getString(root, "Restart", bindings.restart);
     bindings.toggleDebugHud = json::getString(root, "ToggleDebugHud", bindings.toggleDebugHud);
+    bindings.toggleDebugOverlay = json::getString(root, "ToggleDebugOverlay", bindings.toggleDebugOverlay);
     bindings.reloadConfig = json::getString(root, "ReloadConfig", bindings.reloadConfig);
     bindings.dumpSpawnHistory = json::getString(root, "DumpSpawnHistory", bindings.dumpSpawnHistory);
     bindings.quit = json::getString(root, "Quit", bindings.quit);
@@ -1649,6 +1650,7 @@ InputBindings parseInputBindings(const json::JsonValue &root, std::vector<AppCon
     };
 
     validateKey(bindings.toggleDebugHud, "ToggleDebugHud");
+    validateKey(bindings.toggleDebugOverlay, "ToggleDebugOverlay");
     validateKey(bindings.reloadConfig, "ReloadConfig");
     validateKey(bindings.dumpSpawnHistory, "DumpSpawnHistory");
 
@@ -1970,4 +1972,3 @@ std::vector<std::string> AppConfigLoader::detectChangedFiles()
     }
     return changed;
 }
-

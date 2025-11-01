@@ -164,6 +164,10 @@ void InputMapper::configure(const InputBindings &bindings)
     {
         bindKey(bindings.toggleDebugHud, ActionId::ToggleDebugHud);
     }
+    if (!bindings.toggleDebugOverlay.empty())
+    {
+        bindKey(bindings.toggleDebugOverlay, ActionId::ToggleDebugOverlay);
+    }
     if (!bindings.reloadConfig.empty())
     {
         bindKey(bindings.reloadConfig, ActionId::ReloadConfig);
@@ -482,4 +486,3 @@ SDL_Keymod InputMapper::normalizeModifiers(SDL_Keymod mods)
     }
     return normalized;
 }
-

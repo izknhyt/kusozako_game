@@ -5,6 +5,7 @@
 #include "telemetry/TelemetrySink.h"
 #include "world/LegacyTypes.h"
 #include "world/MoraleTypes.h"
+#include "world/SkillRuntime.h"
 
 #include <algorithm>
 #include <array>
@@ -23,6 +24,7 @@
 #include <unordered_set>
 #include <utility>
 #include <vector>
+#include <type_traits>
 
 // Forward declarations for helper functions shared with the legacy simulation runtime.
 Vec2 operator+(const Vec2 &a, const Vec2 &b);
@@ -44,13 +46,6 @@ namespace world::spawn
 {
 class WaveController;
 }
-
-struct RuntimeSkill
-{
-    SkillDef def;
-    float cooldownRemaining = 0.0f;
-    float activeTimer = 0.0f;
-};
 
 struct TemperamentState
 {
@@ -469,6 +464,8 @@ struct LegacySimulation
     {
         telemetry = std::move(sink);
     }
+
+    bool canRestart() const { return restartCooldown <= 0.0f; }
 
     void reset()
     {
@@ -1568,6 +1565,31 @@ struct LegacySimulation
         pushTelemetry("Self Destruct!");
     }
 
+    void applyRallyState(bool enabled, const SkillDef &def, const Vec2 &worldTarget)
+    {
+        rallyState = enabled;
+        if (enabled)
+        {
+            const float radiusSq = def.radius * def.radius;
+            for (Unit &yuna : yunas)
+            {
+                if (lengthSq(yuna.pos - worldTarget) <= radiusSq)
+                {
+                    yuna.followBySkill = true;
+                }
+            }
+            pushTelemetry("Rally!");
+        }
+        else
+        {
+            for (Unit &yuna : yunas)
+            {
+                yuna.followBySkill = false;
+            }
+            pushTelemetry("Rally dismissed");
+        }
+    }
+
     void activateSkillAtIndex(int index, const Vec2 &worldTarget)
     {
         if (index < 0 || index >= static_cast<int>(skills.size()))
@@ -1810,10 +1832,12 @@ struct LegacySimulation
         }
     }
 
-    void collectRaidTargets(std::vector<Vec2> &targets) const
+    template <typename Container>
+    void collectRaidTargets(Container &targets) const
     {
+        static_assert(std::is_same_v<typename Container::value_type, Vec2>,
+                      "collectRaidTargets expects Vec2 container");
         targets.clear();
-        targets.reserve(captureZones.size() + spawnScript.gate_tiles.size() + mapDefs.gate_tiles.size());
         for (const CaptureRuntime &zone : captureZones)
         {
             if (!zone.captured)

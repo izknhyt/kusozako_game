@@ -1,0 +1,1 @@
+/usr/bin/c++ -Wl,-search_paths_first -Wl,-headerpad_max_install_names CMakeFiles/ui_presenter_test.dir/tests/UiPresenterTest.cpp.o CMakeFiles/ui_presenter_test.dir/src/app/UiPresenter.cpp.o -o ui_presenter_test

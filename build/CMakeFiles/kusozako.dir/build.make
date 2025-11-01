@@ -86,21 +86,485 @@ CMakeFiles/kusozako.dir/src/main.cpp.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/kusozako.dir/src/main.cpp.s"
 	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /Users/izumimotohayato/development/kusozako/src/main.cpp -o CMakeFiles/kusozako.dir/src/main.cpp.s
 
+CMakeFiles/kusozako.dir/src/app/GameApplication.cpp.o: CMakeFiles/kusozako.dir/flags.make
+CMakeFiles/kusozako.dir/src/app/GameApplication.cpp.o: /Users/izumimotohayato/development/kusozako/src/app/GameApplication.cpp
+CMakeFiles/kusozako.dir/src/app/GameApplication.cpp.o: CMakeFiles/kusozako.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/Users/izumimotohayato/development/kusozako/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_2) "Building CXX object CMakeFiles/kusozako.dir/src/app/GameApplication.cpp.o"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/kusozako.dir/src/app/GameApplication.cpp.o -MF CMakeFiles/kusozako.dir/src/app/GameApplication.cpp.o.d -o CMakeFiles/kusozako.dir/src/app/GameApplication.cpp.o -c /Users/izumimotohayato/development/kusozako/src/app/GameApplication.cpp
+
+CMakeFiles/kusozako.dir/src/app/GameApplication.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/kusozako.dir/src/app/GameApplication.cpp.i"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /Users/izumimotohayato/development/kusozako/src/app/GameApplication.cpp > CMakeFiles/kusozako.dir/src/app/GameApplication.cpp.i
+
+CMakeFiles/kusozako.dir/src/app/GameApplication.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/kusozako.dir/src/app/GameApplication.cpp.s"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /Users/izumimotohayato/development/kusozako/src/app/GameApplication.cpp -o CMakeFiles/kusozako.dir/src/app/GameApplication.cpp.s
+
+CMakeFiles/kusozako.dir/src/debug/DebugController.cpp.o: CMakeFiles/kusozako.dir/flags.make
+CMakeFiles/kusozako.dir/src/debug/DebugController.cpp.o: /Users/izumimotohayato/development/kusozako/src/debug/DebugController.cpp
+CMakeFiles/kusozako.dir/src/debug/DebugController.cpp.o: CMakeFiles/kusozako.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/Users/izumimotohayato/development/kusozako/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_3) "Building CXX object CMakeFiles/kusozako.dir/src/debug/DebugController.cpp.o"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/kusozako.dir/src/debug/DebugController.cpp.o -MF CMakeFiles/kusozako.dir/src/debug/DebugController.cpp.o.d -o CMakeFiles/kusozako.dir/src/debug/DebugController.cpp.o -c /Users/izumimotohayato/development/kusozako/src/debug/DebugController.cpp
+
+CMakeFiles/kusozako.dir/src/debug/DebugController.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/kusozako.dir/src/debug/DebugController.cpp.i"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /Users/izumimotohayato/development/kusozako/src/debug/DebugController.cpp > CMakeFiles/kusozako.dir/src/debug/DebugController.cpp.i
+
+CMakeFiles/kusozako.dir/src/debug/DebugController.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/kusozako.dir/src/debug/DebugController.cpp.s"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /Users/izumimotohayato/development/kusozako/src/debug/DebugController.cpp -o CMakeFiles/kusozako.dir/src/debug/DebugController.cpp.s
+
+CMakeFiles/kusozako.dir/src/debug/DebugOverlayView.cpp.o: CMakeFiles/kusozako.dir/flags.make
+CMakeFiles/kusozako.dir/src/debug/DebugOverlayView.cpp.o: /Users/izumimotohayato/development/kusozako/src/debug/DebugOverlayView.cpp
+CMakeFiles/kusozako.dir/src/debug/DebugOverlayView.cpp.o: CMakeFiles/kusozako.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/Users/izumimotohayato/development/kusozako/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_4) "Building CXX object CMakeFiles/kusozako.dir/src/debug/DebugOverlayView.cpp.o"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/kusozako.dir/src/debug/DebugOverlayView.cpp.o -MF CMakeFiles/kusozako.dir/src/debug/DebugOverlayView.cpp.o.d -o CMakeFiles/kusozako.dir/src/debug/DebugOverlayView.cpp.o -c /Users/izumimotohayato/development/kusozako/src/debug/DebugOverlayView.cpp
+
+CMakeFiles/kusozako.dir/src/debug/DebugOverlayView.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/kusozako.dir/src/debug/DebugOverlayView.cpp.i"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /Users/izumimotohayato/development/kusozako/src/debug/DebugOverlayView.cpp > CMakeFiles/kusozako.dir/src/debug/DebugOverlayView.cpp.i
+
+CMakeFiles/kusozako.dir/src/debug/DebugOverlayView.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/kusozako.dir/src/debug/DebugOverlayView.cpp.s"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /Users/izumimotohayato/development/kusozako/src/debug/DebugOverlayView.cpp -o CMakeFiles/kusozako.dir/src/debug/DebugOverlayView.cpp.s
+
+CMakeFiles/kusozako.dir/src/app/TextRenderer.cpp.o: CMakeFiles/kusozako.dir/flags.make
+CMakeFiles/kusozako.dir/src/app/TextRenderer.cpp.o: /Users/izumimotohayato/development/kusozako/src/app/TextRenderer.cpp
+CMakeFiles/kusozako.dir/src/app/TextRenderer.cpp.o: CMakeFiles/kusozako.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/Users/izumimotohayato/development/kusozako/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_5) "Building CXX object CMakeFiles/kusozako.dir/src/app/TextRenderer.cpp.o"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/kusozako.dir/src/app/TextRenderer.cpp.o -MF CMakeFiles/kusozako.dir/src/app/TextRenderer.cpp.o.d -o CMakeFiles/kusozako.dir/src/app/TextRenderer.cpp.o -c /Users/izumimotohayato/development/kusozako/src/app/TextRenderer.cpp
+
+CMakeFiles/kusozako.dir/src/app/TextRenderer.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/kusozako.dir/src/app/TextRenderer.cpp.i"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /Users/izumimotohayato/development/kusozako/src/app/TextRenderer.cpp > CMakeFiles/kusozako.dir/src/app/TextRenderer.cpp.i
+
+CMakeFiles/kusozako.dir/src/app/TextRenderer.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/kusozako.dir/src/app/TextRenderer.cpp.s"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /Users/izumimotohayato/development/kusozako/src/app/TextRenderer.cpp -o CMakeFiles/kusozako.dir/src/app/TextRenderer.cpp.s
+
+CMakeFiles/kusozako.dir/src/app/UiPresenter.cpp.o: CMakeFiles/kusozako.dir/flags.make
+CMakeFiles/kusozako.dir/src/app/UiPresenter.cpp.o: /Users/izumimotohayato/development/kusozako/src/app/UiPresenter.cpp
+CMakeFiles/kusozako.dir/src/app/UiPresenter.cpp.o: CMakeFiles/kusozako.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/Users/izumimotohayato/development/kusozako/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_6) "Building CXX object CMakeFiles/kusozako.dir/src/app/UiPresenter.cpp.o"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/kusozako.dir/src/app/UiPresenter.cpp.o -MF CMakeFiles/kusozako.dir/src/app/UiPresenter.cpp.o.d -o CMakeFiles/kusozako.dir/src/app/UiPresenter.cpp.o -c /Users/izumimotohayato/development/kusozako/src/app/UiPresenter.cpp
+
+CMakeFiles/kusozako.dir/src/app/UiPresenter.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/kusozako.dir/src/app/UiPresenter.cpp.i"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /Users/izumimotohayato/development/kusozako/src/app/UiPresenter.cpp > CMakeFiles/kusozako.dir/src/app/UiPresenter.cpp.i
+
+CMakeFiles/kusozako.dir/src/app/UiPresenter.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/kusozako.dir/src/app/UiPresenter.cpp.s"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /Users/izumimotohayato/development/kusozako/src/app/UiPresenter.cpp -o CMakeFiles/kusozako.dir/src/app/UiPresenter.cpp.s
+
+CMakeFiles/kusozako.dir/src/app/UiView.cpp.o: CMakeFiles/kusozako.dir/flags.make
+CMakeFiles/kusozako.dir/src/app/UiView.cpp.o: /Users/izumimotohayato/development/kusozako/src/app/UiView.cpp
+CMakeFiles/kusozako.dir/src/app/UiView.cpp.o: CMakeFiles/kusozako.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/Users/izumimotohayato/development/kusozako/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_7) "Building CXX object CMakeFiles/kusozako.dir/src/app/UiView.cpp.o"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/kusozako.dir/src/app/UiView.cpp.o -MF CMakeFiles/kusozako.dir/src/app/UiView.cpp.o.d -o CMakeFiles/kusozako.dir/src/app/UiView.cpp.o -c /Users/izumimotohayato/development/kusozako/src/app/UiView.cpp
+
+CMakeFiles/kusozako.dir/src/app/UiView.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/kusozako.dir/src/app/UiView.cpp.i"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /Users/izumimotohayato/development/kusozako/src/app/UiView.cpp > CMakeFiles/kusozako.dir/src/app/UiView.cpp.i
+
+CMakeFiles/kusozako.dir/src/app/UiView.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/kusozako.dir/src/app/UiView.cpp.s"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /Users/izumimotohayato/development/kusozako/src/app/UiView.cpp -o CMakeFiles/kusozako.dir/src/app/UiView.cpp.s
+
+CMakeFiles/kusozako.dir/src/assets/AssetManager.cpp.o: CMakeFiles/kusozako.dir/flags.make
+CMakeFiles/kusozako.dir/src/assets/AssetManager.cpp.o: /Users/izumimotohayato/development/kusozako/src/assets/AssetManager.cpp
+CMakeFiles/kusozako.dir/src/assets/AssetManager.cpp.o: CMakeFiles/kusozako.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/Users/izumimotohayato/development/kusozako/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_8) "Building CXX object CMakeFiles/kusozako.dir/src/assets/AssetManager.cpp.o"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/kusozako.dir/src/assets/AssetManager.cpp.o -MF CMakeFiles/kusozako.dir/src/assets/AssetManager.cpp.o.d -o CMakeFiles/kusozako.dir/src/assets/AssetManager.cpp.o -c /Users/izumimotohayato/development/kusozako/src/assets/AssetManager.cpp
+
+CMakeFiles/kusozako.dir/src/assets/AssetManager.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/kusozako.dir/src/assets/AssetManager.cpp.i"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /Users/izumimotohayato/development/kusozako/src/assets/AssetManager.cpp > CMakeFiles/kusozako.dir/src/assets/AssetManager.cpp.i
+
+CMakeFiles/kusozako.dir/src/assets/AssetManager.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/kusozako.dir/src/assets/AssetManager.cpp.s"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /Users/izumimotohayato/development/kusozako/src/assets/AssetManager.cpp -o CMakeFiles/kusozako.dir/src/assets/AssetManager.cpp.s
+
+CMakeFiles/kusozako.dir/src/events/EventBus.cpp.o: CMakeFiles/kusozako.dir/flags.make
+CMakeFiles/kusozako.dir/src/events/EventBus.cpp.o: /Users/izumimotohayato/development/kusozako/src/events/EventBus.cpp
+CMakeFiles/kusozako.dir/src/events/EventBus.cpp.o: CMakeFiles/kusozako.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/Users/izumimotohayato/development/kusozako/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_9) "Building CXX object CMakeFiles/kusozako.dir/src/events/EventBus.cpp.o"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/kusozako.dir/src/events/EventBus.cpp.o -MF CMakeFiles/kusozako.dir/src/events/EventBus.cpp.o.d -o CMakeFiles/kusozako.dir/src/events/EventBus.cpp.o -c /Users/izumimotohayato/development/kusozako/src/events/EventBus.cpp
+
+CMakeFiles/kusozako.dir/src/events/EventBus.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/kusozako.dir/src/events/EventBus.cpp.i"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /Users/izumimotohayato/development/kusozako/src/events/EventBus.cpp > CMakeFiles/kusozako.dir/src/events/EventBus.cpp.i
+
+CMakeFiles/kusozako.dir/src/events/EventBus.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/kusozako.dir/src/events/EventBus.cpp.s"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /Users/izumimotohayato/development/kusozako/src/events/EventBus.cpp -o CMakeFiles/kusozako.dir/src/events/EventBus.cpp.s
+
+CMakeFiles/kusozako.dir/src/input/ActionBuffer.cpp.o: CMakeFiles/kusozako.dir/flags.make
+CMakeFiles/kusozako.dir/src/input/ActionBuffer.cpp.o: /Users/izumimotohayato/development/kusozako/src/input/ActionBuffer.cpp
+CMakeFiles/kusozako.dir/src/input/ActionBuffer.cpp.o: CMakeFiles/kusozako.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/Users/izumimotohayato/development/kusozako/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_10) "Building CXX object CMakeFiles/kusozako.dir/src/input/ActionBuffer.cpp.o"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/kusozako.dir/src/input/ActionBuffer.cpp.o -MF CMakeFiles/kusozako.dir/src/input/ActionBuffer.cpp.o.d -o CMakeFiles/kusozako.dir/src/input/ActionBuffer.cpp.o -c /Users/izumimotohayato/development/kusozako/src/input/ActionBuffer.cpp
+
+CMakeFiles/kusozako.dir/src/input/ActionBuffer.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/kusozako.dir/src/input/ActionBuffer.cpp.i"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /Users/izumimotohayato/development/kusozako/src/input/ActionBuffer.cpp > CMakeFiles/kusozako.dir/src/input/ActionBuffer.cpp.i
+
+CMakeFiles/kusozako.dir/src/input/ActionBuffer.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/kusozako.dir/src/input/ActionBuffer.cpp.s"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /Users/izumimotohayato/development/kusozako/src/input/ActionBuffer.cpp -o CMakeFiles/kusozako.dir/src/input/ActionBuffer.cpp.s
+
+CMakeFiles/kusozako.dir/src/input/InputMapper.cpp.o: CMakeFiles/kusozako.dir/flags.make
+CMakeFiles/kusozako.dir/src/input/InputMapper.cpp.o: /Users/izumimotohayato/development/kusozako/src/input/InputMapper.cpp
+CMakeFiles/kusozako.dir/src/input/InputMapper.cpp.o: CMakeFiles/kusozako.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/Users/izumimotohayato/development/kusozako/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_11) "Building CXX object CMakeFiles/kusozako.dir/src/input/InputMapper.cpp.o"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/kusozako.dir/src/input/InputMapper.cpp.o -MF CMakeFiles/kusozako.dir/src/input/InputMapper.cpp.o.d -o CMakeFiles/kusozako.dir/src/input/InputMapper.cpp.o -c /Users/izumimotohayato/development/kusozako/src/input/InputMapper.cpp
+
+CMakeFiles/kusozako.dir/src/input/InputMapper.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/kusozako.dir/src/input/InputMapper.cpp.i"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /Users/izumimotohayato/development/kusozako/src/input/InputMapper.cpp > CMakeFiles/kusozako.dir/src/input/InputMapper.cpp.i
+
+CMakeFiles/kusozako.dir/src/input/InputMapper.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/kusozako.dir/src/input/InputMapper.cpp.s"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /Users/izumimotohayato/development/kusozako/src/input/InputMapper.cpp -o CMakeFiles/kusozako.dir/src/input/InputMapper.cpp.s
+
+CMakeFiles/kusozako.dir/src/config/AppConfig.cpp.o: CMakeFiles/kusozako.dir/flags.make
+CMakeFiles/kusozako.dir/src/config/AppConfig.cpp.o: /Users/izumimotohayato/development/kusozako/src/config/AppConfig.cpp
+CMakeFiles/kusozako.dir/src/config/AppConfig.cpp.o: CMakeFiles/kusozako.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/Users/izumimotohayato/development/kusozako/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_12) "Building CXX object CMakeFiles/kusozako.dir/src/config/AppConfig.cpp.o"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/kusozako.dir/src/config/AppConfig.cpp.o -MF CMakeFiles/kusozako.dir/src/config/AppConfig.cpp.o.d -o CMakeFiles/kusozako.dir/src/config/AppConfig.cpp.o -c /Users/izumimotohayato/development/kusozako/src/config/AppConfig.cpp
+
+CMakeFiles/kusozako.dir/src/config/AppConfig.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/kusozako.dir/src/config/AppConfig.cpp.i"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /Users/izumimotohayato/development/kusozako/src/config/AppConfig.cpp > CMakeFiles/kusozako.dir/src/config/AppConfig.cpp.i
+
+CMakeFiles/kusozako.dir/src/config/AppConfig.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/kusozako.dir/src/config/AppConfig.cpp.s"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /Users/izumimotohayato/development/kusozako/src/config/AppConfig.cpp -o CMakeFiles/kusozako.dir/src/config/AppConfig.cpp.s
+
+CMakeFiles/kusozako.dir/src/config/AppConfigLoader.cpp.o: CMakeFiles/kusozako.dir/flags.make
+CMakeFiles/kusozako.dir/src/config/AppConfigLoader.cpp.o: /Users/izumimotohayato/development/kusozako/src/config/AppConfigLoader.cpp
+CMakeFiles/kusozako.dir/src/config/AppConfigLoader.cpp.o: CMakeFiles/kusozako.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/Users/izumimotohayato/development/kusozako/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_13) "Building CXX object CMakeFiles/kusozako.dir/src/config/AppConfigLoader.cpp.o"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/kusozako.dir/src/config/AppConfigLoader.cpp.o -MF CMakeFiles/kusozako.dir/src/config/AppConfigLoader.cpp.o.d -o CMakeFiles/kusozako.dir/src/config/AppConfigLoader.cpp.o -c /Users/izumimotohayato/development/kusozako/src/config/AppConfigLoader.cpp
+
+CMakeFiles/kusozako.dir/src/config/AppConfigLoader.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/kusozako.dir/src/config/AppConfigLoader.cpp.i"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /Users/izumimotohayato/development/kusozako/src/config/AppConfigLoader.cpp > CMakeFiles/kusozako.dir/src/config/AppConfigLoader.cpp.i
+
+CMakeFiles/kusozako.dir/src/config/AppConfigLoader.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/kusozako.dir/src/config/AppConfigLoader.cpp.s"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /Users/izumimotohayato/development/kusozako/src/config/AppConfigLoader.cpp -o CMakeFiles/kusozako.dir/src/config/AppConfigLoader.cpp.s
+
+CMakeFiles/kusozako.dir/src/services/ServiceLocator.cpp.o: CMakeFiles/kusozako.dir/flags.make
+CMakeFiles/kusozako.dir/src/services/ServiceLocator.cpp.o: /Users/izumimotohayato/development/kusozako/src/services/ServiceLocator.cpp
+CMakeFiles/kusozako.dir/src/services/ServiceLocator.cpp.o: CMakeFiles/kusozako.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/Users/izumimotohayato/development/kusozako/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_14) "Building CXX object CMakeFiles/kusozako.dir/src/services/ServiceLocator.cpp.o"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/kusozako.dir/src/services/ServiceLocator.cpp.o -MF CMakeFiles/kusozako.dir/src/services/ServiceLocator.cpp.o.d -o CMakeFiles/kusozako.dir/src/services/ServiceLocator.cpp.o -c /Users/izumimotohayato/development/kusozako/src/services/ServiceLocator.cpp
+
+CMakeFiles/kusozako.dir/src/services/ServiceLocator.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/kusozako.dir/src/services/ServiceLocator.cpp.i"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /Users/izumimotohayato/development/kusozako/src/services/ServiceLocator.cpp > CMakeFiles/kusozako.dir/src/services/ServiceLocator.cpp.i
+
+CMakeFiles/kusozako.dir/src/services/ServiceLocator.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/kusozako.dir/src/services/ServiceLocator.cpp.s"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /Users/izumimotohayato/development/kusozako/src/services/ServiceLocator.cpp -o CMakeFiles/kusozako.dir/src/services/ServiceLocator.cpp.s
+
+CMakeFiles/kusozako.dir/src/scenes/SceneStack.cpp.o: CMakeFiles/kusozako.dir/flags.make
+CMakeFiles/kusozako.dir/src/scenes/SceneStack.cpp.o: /Users/izumimotohayato/development/kusozako/src/scenes/SceneStack.cpp
+CMakeFiles/kusozako.dir/src/scenes/SceneStack.cpp.o: CMakeFiles/kusozako.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/Users/izumimotohayato/development/kusozako/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_15) "Building CXX object CMakeFiles/kusozako.dir/src/scenes/SceneStack.cpp.o"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/kusozako.dir/src/scenes/SceneStack.cpp.o -MF CMakeFiles/kusozako.dir/src/scenes/SceneStack.cpp.o.d -o CMakeFiles/kusozako.dir/src/scenes/SceneStack.cpp.o -c /Users/izumimotohayato/development/kusozako/src/scenes/SceneStack.cpp
+
+CMakeFiles/kusozako.dir/src/scenes/SceneStack.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/kusozako.dir/src/scenes/SceneStack.cpp.i"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /Users/izumimotohayato/development/kusozako/src/scenes/SceneStack.cpp > CMakeFiles/kusozako.dir/src/scenes/SceneStack.cpp.i
+
+CMakeFiles/kusozako.dir/src/scenes/SceneStack.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/kusozako.dir/src/scenes/SceneStack.cpp.s"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /Users/izumimotohayato/development/kusozako/src/scenes/SceneStack.cpp -o CMakeFiles/kusozako.dir/src/scenes/SceneStack.cpp.s
+
+CMakeFiles/kusozako.dir/src/telemetry/FileTelemetrySink.cpp.o: CMakeFiles/kusozako.dir/flags.make
+CMakeFiles/kusozako.dir/src/telemetry/FileTelemetrySink.cpp.o: /Users/izumimotohayato/development/kusozako/src/telemetry/FileTelemetrySink.cpp
+CMakeFiles/kusozako.dir/src/telemetry/FileTelemetrySink.cpp.o: CMakeFiles/kusozako.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/Users/izumimotohayato/development/kusozako/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_16) "Building CXX object CMakeFiles/kusozako.dir/src/telemetry/FileTelemetrySink.cpp.o"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/kusozako.dir/src/telemetry/FileTelemetrySink.cpp.o -MF CMakeFiles/kusozako.dir/src/telemetry/FileTelemetrySink.cpp.o.d -o CMakeFiles/kusozako.dir/src/telemetry/FileTelemetrySink.cpp.o -c /Users/izumimotohayato/development/kusozako/src/telemetry/FileTelemetrySink.cpp
+
+CMakeFiles/kusozako.dir/src/telemetry/FileTelemetrySink.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/kusozako.dir/src/telemetry/FileTelemetrySink.cpp.i"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /Users/izumimotohayato/development/kusozako/src/telemetry/FileTelemetrySink.cpp > CMakeFiles/kusozako.dir/src/telemetry/FileTelemetrySink.cpp.i
+
+CMakeFiles/kusozako.dir/src/telemetry/FileTelemetrySink.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/kusozako.dir/src/telemetry/FileTelemetrySink.cpp.s"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /Users/izumimotohayato/development/kusozako/src/telemetry/FileTelemetrySink.cpp -o CMakeFiles/kusozako.dir/src/telemetry/FileTelemetrySink.cpp.s
+
+CMakeFiles/kusozako.dir/src/telemetry/TelemetrySink.cpp.o: CMakeFiles/kusozako.dir/flags.make
+CMakeFiles/kusozako.dir/src/telemetry/TelemetrySink.cpp.o: /Users/izumimotohayato/development/kusozako/src/telemetry/TelemetrySink.cpp
+CMakeFiles/kusozako.dir/src/telemetry/TelemetrySink.cpp.o: CMakeFiles/kusozako.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/Users/izumimotohayato/development/kusozako/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_17) "Building CXX object CMakeFiles/kusozako.dir/src/telemetry/TelemetrySink.cpp.o"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/kusozako.dir/src/telemetry/TelemetrySink.cpp.o -MF CMakeFiles/kusozako.dir/src/telemetry/TelemetrySink.cpp.o.d -o CMakeFiles/kusozako.dir/src/telemetry/TelemetrySink.cpp.o -c /Users/izumimotohayato/development/kusozako/src/telemetry/TelemetrySink.cpp
+
+CMakeFiles/kusozako.dir/src/telemetry/TelemetrySink.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/kusozako.dir/src/telemetry/TelemetrySink.cpp.i"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /Users/izumimotohayato/development/kusozako/src/telemetry/TelemetrySink.cpp > CMakeFiles/kusozako.dir/src/telemetry/TelemetrySink.cpp.i
+
+CMakeFiles/kusozako.dir/src/telemetry/TelemetrySink.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/kusozako.dir/src/telemetry/TelemetrySink.cpp.s"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /Users/izumimotohayato/development/kusozako/src/telemetry/TelemetrySink.cpp -o CMakeFiles/kusozako.dir/src/telemetry/TelemetrySink.cpp.s
+
+CMakeFiles/kusozako.dir/src/telemetry/ConsoleTelemetrySink.cpp.o: CMakeFiles/kusozako.dir/flags.make
+CMakeFiles/kusozako.dir/src/telemetry/ConsoleTelemetrySink.cpp.o: /Users/izumimotohayato/development/kusozako/src/telemetry/ConsoleTelemetrySink.cpp
+CMakeFiles/kusozako.dir/src/telemetry/ConsoleTelemetrySink.cpp.o: CMakeFiles/kusozako.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/Users/izumimotohayato/development/kusozako/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_18) "Building CXX object CMakeFiles/kusozako.dir/src/telemetry/ConsoleTelemetrySink.cpp.o"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/kusozako.dir/src/telemetry/ConsoleTelemetrySink.cpp.o -MF CMakeFiles/kusozako.dir/src/telemetry/ConsoleTelemetrySink.cpp.o.d -o CMakeFiles/kusozako.dir/src/telemetry/ConsoleTelemetrySink.cpp.o -c /Users/izumimotohayato/development/kusozako/src/telemetry/ConsoleTelemetrySink.cpp
+
+CMakeFiles/kusozako.dir/src/telemetry/ConsoleTelemetrySink.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/kusozako.dir/src/telemetry/ConsoleTelemetrySink.cpp.i"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /Users/izumimotohayato/development/kusozako/src/telemetry/ConsoleTelemetrySink.cpp > CMakeFiles/kusozako.dir/src/telemetry/ConsoleTelemetrySink.cpp.i
+
+CMakeFiles/kusozako.dir/src/telemetry/ConsoleTelemetrySink.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/kusozako.dir/src/telemetry/ConsoleTelemetrySink.cpp.s"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /Users/izumimotohayato/development/kusozako/src/telemetry/ConsoleTelemetrySink.cpp -o CMakeFiles/kusozako.dir/src/telemetry/ConsoleTelemetrySink.cpp.s
+
+CMakeFiles/kusozako.dir/src/telemetry/PerformanceBudgetMonitor.cpp.o: CMakeFiles/kusozako.dir/flags.make
+CMakeFiles/kusozako.dir/src/telemetry/PerformanceBudgetMonitor.cpp.o: /Users/izumimotohayato/development/kusozako/src/telemetry/PerformanceBudgetMonitor.cpp
+CMakeFiles/kusozako.dir/src/telemetry/PerformanceBudgetMonitor.cpp.o: CMakeFiles/kusozako.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/Users/izumimotohayato/development/kusozako/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_19) "Building CXX object CMakeFiles/kusozako.dir/src/telemetry/PerformanceBudgetMonitor.cpp.o"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/kusozako.dir/src/telemetry/PerformanceBudgetMonitor.cpp.o -MF CMakeFiles/kusozako.dir/src/telemetry/PerformanceBudgetMonitor.cpp.o.d -o CMakeFiles/kusozako.dir/src/telemetry/PerformanceBudgetMonitor.cpp.o -c /Users/izumimotohayato/development/kusozako/src/telemetry/PerformanceBudgetMonitor.cpp
+
+CMakeFiles/kusozako.dir/src/telemetry/PerformanceBudgetMonitor.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/kusozako.dir/src/telemetry/PerformanceBudgetMonitor.cpp.i"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /Users/izumimotohayato/development/kusozako/src/telemetry/PerformanceBudgetMonitor.cpp > CMakeFiles/kusozako.dir/src/telemetry/PerformanceBudgetMonitor.cpp.i
+
+CMakeFiles/kusozako.dir/src/telemetry/PerformanceBudgetMonitor.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/kusozako.dir/src/telemetry/PerformanceBudgetMonitor.cpp.s"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /Users/izumimotohayato/development/kusozako/src/telemetry/PerformanceBudgetMonitor.cpp -o CMakeFiles/kusozako.dir/src/telemetry/PerformanceBudgetMonitor.cpp.s
+
+CMakeFiles/kusozako.dir/src/world/LegacySimulation.cpp.o: CMakeFiles/kusozako.dir/flags.make
+CMakeFiles/kusozako.dir/src/world/LegacySimulation.cpp.o: /Users/izumimotohayato/development/kusozako/src/world/LegacySimulation.cpp
+CMakeFiles/kusozako.dir/src/world/LegacySimulation.cpp.o: CMakeFiles/kusozako.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/Users/izumimotohayato/development/kusozako/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_20) "Building CXX object CMakeFiles/kusozako.dir/src/world/LegacySimulation.cpp.o"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/kusozako.dir/src/world/LegacySimulation.cpp.o -MF CMakeFiles/kusozako.dir/src/world/LegacySimulation.cpp.o.d -o CMakeFiles/kusozako.dir/src/world/LegacySimulation.cpp.o -c /Users/izumimotohayato/development/kusozako/src/world/LegacySimulation.cpp
+
+CMakeFiles/kusozako.dir/src/world/LegacySimulation.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/kusozako.dir/src/world/LegacySimulation.cpp.i"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /Users/izumimotohayato/development/kusozako/src/world/LegacySimulation.cpp > CMakeFiles/kusozako.dir/src/world/LegacySimulation.cpp.i
+
+CMakeFiles/kusozako.dir/src/world/LegacySimulation.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/kusozako.dir/src/world/LegacySimulation.cpp.s"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /Users/izumimotohayato/development/kusozako/src/world/LegacySimulation.cpp -o CMakeFiles/kusozako.dir/src/world/LegacySimulation.cpp.s
+
+CMakeFiles/kusozako.dir/src/world/spawn/Spawner.cpp.o: CMakeFiles/kusozako.dir/flags.make
+CMakeFiles/kusozako.dir/src/world/spawn/Spawner.cpp.o: /Users/izumimotohayato/development/kusozako/src/world/spawn/Spawner.cpp
+CMakeFiles/kusozako.dir/src/world/spawn/Spawner.cpp.o: CMakeFiles/kusozako.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/Users/izumimotohayato/development/kusozako/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_21) "Building CXX object CMakeFiles/kusozako.dir/src/world/spawn/Spawner.cpp.o"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/kusozako.dir/src/world/spawn/Spawner.cpp.o -MF CMakeFiles/kusozako.dir/src/world/spawn/Spawner.cpp.o.d -o CMakeFiles/kusozako.dir/src/world/spawn/Spawner.cpp.o -c /Users/izumimotohayato/development/kusozako/src/world/spawn/Spawner.cpp
+
+CMakeFiles/kusozako.dir/src/world/spawn/Spawner.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/kusozako.dir/src/world/spawn/Spawner.cpp.i"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /Users/izumimotohayato/development/kusozako/src/world/spawn/Spawner.cpp > CMakeFiles/kusozako.dir/src/world/spawn/Spawner.cpp.i
+
+CMakeFiles/kusozako.dir/src/world/spawn/Spawner.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/kusozako.dir/src/world/spawn/Spawner.cpp.s"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /Users/izumimotohayato/development/kusozako/src/world/spawn/Spawner.cpp -o CMakeFiles/kusozako.dir/src/world/spawn/Spawner.cpp.s
+
+CMakeFiles/kusozako.dir/src/world/spawn/WaveController.cpp.o: CMakeFiles/kusozako.dir/flags.make
+CMakeFiles/kusozako.dir/src/world/spawn/WaveController.cpp.o: /Users/izumimotohayato/development/kusozako/src/world/spawn/WaveController.cpp
+CMakeFiles/kusozako.dir/src/world/spawn/WaveController.cpp.o: CMakeFiles/kusozako.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/Users/izumimotohayato/development/kusozako/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_22) "Building CXX object CMakeFiles/kusozako.dir/src/world/spawn/WaveController.cpp.o"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/kusozako.dir/src/world/spawn/WaveController.cpp.o -MF CMakeFiles/kusozako.dir/src/world/spawn/WaveController.cpp.o.d -o CMakeFiles/kusozako.dir/src/world/spawn/WaveController.cpp.o -c /Users/izumimotohayato/development/kusozako/src/world/spawn/WaveController.cpp
+
+CMakeFiles/kusozako.dir/src/world/spawn/WaveController.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/kusozako.dir/src/world/spawn/WaveController.cpp.i"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /Users/izumimotohayato/development/kusozako/src/world/spawn/WaveController.cpp > CMakeFiles/kusozako.dir/src/world/spawn/WaveController.cpp.i
+
+CMakeFiles/kusozako.dir/src/world/spawn/WaveController.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/kusozako.dir/src/world/spawn/WaveController.cpp.s"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /Users/izumimotohayato/development/kusozako/src/world/spawn/WaveController.cpp -o CMakeFiles/kusozako.dir/src/world/spawn/WaveController.cpp.s
+
+CMakeFiles/kusozako.dir/src/world/systems/BehaviorSystem.cpp.o: CMakeFiles/kusozako.dir/flags.make
+CMakeFiles/kusozako.dir/src/world/systems/BehaviorSystem.cpp.o: /Users/izumimotohayato/development/kusozako/src/world/systems/BehaviorSystem.cpp
+CMakeFiles/kusozako.dir/src/world/systems/BehaviorSystem.cpp.o: CMakeFiles/kusozako.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/Users/izumimotohayato/development/kusozako/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_23) "Building CXX object CMakeFiles/kusozako.dir/src/world/systems/BehaviorSystem.cpp.o"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/kusozako.dir/src/world/systems/BehaviorSystem.cpp.o -MF CMakeFiles/kusozako.dir/src/world/systems/BehaviorSystem.cpp.o.d -o CMakeFiles/kusozako.dir/src/world/systems/BehaviorSystem.cpp.o -c /Users/izumimotohayato/development/kusozako/src/world/systems/BehaviorSystem.cpp
+
+CMakeFiles/kusozako.dir/src/world/systems/BehaviorSystem.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/kusozako.dir/src/world/systems/BehaviorSystem.cpp.i"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /Users/izumimotohayato/development/kusozako/src/world/systems/BehaviorSystem.cpp > CMakeFiles/kusozako.dir/src/world/systems/BehaviorSystem.cpp.i
+
+CMakeFiles/kusozako.dir/src/world/systems/BehaviorSystem.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/kusozako.dir/src/world/systems/BehaviorSystem.cpp.s"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /Users/izumimotohayato/development/kusozako/src/world/systems/BehaviorSystem.cpp -o CMakeFiles/kusozako.dir/src/world/systems/BehaviorSystem.cpp.s
+
+CMakeFiles/kusozako.dir/src/world/systems/CommanderInputSystem.cpp.o: CMakeFiles/kusozako.dir/flags.make
+CMakeFiles/kusozako.dir/src/world/systems/CommanderInputSystem.cpp.o: /Users/izumimotohayato/development/kusozako/src/world/systems/CommanderInputSystem.cpp
+CMakeFiles/kusozako.dir/src/world/systems/CommanderInputSystem.cpp.o: CMakeFiles/kusozako.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/Users/izumimotohayato/development/kusozako/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_24) "Building CXX object CMakeFiles/kusozako.dir/src/world/systems/CommanderInputSystem.cpp.o"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/kusozako.dir/src/world/systems/CommanderInputSystem.cpp.o -MF CMakeFiles/kusozako.dir/src/world/systems/CommanderInputSystem.cpp.o.d -o CMakeFiles/kusozako.dir/src/world/systems/CommanderInputSystem.cpp.o -c /Users/izumimotohayato/development/kusozako/src/world/systems/CommanderInputSystem.cpp
+
+CMakeFiles/kusozako.dir/src/world/systems/CommanderInputSystem.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/kusozako.dir/src/world/systems/CommanderInputSystem.cpp.i"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /Users/izumimotohayato/development/kusozako/src/world/systems/CommanderInputSystem.cpp > CMakeFiles/kusozako.dir/src/world/systems/CommanderInputSystem.cpp.i
+
+CMakeFiles/kusozako.dir/src/world/systems/CommanderInputSystem.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/kusozako.dir/src/world/systems/CommanderInputSystem.cpp.s"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /Users/izumimotohayato/development/kusozako/src/world/systems/CommanderInputSystem.cpp -o CMakeFiles/kusozako.dir/src/world/systems/CommanderInputSystem.cpp.s
+
+CMakeFiles/kusozako.dir/src/world/systems/CombatSystem.cpp.o: CMakeFiles/kusozako.dir/flags.make
+CMakeFiles/kusozako.dir/src/world/systems/CombatSystem.cpp.o: /Users/izumimotohayato/development/kusozako/src/world/systems/CombatSystem.cpp
+CMakeFiles/kusozako.dir/src/world/systems/CombatSystem.cpp.o: CMakeFiles/kusozako.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/Users/izumimotohayato/development/kusozako/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_25) "Building CXX object CMakeFiles/kusozako.dir/src/world/systems/CombatSystem.cpp.o"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/kusozako.dir/src/world/systems/CombatSystem.cpp.o -MF CMakeFiles/kusozako.dir/src/world/systems/CombatSystem.cpp.o.d -o CMakeFiles/kusozako.dir/src/world/systems/CombatSystem.cpp.o -c /Users/izumimotohayato/development/kusozako/src/world/systems/CombatSystem.cpp
+
+CMakeFiles/kusozako.dir/src/world/systems/CombatSystem.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/kusozako.dir/src/world/systems/CombatSystem.cpp.i"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /Users/izumimotohayato/development/kusozako/src/world/systems/CombatSystem.cpp > CMakeFiles/kusozako.dir/src/world/systems/CombatSystem.cpp.i
+
+CMakeFiles/kusozako.dir/src/world/systems/CombatSystem.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/kusozako.dir/src/world/systems/CombatSystem.cpp.s"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /Users/izumimotohayato/development/kusozako/src/world/systems/CombatSystem.cpp -o CMakeFiles/kusozako.dir/src/world/systems/CombatSystem.cpp.s
+
+CMakeFiles/kusozako.dir/src/world/systems/FormationSystem.cpp.o: CMakeFiles/kusozako.dir/flags.make
+CMakeFiles/kusozako.dir/src/world/systems/FormationSystem.cpp.o: /Users/izumimotohayato/development/kusozako/src/world/systems/FormationSystem.cpp
+CMakeFiles/kusozako.dir/src/world/systems/FormationSystem.cpp.o: CMakeFiles/kusozako.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/Users/izumimotohayato/development/kusozako/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_26) "Building CXX object CMakeFiles/kusozako.dir/src/world/systems/FormationSystem.cpp.o"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/kusozako.dir/src/world/systems/FormationSystem.cpp.o -MF CMakeFiles/kusozako.dir/src/world/systems/FormationSystem.cpp.o.d -o CMakeFiles/kusozako.dir/src/world/systems/FormationSystem.cpp.o -c /Users/izumimotohayato/development/kusozako/src/world/systems/FormationSystem.cpp
+
+CMakeFiles/kusozako.dir/src/world/systems/FormationSystem.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/kusozako.dir/src/world/systems/FormationSystem.cpp.i"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /Users/izumimotohayato/development/kusozako/src/world/systems/FormationSystem.cpp > CMakeFiles/kusozako.dir/src/world/systems/FormationSystem.cpp.i
+
+CMakeFiles/kusozako.dir/src/world/systems/FormationSystem.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/kusozako.dir/src/world/systems/FormationSystem.cpp.s"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /Users/izumimotohayato/development/kusozako/src/world/systems/FormationSystem.cpp -o CMakeFiles/kusozako.dir/src/world/systems/FormationSystem.cpp.s
+
+CMakeFiles/kusozako.dir/src/world/systems/JobAbilitySystem.cpp.o: CMakeFiles/kusozako.dir/flags.make
+CMakeFiles/kusozako.dir/src/world/systems/JobAbilitySystem.cpp.o: /Users/izumimotohayato/development/kusozako/src/world/systems/JobAbilitySystem.cpp
+CMakeFiles/kusozako.dir/src/world/systems/JobAbilitySystem.cpp.o: CMakeFiles/kusozako.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/Users/izumimotohayato/development/kusozako/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_27) "Building CXX object CMakeFiles/kusozako.dir/src/world/systems/JobAbilitySystem.cpp.o"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/kusozako.dir/src/world/systems/JobAbilitySystem.cpp.o -MF CMakeFiles/kusozako.dir/src/world/systems/JobAbilitySystem.cpp.o.d -o CMakeFiles/kusozako.dir/src/world/systems/JobAbilitySystem.cpp.o -c /Users/izumimotohayato/development/kusozako/src/world/systems/JobAbilitySystem.cpp
+
+CMakeFiles/kusozako.dir/src/world/systems/JobAbilitySystem.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/kusozako.dir/src/world/systems/JobAbilitySystem.cpp.i"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /Users/izumimotohayato/development/kusozako/src/world/systems/JobAbilitySystem.cpp > CMakeFiles/kusozako.dir/src/world/systems/JobAbilitySystem.cpp.i
+
+CMakeFiles/kusozako.dir/src/world/systems/JobAbilitySystem.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/kusozako.dir/src/world/systems/JobAbilitySystem.cpp.s"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /Users/izumimotohayato/development/kusozako/src/world/systems/JobAbilitySystem.cpp -o CMakeFiles/kusozako.dir/src/world/systems/JobAbilitySystem.cpp.s
+
+CMakeFiles/kusozako.dir/src/world/systems/MoraleSystem.cpp.o: CMakeFiles/kusozako.dir/flags.make
+CMakeFiles/kusozako.dir/src/world/systems/MoraleSystem.cpp.o: /Users/izumimotohayato/development/kusozako/src/world/systems/MoraleSystem.cpp
+CMakeFiles/kusozako.dir/src/world/systems/MoraleSystem.cpp.o: CMakeFiles/kusozako.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/Users/izumimotohayato/development/kusozako/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_28) "Building CXX object CMakeFiles/kusozako.dir/src/world/systems/MoraleSystem.cpp.o"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/kusozako.dir/src/world/systems/MoraleSystem.cpp.o -MF CMakeFiles/kusozako.dir/src/world/systems/MoraleSystem.cpp.o.d -o CMakeFiles/kusozako.dir/src/world/systems/MoraleSystem.cpp.o -c /Users/izumimotohayato/development/kusozako/src/world/systems/MoraleSystem.cpp
+
+CMakeFiles/kusozako.dir/src/world/systems/MoraleSystem.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/kusozako.dir/src/world/systems/MoraleSystem.cpp.i"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /Users/izumimotohayato/development/kusozako/src/world/systems/MoraleSystem.cpp > CMakeFiles/kusozako.dir/src/world/systems/MoraleSystem.cpp.i
+
+CMakeFiles/kusozako.dir/src/world/systems/MoraleSystem.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/kusozako.dir/src/world/systems/MoraleSystem.cpp.s"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /Users/izumimotohayato/development/kusozako/src/world/systems/MoraleSystem.cpp -o CMakeFiles/kusozako.dir/src/world/systems/MoraleSystem.cpp.s
+
+CMakeFiles/kusozako.dir/src/world/systems/MovementSystem.cpp.o: CMakeFiles/kusozako.dir/flags.make
+CMakeFiles/kusozako.dir/src/world/systems/MovementSystem.cpp.o: /Users/izumimotohayato/development/kusozako/src/world/systems/MovementSystem.cpp
+CMakeFiles/kusozako.dir/src/world/systems/MovementSystem.cpp.o: CMakeFiles/kusozako.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/Users/izumimotohayato/development/kusozako/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_29) "Building CXX object CMakeFiles/kusozako.dir/src/world/systems/MovementSystem.cpp.o"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/kusozako.dir/src/world/systems/MovementSystem.cpp.o -MF CMakeFiles/kusozako.dir/src/world/systems/MovementSystem.cpp.o.d -o CMakeFiles/kusozako.dir/src/world/systems/MovementSystem.cpp.o -c /Users/izumimotohayato/development/kusozako/src/world/systems/MovementSystem.cpp
+
+CMakeFiles/kusozako.dir/src/world/systems/MovementSystem.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/kusozako.dir/src/world/systems/MovementSystem.cpp.i"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /Users/izumimotohayato/development/kusozako/src/world/systems/MovementSystem.cpp > CMakeFiles/kusozako.dir/src/world/systems/MovementSystem.cpp.i
+
+CMakeFiles/kusozako.dir/src/world/systems/MovementSystem.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/kusozako.dir/src/world/systems/MovementSystem.cpp.s"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /Users/izumimotohayato/development/kusozako/src/world/systems/MovementSystem.cpp -o CMakeFiles/kusozako.dir/src/world/systems/MovementSystem.cpp.s
+
+CMakeFiles/kusozako.dir/src/world/systems/RenderingPrepSystem.cpp.o: CMakeFiles/kusozako.dir/flags.make
+CMakeFiles/kusozako.dir/src/world/systems/RenderingPrepSystem.cpp.o: /Users/izumimotohayato/development/kusozako/src/world/systems/RenderingPrepSystem.cpp
+CMakeFiles/kusozako.dir/src/world/systems/RenderingPrepSystem.cpp.o: CMakeFiles/kusozako.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/Users/izumimotohayato/development/kusozako/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_30) "Building CXX object CMakeFiles/kusozako.dir/src/world/systems/RenderingPrepSystem.cpp.o"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/kusozako.dir/src/world/systems/RenderingPrepSystem.cpp.o -MF CMakeFiles/kusozako.dir/src/world/systems/RenderingPrepSystem.cpp.o.d -o CMakeFiles/kusozako.dir/src/world/systems/RenderingPrepSystem.cpp.o -c /Users/izumimotohayato/development/kusozako/src/world/systems/RenderingPrepSystem.cpp
+
+CMakeFiles/kusozako.dir/src/world/systems/RenderingPrepSystem.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/kusozako.dir/src/world/systems/RenderingPrepSystem.cpp.i"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /Users/izumimotohayato/development/kusozako/src/world/systems/RenderingPrepSystem.cpp > CMakeFiles/kusozako.dir/src/world/systems/RenderingPrepSystem.cpp.i
+
+CMakeFiles/kusozako.dir/src/world/systems/RenderingPrepSystem.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/kusozako.dir/src/world/systems/RenderingPrepSystem.cpp.s"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /Users/izumimotohayato/development/kusozako/src/world/systems/RenderingPrepSystem.cpp -o CMakeFiles/kusozako.dir/src/world/systems/RenderingPrepSystem.cpp.s
+
 # Object files for target kusozako
 kusozako_OBJECTS = \
-"CMakeFiles/kusozako.dir/src/main.cpp.o"
+"CMakeFiles/kusozako.dir/src/main.cpp.o" \
+"CMakeFiles/kusozako.dir/src/app/GameApplication.cpp.o" \
+"CMakeFiles/kusozako.dir/src/debug/DebugController.cpp.o" \
+"CMakeFiles/kusozako.dir/src/debug/DebugOverlayView.cpp.o" \
+"CMakeFiles/kusozako.dir/src/app/TextRenderer.cpp.o" \
+"CMakeFiles/kusozako.dir/src/app/UiPresenter.cpp.o" \
+"CMakeFiles/kusozako.dir/src/app/UiView.cpp.o" \
+"CMakeFiles/kusozako.dir/src/assets/AssetManager.cpp.o" \
+"CMakeFiles/kusozako.dir/src/events/EventBus.cpp.o" \
+"CMakeFiles/kusozako.dir/src/input/ActionBuffer.cpp.o" \
+"CMakeFiles/kusozako.dir/src/input/InputMapper.cpp.o" \
+"CMakeFiles/kusozako.dir/src/config/AppConfig.cpp.o" \
+"CMakeFiles/kusozako.dir/src/config/AppConfigLoader.cpp.o" \
+"CMakeFiles/kusozako.dir/src/services/ServiceLocator.cpp.o" \
+"CMakeFiles/kusozako.dir/src/scenes/SceneStack.cpp.o" \
+"CMakeFiles/kusozako.dir/src/telemetry/FileTelemetrySink.cpp.o" \
+"CMakeFiles/kusozako.dir/src/telemetry/TelemetrySink.cpp.o" \
+"CMakeFiles/kusozako.dir/src/telemetry/ConsoleTelemetrySink.cpp.o" \
+"CMakeFiles/kusozako.dir/src/telemetry/PerformanceBudgetMonitor.cpp.o" \
+"CMakeFiles/kusozako.dir/src/world/LegacySimulation.cpp.o" \
+"CMakeFiles/kusozako.dir/src/world/spawn/Spawner.cpp.o" \
+"CMakeFiles/kusozako.dir/src/world/spawn/WaveController.cpp.o" \
+"CMakeFiles/kusozako.dir/src/world/systems/BehaviorSystem.cpp.o" \
+"CMakeFiles/kusozako.dir/src/world/systems/CommanderInputSystem.cpp.o" \
+"CMakeFiles/kusozako.dir/src/world/systems/CombatSystem.cpp.o" \
+"CMakeFiles/kusozako.dir/src/world/systems/FormationSystem.cpp.o" \
+"CMakeFiles/kusozako.dir/src/world/systems/JobAbilitySystem.cpp.o" \
+"CMakeFiles/kusozako.dir/src/world/systems/MoraleSystem.cpp.o" \
+"CMakeFiles/kusozako.dir/src/world/systems/MovementSystem.cpp.o" \
+"CMakeFiles/kusozako.dir/src/world/systems/RenderingPrepSystem.cpp.o"
 
 # External object files for target kusozako
 kusozako_EXTERNAL_OBJECTS =
 
 kusozako: CMakeFiles/kusozako.dir/src/main.cpp.o
+kusozako: CMakeFiles/kusozako.dir/src/app/GameApplication.cpp.o
+kusozako: CMakeFiles/kusozako.dir/src/debug/DebugController.cpp.o
+kusozako: CMakeFiles/kusozako.dir/src/debug/DebugOverlayView.cpp.o
+kusozako: CMakeFiles/kusozako.dir/src/app/TextRenderer.cpp.o
+kusozako: CMakeFiles/kusozako.dir/src/app/UiPresenter.cpp.o
+kusozako: CMakeFiles/kusozako.dir/src/app/UiView.cpp.o
+kusozako: CMakeFiles/kusozako.dir/src/assets/AssetManager.cpp.o
+kusozako: CMakeFiles/kusozako.dir/src/events/EventBus.cpp.o
+kusozako: CMakeFiles/kusozako.dir/src/input/ActionBuffer.cpp.o
+kusozako: CMakeFiles/kusozako.dir/src/input/InputMapper.cpp.o
+kusozako: CMakeFiles/kusozako.dir/src/config/AppConfig.cpp.o
+kusozako: CMakeFiles/kusozako.dir/src/config/AppConfigLoader.cpp.o
+kusozako: CMakeFiles/kusozako.dir/src/services/ServiceLocator.cpp.o
+kusozako: CMakeFiles/kusozako.dir/src/scenes/SceneStack.cpp.o
+kusozako: CMakeFiles/kusozako.dir/src/telemetry/FileTelemetrySink.cpp.o
+kusozako: CMakeFiles/kusozako.dir/src/telemetry/TelemetrySink.cpp.o
+kusozako: CMakeFiles/kusozako.dir/src/telemetry/ConsoleTelemetrySink.cpp.o
+kusozako: CMakeFiles/kusozako.dir/src/telemetry/PerformanceBudgetMonitor.cpp.o
+kusozako: CMakeFiles/kusozako.dir/src/world/LegacySimulation.cpp.o
+kusozako: CMakeFiles/kusozako.dir/src/world/spawn/Spawner.cpp.o
+kusozako: CMakeFiles/kusozako.dir/src/world/spawn/WaveController.cpp.o
+kusozako: CMakeFiles/kusozako.dir/src/world/systems/BehaviorSystem.cpp.o
+kusozako: CMakeFiles/kusozako.dir/src/world/systems/CommanderInputSystem.cpp.o
+kusozako: CMakeFiles/kusozako.dir/src/world/systems/CombatSystem.cpp.o
+kusozako: CMakeFiles/kusozako.dir/src/world/systems/FormationSystem.cpp.o
+kusozako: CMakeFiles/kusozako.dir/src/world/systems/JobAbilitySystem.cpp.o
+kusozako: CMakeFiles/kusozako.dir/src/world/systems/MoraleSystem.cpp.o
+kusozako: CMakeFiles/kusozako.dir/src/world/systems/MovementSystem.cpp.o
+kusozako: CMakeFiles/kusozako.dir/src/world/systems/RenderingPrepSystem.cpp.o
 kusozako: CMakeFiles/kusozako.dir/build.make
 kusozako: /opt/homebrew/Cellar/sdl2/2.32.10/lib/libSDL2.dylib
 kusozako: /opt/homebrew/Cellar/sdl2/2.32.10/lib/libSDL2main.a
 kusozako: /opt/homebrew/Cellar/sdl2_image/2.8.8/lib/libSDL2_image.dylib
 kusozako: /opt/homebrew/Cellar/sdl2_ttf/2.24.0/lib/libSDL2_ttf.dylib
 kusozako: CMakeFiles/kusozako.dir/link.txt
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --bold --progress-dir=/Users/izumimotohayato/development/kusozako/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_2) "Linking CXX executable kusozako"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --bold --progress-dir=/Users/izumimotohayato/development/kusozako/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_31) "Linking CXX executable kusozako"
 	$(CMAKE_COMMAND) -E cmake_link_script CMakeFiles/kusozako.dir/link.txt --verbose=$(VERBOSE)
 
 # Rule to build all files generated by this target.

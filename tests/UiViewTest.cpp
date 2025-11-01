@@ -60,25 +60,12 @@ struct RecordingRenderer
     std::vector<DrawCall> draws;
 };
 
-struct FramePerf
-{
-    float fps = 0.0f;
-    float msUpdate = 0.0f;
-    float msRender = 0.0f;
-    float msInput = 0.0f;
-    float msHud = 0.0f;
-    int drawCalls = 0;
-    int entities = 0;
-    bool budgetExceeded = false;
-    std::string budgetStage;
-    float budgetSampleMs = 0.0f;
-    float budgetTargetMs = 0.0f;
-};
+#include "app/FramePerf.h"
 
-class TextRenderer
+class TextRendererStub
 {
   public:
-    explicit TextRenderer(int lineHeight = 18)
+    explicit TextRendererStub(int lineHeight = 18)
         : m_lineHeight(lineHeight)
     {
     }
@@ -142,6 +129,9 @@ inline std::string normalizeTelemetry(const std::string &text)
 
 #define SDL_h_
 
+#define KUSOZAKO_UIVIEW_STUB_TEXT_RENDERER 1
+#define TextRenderer TextRendererStub
+
 #define SDL_SetRenderDrawBlendMode FakeSDL_SetRenderDrawBlendMode
 #define SDL_SetRenderDrawColor FakeSDL_SetRenderDrawColor
 #define SDL_RenderFillRect FakeSDL_RenderFillRect
@@ -152,6 +142,9 @@ inline std::string normalizeTelemetry(const std::string &text)
 #define SDL_RenderFillRectF FakeSDL_RenderFillRectF
 
 #include "app/UiView.cpp"
+
+#undef TextRenderer
+#undef KUSOZAKO_UIVIEW_STUB_TEXT_RENDERER
 
 #undef SDL_SetRenderDrawBlendMode
 #undef SDL_SetRenderDrawColor
@@ -202,6 +195,7 @@ int FakeSDL_RenderFillRectF(SDL_Renderer *, const SDL_FRect *)
     return 0;
 }
 
+using TextRenderer = TextRendererStub;
 namespace
 {
 
@@ -538,4 +532,3 @@ int main()
 
     return success ? 0 : 1;
 }
-

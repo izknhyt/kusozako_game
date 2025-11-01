@@ -536,6 +536,7 @@ struct InputBindings
     std::vector<std::string> orderFollowLeader{"F3"};
     std::vector<std::string> orderDefendBase{"F4"};
     std::string toggleDebugHud{"F10"};
+    std::string toggleDebugOverlay{"Ctrl+F5"};
     std::string reloadConfig{"F9"};
     std::string dumpSpawnHistory{"Shift+F10"};
     std::string quit{"Escape"};
@@ -564,4 +565,3 @@ struct AppConfig
 std::vector<SkillDef> buildDefaultSkills();
 
 EnemyArchetype enemyTypeFromString(const std::string &typeId);
-
