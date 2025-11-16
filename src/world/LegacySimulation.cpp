@@ -135,10 +135,14 @@ void LegacySimulation::appendAiTelemetryCsv(
     float clingRatio,
     float kaitenRatio,
     float runRatio,
+    float hazardAvg,
+    float aoeRatio,
+    float aoeMagnitude,
     const std::string &tokkouUnits,
     const std::string &clingUnits,
     const std::string &kaitenUnits,
-    const std::string &runUnits)
+    const std::string &runUnits,
+    const std::string &panicUnits)
 {
     auto sink = telemetry.lock();
     if (!sink)
@@ -158,8 +162,8 @@ void LegacySimulation::appendAiTelemetryCsv(
     if (!aiTelemetryHeaderWritten || stream.tellp() == 0)
     {
         stream << "wall_time\tsim_time\tunit_seconds\tpanic_ratio\tavg_radius\texceed_ratio\ttokkou_active\ttokkou_peak"
-                  "\tcling_ratio\tkaiten_ratio\trun_ratio\t"
-                  "tokkou_units\tcling_units\tkaiten_units\trun_units";
+                  "\tcling_ratio\tkaiten_ratio\trun_ratio\thazard_avg\taoe_ratio\taoe_mag\t"
+                  "tokkou_units\tcling_units\tkaiten_units\trun_units\tpanic_units";
         for (std::size_t i = 0; i < ratios.size(); ++i)
         {
             stream << '\t' << chibiActionKey(static_cast<ChibiAction>(i));
@@ -171,8 +175,10 @@ void LegacySimulation::appendAiTelemetryCsv(
     stream << wallTime << '\t' << formatFloat(simTime) << '\t' << formatFloat(unitSeconds) << '\t'
            << formatFloat(panicRatio) << '\t' << formatFloat(avgRadius) << '\t' << formatFloat(exceedRatio) << '\t'
            << tokkouActive << '\t' << tokkouPeak << '\t' << formatFloat(clingRatio) << '\t' << formatFloat(kaitenRatio)
-           << '\t' << formatFloat(runRatio) << '\t' << sanitizeForTsv(tokkouUnits) << '\t'
-           << sanitizeForTsv(clingUnits) << '\t' << sanitizeForTsv(kaitenUnits) << '\t' << sanitizeForTsv(runUnits);
+           << '\t' << formatFloat(runRatio) << '\t' << formatFloat(hazardAvg) << '\t' << formatFloat(aoeRatio) << '\t'
+           << formatFloat(aoeMagnitude) << '\t' << sanitizeForTsv(tokkouUnits) << '\t'
+           << sanitizeForTsv(clingUnits) << '\t' << sanitizeForTsv(kaitenUnits) << '\t' << sanitizeForTsv(runUnits)
+           << '\t' << sanitizeForTsv(panicUnits);
     for (float ratio : ratios)
     {
         stream << '\t' << formatFloat(ratio);
@@ -186,7 +192,8 @@ void LegacySimulation::appendAiTelemetryCsv(
         if (!aiChecklistHeaderWritten || checklist.tellp() == 0)
         {
             checklist << "wall_time\tsim_time\tavg_radius\tavg_radius_ok\tgreater_96_ratio\t"
-                         "tokkou_active\ttokkou_cap\ttokkou_ok\tpanic_ratio\tcling_ratio\tkaiten_ratio\trun_ratio\n";
+                         "tokkou_active\ttokkou_cap\ttokkou_ok\tpanic_ratio\tcling_ratio\tkaiten_ratio\trun_ratio"
+                         "\thazard_avg\taoe_ratio\n";
             aiChecklistHeaderWritten = true;
         }
         const float radiusThreshold = 96.0f;
@@ -196,7 +203,8 @@ void LegacySimulation::appendAiTelemetryCsv(
         checklist << wallTime << '\t' << formatFloat(simTime) << '\t' << formatFloat(avgRadius) << '\t'
                   << (avgRadiusOk ? '1' : '0') << '\t' << formatFloat(exceedRatio) << '\t' << tokkouActive << '\t'
                   << tokkouCap << '\t' << (tokkouOk ? '1' : '0') << '\t' << formatFloat(panicRatio) << '\t'
-                  << formatFloat(clingRatio) << '\t' << formatFloat(kaitenRatio) << '\t' << formatFloat(runRatio) << '\n';
+                  << formatFloat(clingRatio) << '\t' << formatFloat(kaitenRatio) << '\t' << formatFloat(runRatio) << '\t'
+                  << formatFloat(hazardAvg) << '\t' << formatFloat(aoeRatio) << '\n';
     }
 }
 

@@ -10,6 +10,8 @@
     {
       "id": "enemy_north",
       "pos": [2, 10],
+      "hp": 400,
+      "radius_px": 60,
       "rate_per_s": 0.1,
       "rate_max": 0.18,
       "weights": { "slime": 4, "goblin": 2, "bat": 2, "magician": 1, "toritori": 1 }
@@ -17,6 +19,8 @@
     {
       "id": "enemy_center",
       "pos": [2, 22],
+      "hp": 450,
+      "radius_px": 60,
       "rate_per_s": 0.1,
       "rate_max": 0.18,
       "weights": { "slime": 4, "goblin": 2, "bat": 2, "magician": 1, "toritori": 1 }
@@ -24,6 +28,8 @@
     {
       "id": "enemy_south",
       "pos": [2, 34],
+      "hp": 450,
+      "radius_px": 60,
       "rate_per_s": 0.1,
       "rate_max": 0.18,
       "weights": { "slime": 4, "goblin": 2, "bat": 2, "magician": 1, "toritori": 1 }

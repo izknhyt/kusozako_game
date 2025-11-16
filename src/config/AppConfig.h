@@ -513,6 +513,9 @@ struct ChibiPersonalityConfig
     ChibiClingConfig cling;
     ChibiKaitenConfig kaiten;
     ChibiRunAroundConfig runAround;
+    float auraAttackMultiplier = 1.05f;
+    float auraDamageMultiplier = 0.90f;
+    float auraRegenPerSecond = 1.0f;
 };
 
 struct ChibiAiActionConfig
@@ -522,6 +525,7 @@ struct ChibiAiActionConfig
     float rangePixels = 0.0f;
     float braveryWeight = 0.0f;
     float wisdomWeight = 0.0f;
+    bool preferFarRange = false;
 };
 
 struct ChibiAiParams
@@ -546,6 +550,7 @@ struct ChibiAiParams
     float orderPushBonus = 0.4f;
     float orderFollowBonus = 1.0f;
     float orderDefendBonus = 0.6f;
+    float orderPenalty = 0.2f;
     float followerBonus = 0.8f;
     std::unordered_map<std::string, ChibiAiActionConfig> actions;
 };

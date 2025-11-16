@@ -925,6 +925,12 @@ void UiView::render(const DrawContext &context) const
                   << aiDebug.kaitenRatio * 100.0f << "%  Run " << aiDebug.runRatio * 100.0f << '%';
             aiLines.push_back(extra.str());
         }
+        {
+            std::ostringstream hazard;
+            hazard << "Hazards " << std::fixed << std::setprecision(1) << aiDebug.hazardAverage << "  AoE "
+                   << aiDebug.aoeRatio * 100.0f << "% (" << aiDebug.aoeMagnitude << ')';
+            aiLines.push_back(hazard.str());
+        }
         for (std::size_t i = 0; i < aiDebug.actionRatios.size(); ++i)
         {
             std::ostringstream line;
@@ -953,6 +959,36 @@ void UiView::render(const DrawContext &context) const
         }
         topRightAnchorY += panel.h + 12;
 
+        if (!aiDebug.panicEntries.empty())
+        {
+            int panicWidth = 0;
+            std::vector<std::string> panicLines;
+            panicLines.reserve(aiDebug.panicEntries.size());
+            for (const auto &entry : aiDebug.panicEntries)
+            {
+                std::ostringstream line;
+                line << "Unit" << entry.unitIndex << " " << entry.state << " "
+                     << std::fixed << std::setprecision(2) << entry.timer << "s";
+                panicLines.push_back(line.str());
+                panicWidth = std::max(panicWidth, measureWithFallback(debugFontRef, panicLines.back(), debugLineHeight));
+            }
+            const int pPadX = 10;
+            const int pPadY = 6;
+            SDL_Rect panicPanel{screenW - (panicWidth + pPadX * 2) - 12, topRightAnchorY,
+                                panicWidth + pPadX * 2,
+                                static_cast<int>(panicLines.size()) * debugLineHeight + pPadY * 2};
+            SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+            SDL_SetRenderDrawColor(renderer, 6, 6, 20, 150);
+            countedRenderFillRect(renderer, &panicPanel, stats);
+            SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
+            int panicY = panicPanel.y + pPadY;
+            for (const std::string &line : panicLines)
+            {
+                debugFontRef.drawText(renderer, line, panicPanel.x + pPadX, panicY, &stats);
+                panicY += debugLineHeight;
+            }
+            topRightAnchorY += panicPanel.h + 12;
+        }
         if (!aiDebug.history.empty())
         {
             int histWidth = 0;

@@ -197,7 +197,24 @@ struct LegacySimulation
     void decayDynamicHazards(float) {}
     void setStageHazardActive(const std::string &, bool) {}
     void appendAiTelemetryCsv(
-        const std::array<float, 7> &, float, float, float, float, int, int, float, float, float, const std::string &, const std::string &, const std::string &, const std::string &)
+        const std::array<float, 7> &,
+        float,
+        float,
+        float,
+        float,
+        int,
+        int,
+        float,
+        float,
+        float,
+        float,
+        float,
+        float,
+        const std::string &,
+        const std::string &,
+        const std::string &,
+        const std::string &,
+        const std::string &)
     {
     }
 };

@@ -577,6 +577,9 @@ const char *stanceLabel(ArmyStance stance)
 }
 
 using world::LegacySimulation;
+using world::StageRuntimeState;
+using world::StageEnemyBaseState;
+using world::StageAllyBaseState;
 
 namespace world
 {
@@ -1497,6 +1500,8 @@ void renderWorld(SDL_Renderer *renderer, const LegacySimulation &sim, const Form
     }
     drawTileLayer(renderer, map, map.deco, camera, screenW, screenH, stats);
 
+    const StageRuntimeState &stageState = sim.stageState();
+
     // Draw base
     const Vec2 baseScreen = worldToScreen(sim.basePos, camera);
 
@@ -1545,6 +1550,43 @@ void renderWorld(SDL_Renderer *renderer, const LegacySimulation &sim, const Form
         SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
     }
 
+    if (stageState.enabled && !stageState.allyBases.empty())
+    {
+        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+        for (const StageAllyBaseState &base : stageState.allyBases)
+        {
+            if (base.destroyed)
+            {
+                continue;
+            }
+            const float auraRadius = base.auraRadiusPx > 0.0f ? base.auraRadiusPx : 128.0f;
+            Vec2 screenPos = worldToScreen(base.pos, camera);
+            SDL_SetRenderDrawColor(renderer, 70, 180, 255, 80);
+            drawFilledCircle(renderer, screenPos, auraRadius, stats);
+            if (debugFont.isLoaded())
+            {
+                std::ostringstream oss;
+                oss << "拠点オーラ (r=" << static_cast<int>(std::round(auraRadius)) << ")";
+                const std::string label = oss.str();
+                const int labelWidth = measureWorldText(debugFont, label, debugLineHeight);
+                const int pad = 4;
+                SDL_Rect labelBg{
+                    static_cast<int>(std::round(screenPos.x)) - labelWidth / 2 - pad,
+                    static_cast<int>(std::round(screenPos.y - auraRadius)) - (debugLineHeight + pad * 2) - 4,
+                    labelWidth + pad * 2,
+                    debugLineHeight + pad * 2};
+                if (labelBg.x < 4) labelBg.x = 4;
+                if (labelBg.x + labelBg.w > screenW - 4) labelBg.x = screenW - labelBg.w - 4;
+                if (labelBg.y < 4) labelBg.y = 4;
+                SDL_SetRenderDrawColor(renderer, 10, 30, 50, 160);
+                countedRenderFillRect(renderer, &labelBg, stats);
+                SDL_Color textColor{210, 240, 255, 255};
+                debugFont.drawText(renderer, label, labelBg.x + pad, labelBg.y + pad, &stats, textColor);
+            }
+        }
+        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
+    }
+
     if (!sim.gates.empty())
     {
         SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
@@ -1587,6 +1629,68 @@ void renderWorld(SDL_Renderer *renderer, const LegacySimulation &sim, const Form
                 countedRenderFillRect(renderer, &labelBg, stats);
                 SDL_Color textColor = gate.destroyed ? SDL_Color{170, 170, 190, 255} : SDL_Color{210, 230, 255, 255};
                 debugFont.drawText(renderer, label, labelBg.x + labelPad, labelBg.y + labelPad, &stats, textColor);
+            }
+        }
+        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
+    }
+
+    if (stageState.enabled && !stageState.enemyBases.empty())
+    {
+        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+        for (const StageEnemyBaseState &base : stageState.enemyBases)
+        {
+            Vec2 screenPos = worldToScreen(base.pos, camera);
+            const float drawRadius = std::max(base.radiusPx, 32.0f);
+            const SDL_Color baseColor = base.sealed ? SDL_Color{90, 90, 90, 130} : SDL_Color{180, 60, 50, 150};
+            SDL_SetRenderDrawColor(renderer, baseColor.r, baseColor.g, baseColor.b, baseColor.a);
+            drawFilledCircle(renderer, screenPos, drawRadius, stats);
+            if (!base.sealed && base.maxHp > 0.0f)
+            {
+                const float ratio = std::clamp(base.hp / base.maxHp, 0.0f, 1.0f);
+                if (ratio > 0.0f)
+                {
+                    const float innerRadius = std::max(4.0f, drawRadius * ratio);
+                    SDL_SetRenderDrawColor(renderer, 230, 110, 90, 180);
+                    drawFilledCircle(renderer, screenPos, innerRadius, stats);
+                }
+            }
+            else if (base.sealed)
+            {
+                SDL_SetRenderDrawColor(renderer, 40, 40, 40, 180);
+                drawFilledCircle(renderer, screenPos, std::max(4.0f, drawRadius * 0.35f), stats);
+            }
+
+            if (debugFont.isLoaded())
+            {
+                std::ostringstream oss;
+                oss << "Base " << (base.id.empty() ? "???": base.id) << ' ';
+                if (base.sealed)
+                {
+                    oss << "(Sealed)";
+                }
+                else if (base.maxHp > 0.0f)
+                {
+                    oss << static_cast<int>(std::round(std::max(base.hp, 0.0f))) << '/' << static_cast<int>(std::round(base.maxHp));
+                }
+                else
+                {
+                    oss << "Active";
+                }
+                const std::string label = oss.str();
+                const int labelWidth = measureWorldText(debugFont, label, debugLineHeight);
+                const int pad = 4;
+                SDL_Rect labelBg{
+                    static_cast<int>(std::round(screenPos.x)) - labelWidth / 2 - pad,
+                    static_cast<int>(std::round(screenPos.y - drawRadius)) - (debugLineHeight + pad * 2) - 6,
+                    labelWidth + pad * 2,
+                    debugLineHeight + pad * 2};
+                if (labelBg.x < 4) labelBg.x = 4;
+                if (labelBg.x + labelBg.w > screenW - 4) labelBg.x = screenW - labelBg.w - 4;
+                if (labelBg.y < 4) labelBg.y = 4;
+                SDL_SetRenderDrawColor(renderer, 28, 12, 12, 160);
+                countedRenderFillRect(renderer, &labelBg, stats);
+                SDL_Color textColor = base.sealed ? SDL_Color{200, 200, 200, 255} : SDL_Color{255, 210, 210, 255};
+                debugFont.drawText(renderer, label, labelBg.x + pad, labelBg.y + pad, &stats, textColor);
             }
         }
         SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);

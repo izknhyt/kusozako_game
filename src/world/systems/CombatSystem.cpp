@@ -136,6 +136,10 @@ void CombatSystem::update(float dt, SystemContext &context)
     auto &walls = context.wallSegments;
     auto &gates = context.gates;
 
+    StageRuntimeState &stageState = sim.stageState();
+    const bool stageEnabled = stageState.enabled;
+    const bool stageHasAllyBases = stageEnabled && !stageState.allyBases.empty();
+    const bool stageHasEnemyBases = stageEnabled && !stageState.enemyBases.empty();
     auto insideAllyAura = [&](const Vec2 &pos) -> bool {
         if (!sim.stage.enabled)
         {
@@ -154,6 +158,38 @@ void CombatSystem::update(float dt, SystemContext &context)
             }
         }
         return false;
+    };
+    auto nearestActiveAllyBase = [&](const Vec2 &pos, Vec2 &outPos) -> bool {
+        if (!stageHasAllyBases)
+        {
+            return false;
+        }
+        bool found = false;
+        float bestDist = std::numeric_limits<float>::max();
+        for (const StageAllyBaseState &base : stageState.allyBases)
+        {
+            if (base.destroyed)
+            {
+                continue;
+            }
+            const float dist = lengthSq(base.pos - pos);
+            if (!found || dist < bestDist)
+            {
+                bestDist = dist;
+                outPos = base.pos;
+                found = true;
+            }
+        }
+        return found;
+    };
+
+    auto enemyBaseRadius = [&](const StageEnemyBaseState &base) -> float {
+        if (base.radiusPx > 0.0f)
+        {
+            return base.radiusPx;
+        }
+        const float baseRadiusUnits = std::max(sim.config.base_aabb.x, sim.config.base_aabb.y) * 0.5f;
+        return std::max(baseRadiusUnits, 48.0f);
     };
 
     const float defenseMultiplier =
@@ -210,6 +246,18 @@ void CombatSystem::update(float dt, SystemContext &context)
         }
         return best;
     };
+    auto focusedUnit = [&](const EnemyUnit &enemy) -> const Unit * {
+        if (enemy.focusUnitIndex < 0 || enemy.focusUnitIndex >= static_cast<int>(yunas.size()))
+        {
+            return nullptr;
+        }
+        const Unit &candidate = yunas[static_cast<std::size_t>(enemy.focusUnitIndex)];
+        if (candidate.hp <= 0.0f)
+        {
+            return nullptr;
+        }
+        return &candidate;
+    };
 
     auto panicRadiusForType = [&](EnemyArchetype type) -> float {
         switch (type)
@@ -227,6 +275,18 @@ void CombatSystem::update(float dt, SystemContext &context)
         if (taunted)
         {
             enemy.tauntTimer = std::max(0.0f, enemy.tauntTimer - dt);
+        }
+        else if (enemy.focusTimer > 0.0f)
+        {
+            enemy.focusTimer = std::max(0.0f, enemy.focusTimer - dt);
+            if (enemy.focusTimer <= 0.0f)
+            {
+                enemy.focusUnitIndex = -1;
+            }
+        }
+        else
+        {
+            enemy.focusUnitIndex = -1;
         }
         Vec2 target = taunted ? enemy.tauntTarget : sim.basePos;
         if (!taunted && enemy.type == EnemyArchetype::Wallbreaker)
@@ -261,6 +321,34 @@ void CombatSystem::update(float dt, SystemContext &context)
             switch (enemy.type)
             {
             case EnemyArchetype::Goblin:
+            {
+                const float chaseRadius = panicRadiusForType(enemy.type);
+                const Unit *panic = pickPanicTarget(enemy.pos, chaseRadius);
+                if (!panic)
+                {
+                    panic = focusedUnit(enemy);
+                }
+                if (panic)
+                {
+                    target = panic->pos;
+                    if (!yunas.empty())
+                    {
+                        const Unit *begin = yunas.data();
+                        const Unit *end = begin + yunas.size();
+                        if (panic >= begin && panic < end)
+                        {
+                            enemy.focusUnitIndex = static_cast<int>(panic - begin);
+                            enemy.focusTimer = std::max(enemy.focusTimer, 1.5f);
+                        }
+                    }
+                }
+                else if (const Unit *nearest = pickNearestUnit(enemy.pos))
+                {
+                    target = nearest->pos;
+                    enemy.focusUnitIndex = -1;
+                }
+                break;
+            }
             case EnemyArchetype::Magician:
             {
                 const float chaseRadius = panicRadiusForType(enemy.type);
@@ -271,6 +359,14 @@ void CombatSystem::update(float dt, SystemContext &context)
                 else if (const Unit *nearest = pickNearestUnit(enemy.pos))
                 {
                     target = nearest->pos;
+                }
+                else
+                {
+                    Vec2 basePos;
+                    if (nearestActiveAllyBase(enemy.pos, basePos))
+                    {
+                        target = basePos;
+                    }
                 }
                 break;
             }
@@ -287,8 +383,16 @@ void CombatSystem::update(float dt, SystemContext &context)
                 break;
             }
             case EnemyArchetype::Toritori:
-                target = sim.basePos;
+            {
+                Vec2 basePos = sim.basePos;
+                Vec2 preferred;
+                if (nearestActiveAllyBase(enemy.pos, preferred))
+                {
+                    basePos = preferred;
+                }
+                target = basePos;
                 break;
+            }
             default:
             {
                 if (enemy.type != EnemyArchetype::Wallbreaker)
@@ -303,13 +407,49 @@ void CombatSystem::update(float dt, SystemContext &context)
             }
         }
 
-        Vec2 dir = normalize(target - enemy.pos);
+        Vec2 delta = target - enemy.pos;
+        float targetDistance = length(delta);
+        Vec2 dir{0.0f, 0.0f};
+        if (targetDistance > 0.0001f)
+        {
+            dir = delta / targetDistance;
+        }
+        if (!taunted && enemy.type == EnemyArchetype::Magician)
+        {
+            const float attackRange = std::max(enemy.attackRangePx, enemy.radius);
+            const float keepNear = attackRange * 0.65f;
+            const float keepFar = attackRange * 0.95f;
+            if (targetDistance < keepNear && targetDistance > 0.0001f)
+            {
+                Vec2 away = enemy.pos - target;
+                const float len = length(away);
+                dir = len > 0.0001f ? away / len : Vec2{0.0f, 0.0f};
+            }
+            else if (targetDistance > attackRange && targetDistance > 0.0001f)
+            {
+                dir = delta / targetDistance;
+            }
+            else if (targetDistance > keepFar && targetDistance > 0.0001f)
+            {
+                dir = delta / targetDistance;
+            }
+            else if (targetDistance <= keepFar && targetDistance >= keepNear)
+            {
+                dir = {0.0f, 0.0f};
+            }
+        }
         float speedPx = enemy.speedPx;
         if (speedPx <= 0.0f)
         {
             const float speedUnits = enemy.type == EnemyArchetype::Wallbreaker ? sim.wallbreakerStats.speed_u_s
                                                                                : sim.slimeStats.speed_u_s;
             speedPx = speedUnits * sim.config.pixels_per_unit;
+        }
+        if (enemy.type == EnemyArchetype::Bat)
+        {
+            const float rushThreshold = 96.0f;
+            const float dashMul = targetDistance > rushThreshold ? 1.45f : 1.15f;
+            speedPx *= dashMul;
         }
         enemy.pos += dir * (speedPx * dt);
     }
@@ -485,6 +625,21 @@ void CombatSystem::update(float dt, SystemContext &context)
                 }
             }
         }
+        if (stageHasEnemyBases)
+        {
+            for (StageEnemyBaseState &base : stageState.enemyBases)
+            {
+                if (base.sealed)
+                {
+                    continue;
+                }
+                const float combined = commander.radius + enemyBaseRadius(base);
+                if (lengthSq(commander.pos - base.pos) <= combined * combined)
+                {
+                    sim.damageEnemyBase(base, sim.commanderStats.dps * dt);
+                }
+            }
+        }
     }
 
     for (std::size_t i = 0; i < yunas.size(); ++i)
@@ -492,6 +647,11 @@ void CombatSystem::update(float dt, SystemContext &context)
         Unit &yuna = yunas[i];
         const bool panicState = yuna.forcePanic || yuna.temperament.panicTimer > 0.0f;
         const bool panicActive = panicState && !yuna.panicTokkouActive;
+        const bool insideAura = insideAllyAura(yuna.pos);
+        const float auraAttackMul =
+            insideAura ? sim.chibiPersonalityConfig.auraAttackMultiplier : 1.0f;
+        const float auraDamageMul =
+            insideAura ? sim.chibiPersonalityConfig.auraDamageMultiplier : 1.0f;
         if (yuna.job.job == UnitJob::Shield)
         {
             triggerShieldTaunt(yuna, sim, enemies);
@@ -515,7 +675,9 @@ void CombatSystem::update(float dt, SystemContext &context)
                     {
                         intervalMul *= std::max(0.01f, sim.chibiPersonalityConfig.tokkou.cooldownMultiplier);
                     }
-                    float attackDps = (sim.yunaStats.dps * std::max(0.01f, yuna.moraleAccuracyMultiplier)) / intervalMul;
+                    float attackDps =
+                        (sim.yunaStats.dps * std::max(0.01f, yuna.moraleAccuracyMultiplier)) / intervalMul;
+                    attackDps *= auraAttackMul;
                     float burstDamage = 0.0f;
                     if (yuna.job.job == UnitJob::Warrior)
                     {
@@ -543,18 +705,21 @@ void CombatSystem::update(float dt, SystemContext &context)
                 }
                 float incoming = enemy.dpsUnit * dt * formationDamageScale;
                 incoming /= std::max(0.01f, yuna.moraleDefenseMultiplier);
+                float incomingMul = 1.0f;
                 if (yuna.panicTokkouActive)
                 {
-                    incoming *= sim.chibiPersonalityConfig.tokkou.takenMultiplier;
+                    incomingMul *= sim.chibiPersonalityConfig.tokkou.takenMultiplier;
                 }
-                else if (yuna.panicKaitenActive && insideAllyAura(yuna.pos))
+                else if (yuna.panicKaitenActive && insideAura)
                 {
-                    incoming *= sim.chibiPersonalityConfig.kaiten.damageMultiplier;
+                    incomingMul *= sim.chibiPersonalityConfig.kaiten.damageMultiplier;
                 }
                 else if (yuna.panicRunActive)
                 {
-                    incoming *= sim.chibiPersonalityConfig.runAround.damageMultiplier;
+                    incomingMul *= sim.chibiPersonalityConfig.runAround.damageMultiplier;
                 }
+                incomingMul *= auraDamageMul;
+                incoming *= incomingMul;
                 yunaDamage[i] += incoming;
             }
         }
@@ -576,6 +741,7 @@ void CombatSystem::update(float dt, SystemContext &context)
                     }
                     float attackDps =
                         (sim.yunaStats.dps * std::max(0.01f, yuna.moraleAccuracyMultiplier)) / intervalMul;
+                    attackDps *= auraAttackMul;
                     if (yuna.panicTokkouActive)
                     {
                         attackDps *= sim.chibiPersonalityConfig.tokkou.attackMultiplier;
@@ -585,6 +751,35 @@ void CombatSystem::update(float dt, SystemContext &context)
                     {
                         sim.destroyGate(gate);
                     }
+                }
+            }
+        }
+        if (stageHasEnemyBases && !panicActive && !yuna.panicClingActive)
+        {
+            for (StageEnemyBaseState &base : stageState.enemyBases)
+            {
+                if (base.sealed)
+                {
+                    continue;
+                }
+                const float combined = yuna.radius + enemyBaseRadius(base);
+                if (lengthSq(yuna.pos - base.pos) <= combined * combined)
+                {
+                    float intervalMul = std::max(0.01f, yuna.moraleAttackIntervalMultiplier);
+                    if (yuna.panicTokkouActive)
+                    {
+                        intervalMul *=
+                            std::max(0.01f, sim.chibiPersonalityConfig.tokkou.cooldownMultiplier);
+                    }
+                    float attackDps =
+                        (sim.yunaStats.dps * std::max(0.01f, yuna.moraleAccuracyMultiplier)) /
+                        intervalMul;
+                    attackDps *= auraAttackMul;
+                    if (yuna.panicTokkouActive)
+                    {
+                        attackDps *= sim.chibiPersonalityConfig.tokkou.attackMultiplier;
+                    }
+                    sim.damageEnemyBase(base, attackDps * dt);
                 }
             }
         }
@@ -614,6 +809,11 @@ void CombatSystem::update(float dt, SystemContext &context)
                 sim.enqueueYunaRespawn(0.0f);
                 continue;
             }
+            if (sim.chibiPersonalityConfig.auraRegenPerSecond > 0.0f && insideAllyAura(yuna.pos))
+            {
+                yuna.hp = std::min(yuna.maxHp,
+                                   yuna.hp + sim.chibiPersonalityConfig.auraRegenPerSecond * dt);
+            }
             if (yunaDamage[i] > 0.0f)
             {
                 const float hpBefore = yuna.hp;
@@ -636,13 +836,10 @@ void CombatSystem::update(float dt, SystemContext &context)
         yunas.swap(survivors);
     }
 
-    const bool stageHasAllyBases = sim.stageState().enabled && !sim.stageState().allyBases.empty();
     const float baseRadius = std::max(sim.config.base_aabb.x, sim.config.base_aabb.y) * 0.5f;
-    bool stageHasEnemyBases = sim.stageState().enabled && !sim.stageState().enemyBases.empty();
 
     if (stageHasAllyBases || stageHasEnemyBases)
     {
-        StageRuntimeState &stageState = sim.stageState();
         for (EnemyUnit &enemy : enemies)
         {
             if (enemy.hp <= 0.0f)

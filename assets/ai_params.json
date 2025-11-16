@@ -3,25 +3,25 @@
   "tick_s": 0.5,
   "hysteresis": { "multiplier": 1.2, "duration_s": 0.4 },
   "boids": {
-    "cohesion_radius": 88,
-    "cohesion_k": 0.26,
-    "cohesion_k_low": 0.40,
-    "cohesion_k_high": 0.12,
-    "separation_radius": 22,
-    "separation_k": 0.55,
-    "separation_k_low": 0.48,
-    "separation_k_high": 0.90
+    "cohesion_radius": 84,
+    "cohesion_k": 0.24,
+    "cohesion_k_low": 0.36,
+    "cohesion_k_high": 0.10,
+    "separation_radius": 20,
+    "separation_k": 0.62,
+    "separation_k_low": 0.55,
+    "separation_k_high": 0.95
   },
-  "aoe_avoid": { "radius_px": 140, "strength": 1.35, "falloff": 1.45, "mul_low": 0.82, "mul_high": 1.42 },
-  "order_bias": { "rush": 0.45, "push": 0.42, "follow": 0.85, "defend": 0.75 },
+  "aoe_avoid": { "radius_px": 150, "strength": 1.45, "falloff": 1.5, "mul_low": 0.85, "mul_high": 1.55 },
+  "order_bias": { "rush": 0.45, "push": 0.42, "follow": 0.85, "defend": 0.75, "penalty": 0.35 },
   "follower_bonus": 0.42,
   "actions": {
-    "assault_enemy": { "base": 0.38, "bonus": 0.58, "range_px": 500, "bravery_w": 0.66, "wisdom_w": 0.20 },
-    "assault_base": { "base": 0.35, "bonus": 0.60, "range_px": 540, "bravery_w": 0.45, "wisdom_w": 0.40 },
+    "assault_enemy": { "base": 0.38, "bonus": 0.60, "range_px": 500, "bravery_w": 0.66, "wisdom_w": 0.20 },
+    "assault_base": { "base": 0.35, "bonus": 0.62, "range_px": 540, "bravery_w": 0.45, "wisdom_w": 0.40 },
     "flee": { "base": 0.12, "bonus": 0.55, "range_px": 248, "bravery_w": -0.90, "wisdom_w": 0.35 },
-    "follow_commander": { "base": 0.18, "bonus": 0.42, "range_px": 340, "bravery_w": -0.20, "wisdom_w": 0.55 },
-    "follow_ally": { "base": 0.26, "bonus": 0.42, "range_px": 260, "bravery_w": -0.05, "wisdom_w": 0.40 },
-    "defend_base": { "base": 0.40, "bonus": 0.80, "range_px": 340, "bravery_w": -0.10, "wisdom_w": 0.75 },
-    "wander": { "base": 0.08, "bonus": 0.0, "range_px": 0, "bravery_w": 0.0, "wisdom_w": -0.20 }
+    "follow_commander": { "base": 0.18, "bonus": 0.45, "range_px": 320, "bravery_w": -0.20, "wisdom_w": 0.55, "prefer_far": true },
+    "follow_ally": { "base": 0.24, "bonus": 0.38, "range_px": 240, "bravery_w": -0.05, "wisdom_w": 0.40, "prefer_far": true },
+    "defend_base": { "base": 0.40, "bonus": 0.90, "range_px": 320, "bravery_w": -0.10, "wisdom_w": 0.75, "prefer_far": true },
+    "wander": { "base": 0.08, "bonus": 0.05, "range_px": 0, "bravery_w": 0.0, "wisdom_w": -0.20 }
   }
 }

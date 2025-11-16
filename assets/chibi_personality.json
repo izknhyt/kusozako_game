@@ -2,6 +2,7 @@
   "schema_version": 1,
   "panic_thresholds": [0.60, 0.45, 0.35, 0.25, 0.15],
   "panic_min_s": [1.60, 1.40, 1.20, 1.00, 0.80],
+  "aura": { "atk_mul": 1.05, "dmg_mul": 0.90, "regen_per_s": 1.0 },
   "actions": {
     "tokkou": {
       "bravery_min": 1,

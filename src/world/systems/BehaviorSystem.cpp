@@ -215,9 +215,15 @@ float applyScoreModifiers(const LegacySimulation &sim,
                           ChibiAction action,
                           float baseScore)
 {
+    const float hysteresisBonus = sim.chibiAiParams.hysteresisMultiplier;
     if (state.microAction == action && state.microActionStickyTimer > 0.0f)
     {
-        return baseScore * sim.chibiAiParams.hysteresisMultiplier;
+        return baseScore * hysteresisBonus;
+    }
+    if (state.previousMicroAction == action && state.previousMicroActionTimer > 0.0f)
+    {
+        const float carry = 1.0f + (hysteresisBonus - 1.0f) * 0.5f;
+        return baseScore * carry;
     }
     return baseScore;
 }
@@ -346,12 +352,10 @@ void BehaviorSystem::update(float dt, SystemContext &context)
     sim.decayDynamicHazards(dt);
 
     const float decisionInterval = std::max(sim.chibiAiParams.tickSeconds, 0.1f);
-    bool globalDecisionTick = false;
     m_tickAccumulator += dt;
-    while (m_tickAccumulator >= decisionInterval)
+    if (m_tickAccumulator >= decisionInterval)
     {
-        m_tickAccumulator -= decisionInterval;
-        globalDecisionTick = true;
+        m_tickAccumulator = std::fmod(m_tickAccumulator, decisionInterval);
     }
     m_tokkouWarningTimer = std::max(0.0f, m_tokkouWarningTimer - dt);
 
@@ -414,10 +418,18 @@ void BehaviorSystem::update(float dt, SystemContext &context)
     std::vector<int> clingUnitIds;
     std::vector<int> kaitenUnitIds;
     std::vector<int> runUnitIds;
+    struct PanicRecord
+    {
+        int index = -1;
+        const char *state = "";
+        float timer = 0.0f;
+    };
+    std::vector<PanicRecord> panicRecords;
     tokkouUnitIds.reserve(allyCount);
     clingUnitIds.reserve(allyCount);
     kaitenUnitIds.reserve(allyCount);
     runUnitIds.reserve(allyCount);
+    panicRecords.reserve(allyCount);
     const ChibiTokkouConfig &tokkouCfg = sim.chibiPersonalityConfig.tokkou;
     const ChibiClingConfig &clingCfg = sim.chibiPersonalityConfig.cling;
     const ChibiRunAroundConfig &runCfg = sim.chibiPersonalityConfig.runAround;
@@ -459,6 +471,8 @@ void BehaviorSystem::update(float dt, SystemContext &context)
             hazards.push_back({hazard.pos, hazard.radius, hazard.weight});
         }
     }
+    sim.actionTelemetry.hazardCountAccum += static_cast<float>(hazards.size());
+    ++sim.actionTelemetry.hazardSamples;
 
     auto releaseTokkou = [&](Unit &unit) {
         if (unit.panicTokkouActive)
@@ -470,6 +484,10 @@ void BehaviorSystem::update(float dt, SystemContext &context)
                 --activeTokkou;
             }
         }
+        if (unit.temperament.panicMode == PanicMode::Tokkou)
+        {
+            unit.temperament.panicMode = PanicMode::None;
+        }
     };
     auto releaseCling = [](Unit &unit) {
         if (unit.panicClingActive)
@@ -477,10 +495,22 @@ void BehaviorSystem::update(float dt, SystemContext &context)
             unit.panicClingActive = false;
             unit.panicClingAuraTimer = 0.0f;
         }
+        if (unit.temperament.panicMode == PanicMode::Cling)
+        {
+            unit.temperament.panicMode = PanicMode::None;
+        }
     };
 
     std::array<int, kChibiActionCount> actionFrameCounts{};
     int panicFrameCount = 0;
+
+    auto recordPanic = [&](int index, const char *state, float timer) {
+        PanicRecord rec;
+        rec.index = index;
+        rec.state = state;
+        rec.timer = timer;
+        panicRecords.push_back(rec);
+    };
 
     auto releaseKaiten = [](Unit &unit) {
         if (unit.panicKaitenActive)
@@ -489,6 +519,10 @@ void BehaviorSystem::update(float dt, SystemContext &context)
             unit.panicKaitenTimer = 0.0f;
             unit.panicKaitenGuardTimer = 0.0f;
             unit.panicKaitenGuardDirection = {1.0f, 0.0f};
+        }
+        if (unit.temperament.panicMode == PanicMode::Kaiten)
+        {
+            unit.temperament.panicMode = PanicMode::None;
         }
     };
 
@@ -502,6 +536,10 @@ void BehaviorSystem::update(float dt, SystemContext &context)
             unit.panicRunAuraTimer = 0.0f;
             unit.panicRunDirection = {};
             unit.panicRunJitterDirection = {};
+        }
+        if (unit.temperament.panicMode == PanicMode::RunAround)
+        {
+            unit.temperament.panicMode = PanicMode::None;
         }
     };
 
@@ -614,6 +652,32 @@ void BehaviorSystem::update(float dt, SystemContext &context)
         const float panicMinDuration = sim.panicMinimumDurationFor(yuna);
         const float denom = std::max(yuna.maxHp, 0.0001f);
         const float hpRatio = denom > 0.0f ? std::max(0.0f, yuna.hp / denom) : 0.0f;
+        const bool commanderAlive = commander.alive;
+        const bool isCoward = yuna.braveryAxis <= -2 && yuna.wisdomAxis <= -2;
+        const float fleeThreshold = sim.panicThresholdFor(yuna);
+        const float recoverTarget =
+            std::clamp(std::max(sim.chibiPersonalityConfig.kaiten.hpSafe, fleeThreshold + runCfg.exitHpBonus),
+                       0.0f,
+                       0.98f);
+        bool hpRetreatActive = yuna.hpRetreatActive;
+        const float retreatTrigger = std::clamp(fleeThreshold - 0.05f, 0.05f, 0.95f);
+        if (!hpRetreatActive && hpRatio <= retreatTrigger)
+        {
+            yuna.hpRetreatActive = true;
+            hpRetreatActive = true;
+        }
+        if (hpRetreatActive)
+        {
+            const bool recovered = hpRatio >= recoverTarget && isWithinAllyAura(yuna.pos);
+            if (recovered)
+            {
+                yuna.hpRetreatActive = false;
+                hpRetreatActive = false;
+            }
+        }
+        const bool needsBaseRecovery = hpRetreatActive;
+        const float shelterGap = needsBaseRecovery ? std::max(0.0f, recoverTarget - hpRatio) : 0.0f;
+        const float shelterUrgency = needsBaseRecovery ? std::clamp(shelterGap * 3.0f, 0.0f, 2.5f) : 0.0f;
 
         if (yuna.forcePanic)
         {
@@ -859,23 +923,33 @@ void BehaviorSystem::update(float dt, SystemContext &context)
         if (yuna.panicTokkouActive)
         {
             tokkouUnitIds.push_back(static_cast<int>(i));
+            recordPanic(static_cast<int>(i), "Tokkou", yuna.panicTokkouTimer);
         }
         if (yuna.panicClingActive)
         {
             clingUnitIds.push_back(static_cast<int>(i));
+            recordPanic(static_cast<int>(i), "Cling", yuna.temperament.panicTimer);
         }
         if (yuna.panicKaitenActive)
         {
             kaitenUnitIds.push_back(static_cast<int>(i));
+            recordPanic(static_cast<int>(i), "Kaiten", yuna.panicKaitenTimer);
         }
         if (yuna.panicRunActive)
         {
             runUnitIds.push_back(static_cast<int>(i));
+            recordPanic(static_cast<int>(i), "Run", yuna.panicRunDashTimer + yuna.panicRunJitterTimer);
         }
 
         const bool panicFlee =
             rawPanic && !yuna.panicTokkouActive && !yuna.panicClingActive && !yuna.panicKaitenActive &&
             !yuna.panicRunActive;
+        if (panicFlee)
+        {
+            recordPanic(static_cast<int>(i), "Panic", yuna.temperament.panicTimer);
+        }
+        const bool panicForceFlee = panicFlee && (!commanderAlive || isCoward);
+        const bool panicShelter = panicFlee && !panicForceFlee;
 
         if (temperamentState.wanderTimer > 0.0f)
         {
@@ -889,6 +963,13 @@ void BehaviorSystem::update(float dt, SystemContext &context)
 
         temperamentState.microActionDecisionTimer =
             std::max(0.0f, temperamentState.microActionDecisionTimer - dt);
+        temperamentState.previousMicroActionTimer =
+            std::max(0.0f, temperamentState.previousMicroActionTimer - dt);
+        if (temperamentState.microActionStickyTimer > 0.0f)
+        {
+            temperamentState.microActionStickyTimer =
+                std::max(0.0f, temperamentState.microActionStickyTimer - dt);
+        }
 
         const float wisdomNorm = normalizedAxisValue(yuna.wisdomAxis);
         const float cohesionStrength =
@@ -934,9 +1015,38 @@ void BehaviorSystem::update(float dt, SystemContext &context)
             const ChibiAiActionConfig &config = actionConfig(sim, action);
             float score = config.baseScore;
             const bool bypassRange = action == ChibiAction::AssaultEnemy || action == ChibiAction::AssaultBase;
-            const bool inRange = bypassRange || config.rangePixels <= 0.0f || distance < 0.0f ||
-                                 distance <= config.rangePixels;
-            if (inRange)
+            const bool distanceValid = distance >= 0.0f && distance < std::numeric_limits<float>::infinity();
+            if (bypassRange)
+            {
+                score += config.bonusScore;
+            }
+            else if (config.rangePixels > 0.0f && distanceValid)
+            {
+                if (config.preferFarRange)
+                {
+                    if (distance >= config.rangePixels)
+                    {
+                        const float distFactor = std::clamp(distance / config.rangePixels, 1.0f, 2.0f);
+                        score += config.bonusScore * distFactor;
+                    }
+                    else
+                    {
+                        score -= config.bonusScore * 0.5f;
+                    }
+                }
+                else
+                {
+                    if (distance <= config.rangePixels)
+                    {
+                        score += config.bonusScore;
+                    }
+                    else
+                    {
+                        score -= config.bonusScore * 0.2f;
+                    }
+                }
+            }
+            else if (config.rangePixels <= 0.0f)
             {
                 score += config.bonusScore;
             }
@@ -945,37 +1055,77 @@ void BehaviorSystem::update(float dt, SystemContext &context)
             if (formationFollower && action == ChibiAction::FollowCommander)
             {
                 const float followerScale = axisLerp(0.35f, 1.0f, wisdomNorm);
-                score += sim.chibiAiParams.followerBonus * followerScale;
+                float distanceScale = 1.0f;
+                if (config.rangePixels > 0.0f && distanceValid)
+                {
+                    distanceScale = config.preferFarRange ? std::clamp(distance / config.rangePixels, 0.25f, 2.0f)
+                                                          : std::clamp(1.0f - (distance / config.rangePixels), 0.2f, 1.5f);
+                }
+                score += sim.chibiAiParams.followerBonus * followerScale * distanceScale;
+            }
+            else if (!formationFollower && action == ChibiAction::FollowCommander)
+            {
+                score -= sim.chibiAiParams.followerBonus * 0.25f;
             }
             if (!yuna.moraleIgnoringOrders && context.orderActive)
             {
+                bool matchesOrder = false;
+                bool relevant = false;
                 switch (sim.stance)
                 {
                 case ArmyStance::RushNearest:
                     if (action == ChibiAction::AssaultEnemy)
                     {
                         score += sim.chibiAiParams.orderRushBonus;
+                        matchesOrder = true;
                     }
+                    relevant = true;
                     break;
                 case ArmyStance::PushForward:
                     if (action == ChibiAction::AssaultBase)
                     {
                         score += sim.chibiAiParams.orderPushBonus;
+                        matchesOrder = true;
                     }
+                    relevant = true;
                     break;
                 case ArmyStance::FollowLeader:
                     if (action == ChibiAction::FollowCommander)
                     {
                         score += sim.chibiAiParams.orderFollowBonus;
+                        matchesOrder = true;
                     }
+                    relevant = true;
                     break;
                 case ArmyStance::DefendBase:
                     if (action == ChibiAction::DefendBase)
                     {
                         score += sim.chibiAiParams.orderDefendBonus;
+                        matchesOrder = true;
                     }
+                    relevant = true;
                     break;
                 }
+                if (relevant && !matchesOrder)
+                {
+                    score -= sim.chibiAiParams.orderPenalty;
+                }
+            }
+            if (needsBaseRecovery)
+            {
+                if (action == ChibiAction::DefendBase)
+                {
+                    score += config.bonusScore * (1.0f + shelterUrgency * 1.5f);
+                }
+                else if (action == ChibiAction::AssaultEnemy || action == ChibiAction::AssaultBase)
+                {
+                    score -= config.bonusScore * (0.5f + shelterUrgency);
+                }
+            }
+            if (action == ChibiAction::Flee && commanderAlive && !isCoward)
+            {
+                const float penalty = 1.0f + shelterUrgency;
+                score -= (config.baseScore + config.bonusScore) * (1.0f + penalty);
             }
             score = applyScoreModifiers(sim, temperamentState, action, score);
             return score;
@@ -1008,7 +1158,7 @@ void BehaviorSystem::update(float dt, SystemContext &context)
             }
             else
             {
-                consider(ChibiAction::AssaultEnemy, {0.0f, 0.0f}, std::numeric_limits<float>::max());
+                consider(ChibiAction::AssaultEnemy, {0.0f, 0.0f}, -1.0f);
             }
 
             if (enemyBase)
@@ -1030,8 +1180,7 @@ void BehaviorSystem::update(float dt, SystemContext &context)
             }
             else
             {
-                consider(ChibiAction::Flee, normalizedDirection(pos, sim.basePos - pos),
-                         std::numeric_limits<float>::max());
+                consider(ChibiAction::Flee, normalizedDirection(pos, sim.basePos - pos), -1.0f);
             }
 
             if (commander.alive)
@@ -1041,8 +1190,7 @@ void BehaviorSystem::update(float dt, SystemContext &context)
             }
             else
             {
-                consider(ChibiAction::FollowCommander, normalizedDirection(pos, sim.basePos),
-                         std::numeric_limits<float>::max());
+                consider(ChibiAction::FollowCommander, normalizedDirection(pos, sim.basePos), -1.0f);
             }
 
             if (ally)
@@ -1058,39 +1206,35 @@ void BehaviorSystem::update(float dt, SystemContext &context)
             }
             else
             {
-                consider(ChibiAction::DefendBase, normalizedDirection(pos, sim.basePos),
-                         std::numeric_limits<float>::max());
+                consider(ChibiAction::DefendBase, normalizedDirection(pos, sim.basePos), -1.0f);
             }
 
-            consider(ChibiAction::Wander, normalize(temperamentState.wanderDirection),
-                     std::numeric_limits<float>::max());
+            consider(ChibiAction::Wander, normalize(temperamentState.wanderDirection), -1.0f);
 
             return bestAction;
         };
 
-        ChibiAction desiredAction = temperamentState.microAction;
-        if (panicFlee)
+        if (!temperamentState.roleAssigned)
+        {
+            const ChibiAction nextAction = pickAction(yuna.pos);
+            temperamentState.previousMicroAction = temperamentState.microAction;
+            temperamentState.previousMicroActionTimer = sim.chibiAiParams.hysteresisDuration;
+            temperamentState.microAction = nextAction;
+            temperamentState.baseRole = nextAction;
+            temperamentState.microActionDecisionTimer = decisionInterval;
+            temperamentState.microActionStickyTimer = sim.chibiAiParams.hysteresisDuration;
+            temperamentState.roleAssigned = true;
+        }
+        temperamentState.microAction = temperamentState.baseRole;
+
+        ChibiAction desiredAction = temperamentState.baseRole;
+        if (panicForceFlee)
         {
             desiredAction = ChibiAction::Flee;
         }
-        else
+        else if (panicShelter || needsBaseRecovery)
         {
-            const bool shouldDecide =
-                globalDecisionTick || temperamentState.microActionDecisionTimer <= 0.0f;
-            if (shouldDecide)
-            {
-                const ChibiAction nextAction = pickAction(yuna.pos);
-                temperamentState.previousMicroAction = temperamentState.microAction;
-                temperamentState.microAction = nextAction;
-                temperamentState.microActionDecisionTimer = decisionInterval;
-                temperamentState.microActionStickyTimer = sim.chibiAiParams.hysteresisDuration;
-                desiredAction = nextAction;
-            }
-            else if (temperamentState.microActionStickyTimer > 0.0f)
-            {
-                temperamentState.microActionStickyTimer =
-                    std::max(0.0f, temperamentState.microActionStickyTimer - dt);
-            }
+            desiredAction = ChibiAction::DefendBase;
         }
 
         auto makeVelocity = [&](const Vec2 &dir) -> Vec2 {
@@ -1126,7 +1270,7 @@ void BehaviorSystem::update(float dt, SystemContext &context)
             }
             velocity = makeVelocity(normalize(retreatDir));
         }
-        else if (panicFlee)
+        else if (panicForceFlee)
         {
             EnemyUnit *threat = nearestEnemyLimited(yuna.pos);
             Vec2 dir{0.0f, 0.0f};
@@ -1139,6 +1283,15 @@ void BehaviorSystem::update(float dt, SystemContext &context)
                 dir = normalizedDirection(yuna.pos, sim.basePos);
             }
             velocity = makeVelocity(dir);
+        }
+        else if (panicShelter)
+        {
+            Vec2 defendSpot = sim.basePos;
+            if (auto info = nearestAllyBaseInfo(yuna.pos))
+            {
+                defendSpot = info->first;
+            }
+            velocity = makeVelocity(normalizedDirection(yuna.pos, defendSpot));
         }
         else if (yuna.panicTokkouActive)
         {
@@ -1345,13 +1498,76 @@ void BehaviorSystem::update(float dt, SystemContext &context)
             }
             case ChibiAction::DefendBase:
             {
-                if (auto base = nearestAllyBase(sim, yuna.pos))
+                Vec2 defendSpot = sim.basePos;
+                float auraRadius = 128.0f;
+                if (auto info = nearestAllyBaseInfo(yuna.pos))
                 {
-                    velocity = makeVelocity(normalizedDirection(yuna.pos, *base));
+                    defendSpot = info->first;
+                    auraRadius = info->second;
+                }
+                EnemyUnit *intruder = nullptr;
+                const float auraSq = auraRadius * auraRadius;
+                float closest = std::numeric_limits<float>::max();
+                for (EnemyUnit &enemy : enemies)
+                {
+                    if (enemy.hp <= 0.0f)
+                    {
+                        continue;
+                    }
+                    const float distSq = lengthSq(enemy.pos - defendSpot);
+                    if (distSq <= auraSq && distSq < closest)
+                    {
+                        closest = distSq;
+                        intruder = &enemy;
+                    }
+                }
+                if (intruder)
+                {
+                    Vec2 target = intruder->pos;
+                    Vec2 fromCenter = target - defendSpot;
+                    const float dist = length(fromCenter);
+                    const float clampRadius = std::max(auraRadius - 8.0f, auraRadius * 0.8f);
+                    if (dist > clampRadius && dist > 0.0001f)
+                    {
+                        target = defendSpot + normalize(fromCenter) * clampRadius;
+                    }
+                    velocity = makeVelocity(normalizedDirection(yuna.pos, target));
                 }
                 else
                 {
-                    velocity = makeVelocity(normalizedDirection(yuna.pos, sim.basePos));
+                    Vec2 threatDir{0.0f, 0.0f};
+                    if (EnemyUnit *threat = nearestEnemy(defendSpot, enemies))
+                    {
+                        threatDir = normalizedDirection(defendSpot, threat->pos);
+                    }
+                    if (lengthSq(threatDir) <= 0.0f)
+                    {
+                        threatDir = normalizedDirection(defendSpot, sim.basePos);
+                    }
+                    if (lengthSq(threatDir) <= 0.0f)
+                    {
+                        threatDir = {-1.0f, 0.0f};
+                    }
+                    Vec2 rearDir = {-threatDir.x, -threatDir.y};
+                    constexpr float kRingMin = 70.0f;
+                    constexpr float kRingMax = 110.0f;
+                    float ringRadius = auraRadius > 0.0f ? std::max(auraRadius - 24.0f, kRingMin) : kRingMin;
+                    ringRadius = std::clamp(ringRadius, kRingMin, kRingMax);
+                    Vec2 guardPos = defendSpot + rearDir * ringRadius;
+                    Vec2 toGuard = guardPos - yuna.pos;
+                    if (lengthSq(toGuard) > 36.0f)
+                    {
+                        velocity = makeVelocity(normalize(toGuard));
+                    }
+                    else
+                    {
+                        Vec2 tangent{-rearDir.y, rearDir.x};
+                        if (lengthSq(tangent) <= 0.0f)
+                        {
+                            tangent = {0.0f, 1.0f};
+                        }
+                        velocity = makeVelocity(normalize(tangent));
+                    }
                 }
                 break;
             }
@@ -1373,6 +1589,10 @@ void BehaviorSystem::update(float dt, SystemContext &context)
         {
             Vec2 dir = normalizedDirection({0.0f, 0.0f}, aoeAdjustment);
             velocity += dir * effectiveSpeed;
+            const float aoeMag = std::sqrt(lengthSq(aoeAdjustment));
+            sim.actionTelemetry.aoeAvoidUnitTime += dt;
+            sim.actionTelemetry.aoeAvoidMagnitudeAccum += aoeMag;
+            ++sim.actionTelemetry.aoeAvoidMagnitudeSamples;
         }
 
         if (velocity.x != 0.0f || velocity.y != 0.0f)
@@ -1456,9 +1676,25 @@ void BehaviorSystem::update(float dt, SystemContext &context)
             const float clingRatio = sim.actionTelemetry.clingUnitTime / denom;
             const float kaitenRatio = sim.actionTelemetry.kaitenUnitTime / denom;
             const float runRatio = sim.actionTelemetry.runUnitTime / denom;
+            const float aoeRatio = sim.actionTelemetry.aoeAvoidUnitTime / denom;
+            float aoeMag = 0.0f;
+            if (sim.actionTelemetry.aoeAvoidMagnitudeSamples > 0)
+            {
+                aoeMag = sim.actionTelemetry.aoeAvoidMagnitudeAccum /
+                         static_cast<float>(sim.actionTelemetry.aoeAvoidMagnitudeSamples);
+            }
+            float hazardAvg = 0.0f;
+            if (sim.actionTelemetry.hazardSamples > 0)
+            {
+                hazardAvg = sim.actionTelemetry.hazardCountAccum /
+                            static_cast<float>(sim.actionTelemetry.hazardSamples);
+            }
             payload["ai.actions.cling_ratio"] = formatRatio(clingRatio);
             payload["ai.actions.kaiten_ratio"] = formatRatio(kaitenRatio);
             payload["ai.actions.run_ratio"] = formatRatio(runRatio);
+            payload["ai.aoe.avoid_ratio"] = formatRatio(aoeRatio);
+            payload["ai.aoe.avoid_mag"] = formatRatio(aoeMag);
+            payload["ai.hazard.active_avg"] = formatRatio(hazardAvg);
             if (context.telemetry)
             {
                 context.telemetry->recordEvent("ai.actions", payload);
@@ -1502,6 +1738,10 @@ void BehaviorSystem::update(float dt, SystemContext &context)
             summary += std::to_string(sim.actionTelemetry.tokkouActive);
             summary += "/";
             summary += std::to_string(sim.actionTelemetry.tokkouPeak);
+            summary += " AoE:";
+            summary += formatRatio(aoeRatio * 100.0f);
+            summary += "% Hazards:";
+            summary += formatRatio(hazardAvg);
             sim.pushTelemetry(summary);
             auto joinUnitList = [](const std::vector<int> &indices) -> std::string {
                 if (indices.empty())
@@ -1520,14 +1760,36 @@ void BehaviorSystem::update(float dt, SystemContext &context)
                 }
                 return joined;
             };
+            auto joinPanicList = [](const std::vector<PanicRecord> &records) -> std::string {
+                if (records.empty())
+                {
+                    return {};
+                }
+                std::string joined;
+                joined.reserve(records.size() * 8);
+                for (std::size_t idx = 0; idx < records.size(); ++idx)
+                {
+                    if (idx > 0)
+                    {
+                        joined.push_back(',');
+                    }
+                    joined += std::to_string(records[idx].index);
+                    joined.push_back(':');
+                    joined += records[idx].state ? records[idx].state : "";
+                    joined.push_back(':');
+                    joined += formatRatio(records[idx].timer);
+                }
+                return joined;
+            };
             const std::string tokkouList = joinUnitList(tokkouUnitIds);
             const std::string clingList = joinUnitList(clingUnitIds);
             const std::string kaitenList = joinUnitList(kaitenUnitIds);
             const std::string runList = joinUnitList(runUnitIds);
+            const std::string panicList = joinPanicList(panicRecords);
             sim.appendAiTelemetryCsv(
                 ratioValues, panicRatio, denom, avgRadius, exceedRatio, sim.actionTelemetry.tokkouActive,
-                sim.actionTelemetry.tokkouPeak, clingRatio, kaitenRatio, runRatio, tokkouList, clingList, kaitenList,
-                runList);
+                sim.actionTelemetry.tokkouPeak, clingRatio, kaitenRatio, runRatio, hazardAvg, aoeRatio, aoeMag,
+                tokkouList, clingList, kaitenList, runList, panicList);
             sim.hud.aiDebug.available = true;
             sim.hud.aiDebug.panicRatio = panicRatio;
             sim.hud.aiDebug.avgRadius = avgRadius;
@@ -1535,6 +1797,9 @@ void BehaviorSystem::update(float dt, SystemContext &context)
             sim.hud.aiDebug.clingRatio = clingRatio;
             sim.hud.aiDebug.kaitenRatio = kaitenRatio;
             sim.hud.aiDebug.runRatio = runRatio;
+            sim.hud.aiDebug.hazardAverage = hazardAvg;
+            sim.hud.aiDebug.aoeRatio = aoeRatio;
+            sim.hud.aiDebug.aoeMagnitude = aoeMag;
             for (std::size_t i = 0; i < sim.hud.aiDebug.actionRatios.size() && i < ratioValues.size(); ++i)
             {
                 sim.hud.aiDebug.actionRatios[i] = ratioValues[i];
@@ -1549,6 +1814,20 @@ void BehaviorSystem::update(float dt, SystemContext &context)
             {
                 sim.hud.aiDebug.history.erase(sim.hud.aiDebug.history.begin());
             }
+            std::sort(panicRecords.begin(), panicRecords.end(), [](const PanicRecord &lhs, const PanicRecord &rhs) {
+                return lhs.timer > rhs.timer;
+            });
+            const std::size_t maxPanic = 6;
+            sim.hud.aiDebug.panicEntries.clear();
+            sim.hud.aiDebug.panicEntries.reserve(std::min(maxPanic, panicRecords.size()));
+            for (std::size_t idx = 0; idx < panicRecords.size() && idx < maxPanic; ++idx)
+            {
+                HUDState::AiDebugInfo::PanicEntry entry;
+                entry.unitIndex = panicRecords[idx].index;
+                entry.state = panicRecords[idx].state ? panicRecords[idx].state : "";
+                entry.timer = panicRecords[idx].timer;
+                sim.hud.aiDebug.panicEntries.push_back(std::move(entry));
+            }
         }
         sim.actionTelemetry.unitTime.fill(0.0f);
         sim.actionTelemetry.panicUnitTime = 0.0f;
@@ -1561,6 +1840,11 @@ void BehaviorSystem::update(float dt, SystemContext &context)
         sim.actionTelemetry.clingUnitTime = 0.0f;
         sim.actionTelemetry.kaitenUnitTime = 0.0f;
         sim.actionTelemetry.runUnitTime = 0.0f;
+        sim.actionTelemetry.hazardCountAccum = 0.0f;
+        sim.actionTelemetry.hazardSamples = 0;
+        sim.actionTelemetry.aoeAvoidUnitTime = 0.0f;
+        sim.actionTelemetry.aoeAvoidMagnitudeAccum = 0.0f;
+        sim.actionTelemetry.aoeAvoidMagnitudeSamples = 0;
     }
 }
 

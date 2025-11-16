@@ -100,6 +100,13 @@ struct HUDState
 
     struct AiDebugInfo
     {
+        struct PanicEntry
+        {
+            int unitIndex = -1;
+            std::string state;
+            float timer = 0.0f;
+        };
+
         bool available = false;
         float panicRatio = 0.0f;
         float avgRadius = 0.0f;
@@ -107,9 +114,13 @@ struct HUDState
         float clingRatio = 0.0f;
         float kaitenRatio = 0.0f;
         float runRatio = 0.0f;
+        float hazardAverage = 0.0f;
+        float aoeRatio = 0.0f;
+        float aoeMagnitude = 0.0f;
         std::array<float, kHudActionCount> actionRatios{};
         std::vector<std::string> history;
         std::deque<std::array<float, kHudActionCount>> ratioHistory;
+        std::vector<PanicEntry> panicEntries;
     } aiDebug;
 };
 

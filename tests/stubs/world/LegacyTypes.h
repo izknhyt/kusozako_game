@@ -116,9 +116,19 @@ struct HUDState
         float clingRatio = 0.0f;
         float kaitenRatio = 0.0f;
         float runRatio = 0.0f;
+        float hazardAverage = 0.0f;
+        float aoeRatio = 0.0f;
+        float aoeMagnitude = 0.0f;
         std::array<float, 7> actionRatios{};
         std::vector<std::string> history;
         std::deque<std::array<float, 7>> ratioHistory;
+        struct PanicEntry
+        {
+            int unitIndex = -1;
+            std::string state;
+            float timer = 0.0f;
+        };
+        std::vector<PanicEntry> panicEntries;
     } aiDebug;
 };
 

@@ -51,6 +51,7 @@ struct StageEnemyBaseConfig
     std::string id;
     Vec2 position{};
     float hp = 300.0f;
+    float radiusPx = 64.0f;
     float ratePerSecond = 0.10f;
     float rateMax = 0.18f;
     std::unordered_map<std::string, float> weights;

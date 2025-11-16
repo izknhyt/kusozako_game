@@ -1,12 +1,12 @@
-config_schema 1 0.555144
-world_state_step_order 1 0.446833
-systems_behavior 1 0.479061
-job_ability_system 1 0.463589
-event_bus 1 0.375973
-spawner 1 0.352345
-performance_budget_monitor 1 0.340789
-asset_manager_memory_warning 1 0.371641
-ui_presenter 1 0.37213
-ui_view 1 0.363171
-camp_state 1 0.362956
+config_schema 10 0.00207976
+world_state_step_order 10 0.0481951
+systems_behavior 10 0.0402089
+job_ability_system 10 0.0367431
+event_bus 10 0.000344187
+spawner 10 0.000335321
+performance_budget_monitor 10 0.000197163
+asset_manager_memory_warning 10 0.00141345
+ui_presenter 10 0.000193733
+ui_view 10 0.00135098
+camp_state 10 0.0327301
 ---

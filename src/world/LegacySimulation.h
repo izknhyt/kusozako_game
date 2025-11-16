@@ -89,6 +89,16 @@ inline const char *chibiActionKey(ChibiAction action)
     }
 }
 
+enum class PanicMode
+{
+    None,
+    Flee,
+    Tokkou,
+    Cling,
+    Kaiten,
+    RunAround
+};
+
 struct TemperamentState
 {
     const TemperamentDefinition *definition = nullptr;
@@ -113,6 +123,10 @@ struct TemperamentState
     ChibiAction previousMicroAction = ChibiAction::Wander;
     float microActionDecisionTimer = 0.0f;
     float microActionStickyTimer = 0.0f;
+    float previousMicroActionTimer = 0.0f;
+    ChibiAction baseRole = ChibiAction::Wander;
+    bool roleAssigned = false;
+    PanicMode panicMode = PanicMode::None;
 };
 
 struct WarriorJobRuntime
@@ -198,6 +212,7 @@ struct Unit
     float panicRunAuraTimer = 0.0f;
     Vec2 panicRunDirection{0.0f, 0.0f};
     Vec2 panicRunJitterDirection{0.0f, 0.0f};
+    bool hpRetreatActive = false;
     JobRuntimeState job{};
 };
 
@@ -225,6 +240,8 @@ struct EnemyUnit
     bool noOverlap = false;
     Vec2 tauntTarget{0.0f, 0.0f};
     float tauntTimer = 0.0f;
+    int focusUnitIndex = -1;
+    float focusTimer = 0.0f;
 };
 
 struct WallSegment
@@ -268,6 +285,7 @@ struct StageEnemyBaseState
     Vec2 pos;
     float hp = 0.0f;
     float maxHp = 0.0f;
+    float radiusPx = 0.0f;
     float ratePerSecond = 0.0f;
     float rateMax = 0.0f;
     std::unordered_map<std::string, float> weights;
@@ -521,6 +539,11 @@ struct LegacySimulation
         float clingUnitTime = 0.0f;
         float kaitenUnitTime = 0.0f;
         float runUnitTime = 0.0f;
+        float hazardCountAccum = 0.0f;
+        int hazardSamples = 0;
+        float aoeAvoidUnitTime = 0.0f;
+        float aoeAvoidMagnitudeAccum = 0.0f;
+        int aoeAvoidMagnitudeSamples = 0;
     } actionTelemetry;
 
     struct SurvivalRuntime
@@ -678,6 +701,7 @@ struct LegacySimulation
             base.pos = tileToWorld(baseCfg.position, tileSize);
             base.maxHp = baseCfg.hp;
             base.hp = baseCfg.hp;
+            base.radiusPx = baseCfg.radiusPx;
             base.ratePerSecond = baseCfg.ratePerSecond;
             base.rateMax = baseCfg.rateMax;
             base.weights = baseCfg.weights;
@@ -699,6 +723,7 @@ struct LegacySimulation
             stage.hazards.push_back(hazard);
         }
         stage.dragonDefeated = false;
+        missionVictoryCountdown = -1.0f;
     }
 
     void addDynamicHazard(const Vec2 &pos, float radius, float weight, float duration)
@@ -1004,9 +1029,12 @@ struct LegacySimulation
         {
             return false;
         }
-        if (stage.victory.requireAllEnemyBases && !allEnemyBasesSealed())
+        if (stage.victory.requireAllEnemyBases)
         {
-            return false;
+            if (stage.enemyBases.empty() || !allEnemyBasesSealed())
+            {
+                return false;
+            }
         }
         if (stage.victory.requireDragon && !stage.dragonDefeated)
         {
@@ -2073,7 +2101,10 @@ struct LegacySimulation
             boss.active = false;
             if (missionVictoryCountdown < 0.0f)
             {
-                missionVictoryCountdown = std::max(config.victory_grace, 5.0f);
+                if (!stage.enabled || !stage.victory.requireAllEnemyBases)
+                {
+                    missionVictoryCountdown = std::max(config.victory_grace, 5.0f);
+                }
                 pushTelemetry("Boss defeated!");
             }
             return;
@@ -2506,10 +2537,14 @@ struct LegacySimulation
         float clingRatio,
         float kaitenRatio,
         float runRatio,
+        float hazardAvg,
+        float aoeRatio,
+        float aoeMagnitude,
         const std::string &tokkouUnits,
         const std::string &clingUnits,
         const std::string &kaitenUnits,
-        const std::string &runUnits);
+        const std::string &runUnits,
+        const std::string &panicUnits);
 
     void pushStageBanner(const std::string &text, float duration = 0.0f)
     {
@@ -2647,6 +2682,8 @@ struct LegacySimulation
             default: applyEntityStats(slimeStats); break;
             }
         }
+        enemy.focusUnitIndex = -1;
+        enemy.focusTimer = 0.0f;
         enemies.push_back(enemy);
         timeSinceLastEnemySpawn = 0.0f;
     }

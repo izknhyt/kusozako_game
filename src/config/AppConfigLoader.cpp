@@ -1228,6 +1228,13 @@ std::optional<ChibiPersonalityConfig> parseChibiPersonalityConfig(ParseContext &
         }
     }
 
+    if (const json::JsonValue *aura = json::getObjectField(root, "aura"))
+    {
+        config.auraAttackMultiplier = json::getNumber(*aura, "atk_mul", config.auraAttackMultiplier);
+        config.auraDamageMultiplier = json::getNumber(*aura, "dmg_mul", config.auraDamageMultiplier);
+        config.auraRegenPerSecond = json::getNumber(*aura, "regen_per_s", config.auraRegenPerSecond);
+    }
+
     return config;
 }
 
@@ -1282,6 +1289,7 @@ std::optional<ChibiAiParams> parseChibiAiParams(ParseContext &ctx, const std::st
         params.orderPushBonus = json::getNumber(*order, "push", params.orderPushBonus);
         params.orderFollowBonus = json::getNumber(*order, "follow", params.orderFollowBonus);
         params.orderDefendBonus = json::getNumber(*order, "defend", params.orderDefendBonus);
+        params.orderPenalty = json::getNumber(*order, "penalty", params.orderPenalty);
     }
     params.followerBonus = json::getNumber(root, "follower_bonus", params.followerBonus);
     if (const json::JsonValue *actions = json::getObjectField(root, "actions"))
@@ -1301,6 +1309,7 @@ std::optional<ChibiAiParams> parseChibiAiParams(ParseContext &ctx, const std::st
                 action.rangePixels = json::getNumber(entry, "range_px", action.rangePixels);
                 action.braveryWeight = json::getNumber(entry, "bravery_w", action.braveryWeight);
                 action.wisdomWeight = json::getNumber(entry, "wisdom_w", action.wisdomWeight);
+                action.preferFarRange = json::getBool(entry, "prefer_far", action.preferFarRange);
                 params.actions[kv.first] = action;
             }
         }
@@ -1579,6 +1588,7 @@ std::optional<StageConfig> parseStageConfig(ParseContext &ctx, const std::string
                 StageEnemyBaseConfig base;
                 base.id = json::getString(entry, "id", base.id);
                 base.hp = json::getNumber(entry, "hp", base.hp);
+                base.radiusPx = json::getNumber(entry, "radius_px", base.radiusPx);
                 base.ratePerSecond = json::getNumber(entry, "rate_per_s", base.ratePerSecond);
                 base.rateMax = json::getNumber(entry, "rate_max", base.rateMax);
                 if (const json::JsonValue *posValue = json::getObjectField(entry, "pos"))
