@@ -102,6 +102,22 @@ void MoraleSystem::update(float dt, SystemContext &context)
         }
         requestSync = true;
     }
+    if (tickTimer(hud.stageBanner.timer))
+    {
+        if (hud.stageBanner.timer <= 0.0f)
+        {
+            hud.stageBanner.text.clear();
+        }
+        requestSync = true;
+    }
+    if (tickTimer(hud.tip.timer))
+    {
+        if (hud.tip.timer <= 0.0f)
+        {
+            hud.tip.text.clear();
+        }
+        requestSync = true;
+    }
 
     if (context.orderActive)
     {
@@ -126,7 +142,11 @@ void MoraleSystem::update(float dt, SystemContext &context)
         return;
     }
 
-    if (sim.missionMode == MissionMode::None)
+    if (sim.stageState().enabled)
+    {
+        sim.maybeDeclareStageVictory();
+    }
+    else if (sim.missionMode == MissionMode::None)
     {
         const bool wavesFinished = context.waveScriptComplete && context.spawnerIdle;
         const bool noEnemies = sim.enemies.empty();
@@ -383,6 +403,8 @@ void MoraleSystem::update(float dt, SystemContext &context)
         commanderState = MoraleState::Shielded;
     }
 
+    sim.checkCommanderLossCondition();
+
     if (commanderState != MoraleState::Stable)
     {
         moraleEvent.icons.push_back(MoraleHudIcon{true, 0u, commanderState});
@@ -559,7 +581,9 @@ void MoraleSystem::update(float dt, SystemContext &context)
             }
             else
             {
-                MoraleState target = unit.effectiveFollower ? MoraleState::Panic : MoraleState::Mesomeso;
+                bool follower =
+                    unit.followBySkill || unit.followByStance;
+                MoraleState target = follower ? MoraleState::Panic : MoraleState::Mesomeso;
                 if (unit.moraleState != target)
                 {
                     if (setState(unit, target, -1.0f, false))
@@ -598,7 +622,9 @@ void MoraleSystem::update(float dt, SystemContext &context)
                 if (!commanderAlive)
                 {
                     {
-                        MoraleState target = unit.effectiveFollower ? MoraleState::Panic : MoraleState::Mesomeso;
+                        bool follower =
+                            unit.followBySkill || unit.followByStance;
+                        MoraleState target = follower ? MoraleState::Panic : MoraleState::Mesomeso;
                         if (setState(unit, target, -1.0f, false))
                         {
                             moraleChanged = true;
@@ -638,7 +664,9 @@ void MoraleSystem::update(float dt, SystemContext &context)
                     }
                     else
                     {
-                        MoraleState target = unit.effectiveFollower ? MoraleState::Panic : MoraleState::Mesomeso;
+                        bool follower =
+                            unit.followBySkill || unit.followByStance;
+                        MoraleState target = follower ? MoraleState::Panic : MoraleState::Mesomeso;
                         if (setState(unit, target, -1.0f, false))
                         {
                             moraleChanged = true;

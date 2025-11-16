@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "panic_thresholds": [0.60, 0.45, 0.35, 0.25, 0.15],
+  "panic_min_s": [1.60, 1.40, 1.20, 1.00, 0.80],
+  "actions": {
+    "tokkou": {
+      "bravery_min": 1,
+      "bravery_max": 2,
+      "wisdom_min": -2,
+      "wisdom_max": 0,
+      "duration_s": 2.5,
+      "buffs": { "atk_mul": 1.15, "speed_mul": 1.10, "cd_mul": 0.90 },
+      "risk": { "taken_mul": 1.30 },
+      "max_simul": 3
+    },
+    "cling": {
+      "bravery_max": -1,
+      "wisdom_min": 0,
+      "rear_deg": 150,
+      "radius_px": [36, 56],
+      "exit_hp_add": 0.20,
+      "exit_in_base_aura_s": 2.0
+    },
+    "kaiten": {
+      "wisdom_min": 1,
+      "hp_ok": 0.85,
+      "min_stay_s": 4.0,
+      "guard_bias_s": 2.0,
+      "exit_hp_add": 0.25,
+      "damage_mul": 0.80
+    },
+    "runaround": {
+      "wisdom_max": -1,
+      "dash_s": 0.8,
+      "jitter_s": 0.2,
+      "repath_s": 0.5,
+      "exit_hp_add": 0.20,
+      "exit_in_base_aura_s": 2.0,
+      "damage_mul": 0.90
+    }
+  }
+}

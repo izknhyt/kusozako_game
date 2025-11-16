@@ -9,6 +9,22 @@ EnemyArchetype enemyTypeFromString(const std::string &typeId)
     {
         return EnemyArchetype::Wallbreaker;
     }
+    if (typeId == "goblin")
+    {
+        return EnemyArchetype::Goblin;
+    }
+    if (typeId == "magician")
+    {
+        return EnemyArchetype::Magician;
+    }
+    if (typeId == "bat")
+    {
+        return EnemyArchetype::Bat;
+    }
+    if (typeId == "toritori" || typeId == "tori_tori")
+    {
+        return EnemyArchetype::Toritori;
+    }
     if (typeId == "boss")
     {
         return EnemyArchetype::Boss;
@@ -84,4 +100,3 @@ std::vector<SkillDef> buildDefaultSkills()
 
     return defs;
 }
-

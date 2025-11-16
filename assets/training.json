@@ -1,0 +1,67 @@
+{
+  "schema_version": 2,
+  "entries": [
+    {
+      "id": "yuna_level",
+      "label": "ユウナレベル",
+      "repeatable": {
+        "delta": 1,
+        "max_level": 9999,
+        "base_cost": 10,
+        "cost_growth": 1.6
+      }
+    },
+    {
+      "id": "elite_rate",
+      "label": "称号グレード率",
+      "steps": [
+        {
+          "delta": 0.02,
+          "cost": 25
+        },
+        {
+          "delta": 0.02,
+          "cost": 35
+        },
+        {
+          "delta": 0.03,
+          "cost": 55
+        }
+      ]
+    },
+    {
+      "id": "mean_level",
+      "label": "ちび平均レベル",
+      "steps": [
+        {
+          "delta": 25,
+          "cost": 50
+        },
+        {
+          "delta": 75,
+          "cost": 150
+        },
+        {
+          "delta": 150,
+          "cost": 300
+        },
+        {
+          "delta": 300,
+          "cost": 600
+        },
+        {
+          "delta": 500,
+          "cost": 900
+        },
+        {
+          "delta": 800,
+          "cost": 1350
+        },
+        {
+          "delta": 1200,
+          "cost": 2000
+        }
+      ]
+    }
+  ]
+}

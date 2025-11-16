@@ -34,6 +34,7 @@ add_executable(kusozako
   src/events/EventBus.cpp
   src/input/ActionBuffer.cpp
   src/input/InputMapper.cpp
+  src/game/CampShop.cpp
   src/config/AppConfig.cpp
   src/config/AppConfigLoader.cpp
   src/services/ServiceLocator.cpp
@@ -42,6 +43,7 @@ add_executable(kusozako
   src/telemetry/TelemetrySink.cpp
   src/telemetry/ConsoleTelemetrySink.cpp
   src/telemetry/PerformanceBudgetMonitor.cpp
+  src/game/CampShop.cpp
   src/world/LegacySimulation.cpp
   src/world/spawn/Spawner.cpp
   src/world/spawn/WaveController.cpp
@@ -79,6 +81,7 @@ set(WORLD_STATE_CORE_SOURCES
   src/events/EventBus.cpp
   src/input/ActionBuffer.cpp
   src/input/InputMapper.cpp
+  src/game/CampShop.cpp
   src/services/ServiceLocator.cpp
   src/scenes/SceneStack.cpp
   src/telemetry/FileTelemetrySink.cpp
@@ -251,3 +254,15 @@ target_include_directories(ui_view_test PRIVATE
 target_link_libraries(ui_view_test PRIVATE SDL2::SDL2 SDL2_image::SDL2_image SDL2_ttf::SDL2_ttf)
 
 add_test(NAME ui_view COMMAND ui_view_test)
+
+add_executable(camp_state_test
+  tests/CampStateTest.cpp
+  src/game/CampShop.cpp
+)
+
+target_include_directories(camp_state_test PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}/src
+  ${CMAKE_CURRENT_SOURCE_DIR}/tests
+)
+
+add_test(NAME camp_state COMMAND camp_state_test)

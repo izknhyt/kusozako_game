@@ -23,6 +23,12 @@ constexpr int kMoraleSchemaVersion = 3;
 constexpr int kJobsSchemaVersion = 1;
 constexpr int kFormationsSchemaVersion = 1;
 constexpr int kSpawnWeightsSchemaVersion = 1;
+constexpr int kStageConfigSchemaVersion = 1;
+constexpr int kEconomySchemaVersion = 1;
+constexpr int kCampUpgradesSchemaVersion = 1;
+constexpr int kTrainingSchemaVersion = 2;
+constexpr int kStrategiesSchemaVersion = 1;
+constexpr int kMetaShopSchemaVersion = 1;
 
 struct ParseContext
 {
@@ -181,6 +187,21 @@ std::optional<ParsedJobs> parseJobsConfig(ParseContext &ctx, const std::string &
     }
 
     return jobs;
+}
+
+std::optional<Vec2> parseVec2Array(const json::JsonValue *value)
+{
+    if (!value || value->type != json::JsonValue::Type::Array || value->array.size() < 2)
+    {
+        return std::nullopt;
+    }
+    const json::JsonValue &x = value->array[0];
+    const json::JsonValue &y = value->array[1];
+    if (x.type != json::JsonValue::Type::Number || y.type != json::JsonValue::Type::Number)
+    {
+        return std::nullopt;
+    }
+    return Vec2{static_cast<float>(x.number), static_cast<float>(y.number)};
 }
 
 bool applyJobSpawnWeights(const json::JsonValue &weights, JobSpawnConfig &config)
@@ -716,6 +737,10 @@ std::optional<EntityCatalog> parseEntityCatalog(ParseContext &ctx, const std::st
     catalog.commander.spritePrefix = "commander";
     catalog.yuna.spritePrefix = "yuna_front";
     catalog.slime.spritePrefix = "slime_walk";
+    catalog.goblin.spritePrefix = "slime_walk";
+    catalog.magician.spritePrefix = "slime_walk";
+    catalog.bat.spritePrefix = "slime_walk";
+    catalog.toritori.spritePrefix = "slime_walk";
     catalog.wallbreaker.spritePrefix = "elite_wallbreaker";
 
     const json::JsonValue &root = *jsonDoc.get();
@@ -745,11 +770,41 @@ std::optional<EntityCatalog> parseEntityCatalog(ParseContext &ctx, const std::st
     catalog.yuna.dps = json::getNumber(*yuna, "dps", catalog.yuna.dps);
     catalog.yuna.spritePrefix = json::getString(*yuna, "sprite_prefix", catalog.yuna.spritePrefix);
 
-    catalog.slime.radius = json::getNumber(*slime, "r_px", catalog.slime.radius);
-    catalog.slime.speed_u_s = json::getNumber(*slime, "speed_u_s", catalog.slime.speed_u_s);
-    catalog.slime.hp = json::getNumber(*slime, "hp", catalog.slime.hp);
-    catalog.slime.dps = json::getNumber(*slime, "dps", catalog.slime.dps);
-    catalog.slime.spritePrefix = json::getString(*slime, "sprite_prefix", catalog.slime.spritePrefix);
+    auto parseEnemyStats = [](EntityStats &dst, const json::JsonValue &node) {
+        dst.radius = json::getNumber(node, "r_px", dst.radius);
+        dst.speed_u_s = json::getNumber(node, "speed_u_s", dst.speed_u_s);
+        dst.hp = json::getNumber(node, "hp", dst.hp);
+        dst.dps = json::getNumber(node, "dps", dst.dps);
+        dst.attackRangePx = json::getNumber(node, "attack_range_px", dst.attackRangePx);
+        dst.spritePrefix = json::getString(node, "sprite_prefix", dst.spritePrefix);
+        if (dst.attackRangePx <= 0.0f)
+        {
+            dst.attackRangePx = dst.radius;
+        }
+    };
+
+    parseEnemyStats(catalog.slime, *slime);
+    catalog.goblin = catalog.slime;
+    catalog.magician = catalog.slime;
+    catalog.bat = catalog.slime;
+    catalog.toritori = catalog.slime;
+
+    if (const json::JsonValue *goblin = json::getObjectField(root, "goblin"))
+    {
+        parseEnemyStats(catalog.goblin, *goblin);
+    }
+    if (const json::JsonValue *magician = json::getObjectField(root, "magician"))
+    {
+        parseEnemyStats(catalog.magician, *magician);
+    }
+    if (const json::JsonValue *bat = json::getObjectField(root, "bat"))
+    {
+        parseEnemyStats(catalog.bat, *bat);
+    }
+    if (const json::JsonValue *toritori = json::getObjectField(root, "toritori"))
+    {
+        parseEnemyStats(catalog.toritori, *toritori);
+    }
 
     if (const json::JsonValue *elite = json::getObjectField(root, "elite_wallbreaker"))
     {
@@ -1064,6 +1119,196 @@ std::optional<TemperamentConfig> parseTemperamentConfig(ParseContext &ctx, const
     return config;
 }
 
+std::optional<ChibiPersonalityConfig> parseChibiPersonalityConfig(ParseContext &ctx, const std::string &path)
+{
+    if (path.empty())
+    {
+        return std::nullopt;
+    }
+
+    auto doc = ctx.assets.acquireJson(path);
+    const auto status = doc.status();
+    if (!doc.get())
+    {
+        ctx.errors->push_back({path, status.message.empty() ? "Failed to load chibi personality config" : status.message});
+        return std::nullopt;
+    }
+    if (!status.ok && !status.message.empty())
+    {
+        ctx.errors->push_back({path, status.message});
+    }
+
+    ChibiPersonalityConfig config;
+    const json::JsonValue &root = *doc.get();
+    config.panicThresholds = json::getNumberArray(root, "panic_thresholds");
+    config.panicMinimumSeconds = json::getNumberArray(root, "panic_min_s");
+
+    if (config.panicThresholds.empty())
+    {
+        config.panicThresholds = {0.60f, 0.45f, 0.35f, 0.25f, 0.15f};
+    }
+    if (config.panicMinimumSeconds.empty())
+    {
+        config.panicMinimumSeconds = {1.6f, 1.4f, 1.2f, 1.0f, 0.8f};
+    }
+
+    if (const json::JsonValue *actions = json::getObjectField(root, "actions"))
+    {
+        if (const json::JsonValue *tokkou = json::getObjectField(*actions, "tokkou"))
+        {
+            config.tokkou.duration = json::getNumber(*tokkou, "duration_s", config.tokkou.duration);
+            config.tokkou.braveryMin = json::getInt(*tokkou, "bravery_min", config.tokkou.braveryMin);
+            config.tokkou.braveryMax = json::getInt(*tokkou, "bravery_max", config.tokkou.braveryMax);
+            config.tokkou.wisdomMin = json::getInt(*tokkou, "wisdom_min", config.tokkou.wisdomMin);
+            config.tokkou.wisdomMax = json::getInt(*tokkou, "wisdom_max", config.tokkou.wisdomMax);
+            if (const json::JsonValue *buffs = json::getObjectField(*tokkou, "buffs"))
+            {
+                config.tokkou.attackMultiplier = json::getNumber(*buffs, "atk_mul", config.tokkou.attackMultiplier);
+                config.tokkou.speedMultiplier = json::getNumber(*buffs, "speed_mul", config.tokkou.speedMultiplier);
+                config.tokkou.cooldownMultiplier = json::getNumber(*buffs, "cd_mul", config.tokkou.cooldownMultiplier);
+            }
+            if (const json::JsonValue *risk = json::getObjectField(*tokkou, "risk"))
+            {
+                config.tokkou.takenMultiplier = json::getNumber(*risk, "taken_mul", config.tokkou.takenMultiplier);
+            }
+            config.tokkou.maxSimultaneous = json::getInt(*tokkou, "max_simul", config.tokkou.maxSimultaneous);
+        }
+        if (const json::JsonValue *cling = json::getObjectField(*actions, "cling"))
+        {
+            config.cling.braveryMax = json::getInt(*cling, "bravery_max", config.cling.braveryMax);
+            config.cling.wisdomMin = json::getInt(*cling, "wisdom_min", config.cling.wisdomMin);
+            config.cling.rearDegrees = json::getNumber(*cling, "rear_deg", config.cling.rearDegrees);
+            if (const json::JsonValue *radius = json::getObjectField(*cling, "radius_px"))
+            {
+                if (radius->type == json::JsonValue::Type::Array && radius->array.size() >= 2)
+                {
+                    config.cling.radiusMin = static_cast<float>(radius->array[0].number);
+                    config.cling.radiusMax = static_cast<float>(radius->array[1].number);
+                }
+            }
+            else
+            {
+                auto arr = json::getNumberArray(*cling, "radius_px");
+                if (arr.size() >= 2)
+                {
+                    config.cling.radiusMin = arr[0];
+                    config.cling.radiusMax = arr[1];
+                }
+            }
+            config.cling.exitHpBonus = json::getNumber(*cling, "exit_hp_add", config.cling.exitHpBonus);
+            config.cling.exitAuraSeconds = json::getNumber(*cling, "exit_in_base_aura_s", config.cling.exitAuraSeconds);
+        }
+        if (const json::JsonValue *kaiten = json::getObjectField(*actions, "kaiten"))
+        {
+            config.kaiten.wisdomMin = json::getInt(*kaiten, "wisdom_min", config.kaiten.wisdomMin);
+            config.kaiten.hpSafe = json::getNumber(*kaiten, "hp_ok", config.kaiten.hpSafe);
+            config.kaiten.minStaySeconds =
+                json::getNumber(*kaiten, "min_stay_s", config.kaiten.minStaySeconds);
+            config.kaiten.guardBiasSeconds =
+                json::getNumber(*kaiten, "guard_bias_s", config.kaiten.guardBiasSeconds);
+            config.kaiten.exitHpBonus = json::getNumber(*kaiten, "exit_hp_add", config.kaiten.exitHpBonus);
+            config.kaiten.damageMultiplier =
+                json::getNumber(*kaiten, "damage_mul", config.kaiten.damageMultiplier);
+        }
+        if (const json::JsonValue *runaround = json::getObjectField(*actions, "runaround"))
+        {
+            config.runAround.wisdomMax = json::getInt(*runaround, "wisdom_max", config.runAround.wisdomMax);
+            config.runAround.dashSeconds =
+                json::getNumber(*runaround, "dash_s", config.runAround.dashSeconds);
+            config.runAround.jitterSeconds =
+                json::getNumber(*runaround, "jitter_s", config.runAround.jitterSeconds);
+            config.runAround.repathSeconds =
+                json::getNumber(*runaround, "repath_s", config.runAround.repathSeconds);
+            config.runAround.exitHpBonus =
+                json::getNumber(*runaround, "exit_hp_add", config.runAround.exitHpBonus);
+            config.runAround.exitAuraSeconds =
+                json::getNumber(*runaround, "exit_in_base_aura_s", config.runAround.exitAuraSeconds);
+            config.runAround.damageMultiplier =
+                json::getNumber(*runaround, "damage_mul", config.runAround.damageMultiplier);
+        }
+    }
+
+    return config;
+}
+
+std::optional<ChibiAiParams> parseChibiAiParams(ParseContext &ctx, const std::string &path)
+{
+    if (path.empty())
+    {
+        return std::nullopt;
+    }
+    auto doc = ctx.assets.acquireJson(path);
+    const auto status = doc.status();
+    if (!doc.get())
+    {
+        ctx.errors->push_back({path, status.message.empty() ? "Failed to load chibi AI params" : status.message});
+        return std::nullopt;
+    }
+    if (!status.ok && !status.message.empty())
+    {
+        ctx.errors->push_back({path, status.message});
+    }
+
+    ChibiAiParams params;
+    const json::JsonValue &root = *doc.get();
+    params.tickSeconds = json::getNumber(root, "tick_s", params.tickSeconds);
+    if (const json::JsonValue *hyst = json::getObjectField(root, "hysteresis"))
+    {
+        params.hysteresisMultiplier = json::getNumber(*hyst, "multiplier", params.hysteresisMultiplier);
+        params.hysteresisDuration = json::getNumber(*hyst, "duration_s", params.hysteresisDuration);
+    }
+    if (const json::JsonValue *boids = json::getObjectField(root, "boids"))
+    {
+        params.cohesionRadius = json::getNumber(*boids, "cohesion_radius", params.cohesionRadius);
+        params.cohesionStrength = json::getNumber(*boids, "cohesion_k", params.cohesionStrength);
+        params.cohesionStrengthLow = json::getNumber(*boids, "cohesion_k_low", params.cohesionStrength);
+        params.cohesionStrengthHigh = json::getNumber(*boids, "cohesion_k_high", params.cohesionStrength);
+        params.separationRadius = json::getNumber(*boids, "separation_radius", params.separationRadius);
+        params.separationStrength = json::getNumber(*boids, "separation_k", params.separationStrength);
+        params.separationStrengthLow = json::getNumber(*boids, "separation_k_low", params.separationStrength);
+        params.separationStrengthHigh = json::getNumber(*boids, "separation_k_high", params.separationStrength);
+    }
+    if (const json::JsonValue *aoe = json::getObjectField(root, "aoe_avoid"))
+    {
+        params.aoeAvoidRadius = json::getNumber(*aoe, "radius_px", params.aoeAvoidRadius);
+        params.aoeAvoidStrength = json::getNumber(*aoe, "strength", params.aoeAvoidStrength);
+        params.aoeAvoidFalloff = json::getNumber(*aoe, "falloff", params.aoeAvoidFalloff);
+        params.aoeAvoidMultiplierLow = json::getNumber(*aoe, "mul_low", params.aoeAvoidMultiplierLow);
+        params.aoeAvoidMultiplierHigh = json::getNumber(*aoe, "mul_high", params.aoeAvoidMultiplierHigh);
+    }
+    if (const json::JsonValue *order = json::getObjectField(root, "order_bias"))
+    {
+        params.orderRushBonus = json::getNumber(*order, "rush", params.orderRushBonus);
+        params.orderPushBonus = json::getNumber(*order, "push", params.orderPushBonus);
+        params.orderFollowBonus = json::getNumber(*order, "follow", params.orderFollowBonus);
+        params.orderDefendBonus = json::getNumber(*order, "defend", params.orderDefendBonus);
+    }
+    params.followerBonus = json::getNumber(root, "follower_bonus", params.followerBonus);
+    if (const json::JsonValue *actions = json::getObjectField(root, "actions"))
+    {
+        if (actions->type == json::JsonValue::Type::Object)
+        {
+            for (const auto &kv : actions->object)
+            {
+                const json::JsonValue &entry = kv.second;
+                if (entry.type != json::JsonValue::Type::Object)
+                {
+                    continue;
+                }
+                ChibiAiActionConfig action;
+                action.baseScore = json::getNumber(entry, "base", action.baseScore);
+                action.bonusScore = json::getNumber(entry, "bonus", action.bonusScore);
+                action.rangePixels = json::getNumber(entry, "range_px", action.rangePixels);
+                action.braveryWeight = json::getNumber(entry, "bravery_w", action.braveryWeight);
+                action.wisdomWeight = json::getNumber(entry, "wisdom_w", action.wisdomWeight);
+                params.actions[kv.first] = action;
+            }
+        }
+    }
+
+    return params;
+}
+
 std::optional<SpawnScript> parseSpawnScript(ParseContext &ctx, const std::string &path)
 {
     AssetManager::AssetLoadStatus status;
@@ -1108,7 +1353,7 @@ std::optional<SpawnScript> parseSpawnScript(ParseContext &ctx, const std::string
                 set.typeId = json::getString(entry, "type", set.typeId);
                 set.type = enemyTypeFromString(set.typeId);
                 script.gate_tiles[set.gate] = {0.0f, 0.0f};
-                script.waves.push_back({0.0f, {set}, json::getString(entry, "telemetry", "")});
+                script.waves.push_back({0.0f, {set}, json::getString(entry, "telemetry", ""), {}, {}});
             }
         }
     }
@@ -1124,7 +1369,15 @@ std::optional<SpawnScript> parseSpawnScript(ParseContext &ctx, const std::string
                     continue;
                 }
                 Wave wave;
-                wave.time = json::getNumber(waveValue, "time_s", wave.time);
+                if (const json::JsonValue *timeField = json::getObjectField(waveValue, "time_s");
+                    timeField && timeField->type == json::JsonValue::Type::Number)
+                {
+                    wave.time = static_cast<float>(timeField->number);
+                }
+                else
+                {
+                    wave.time = json::getNumber(waveValue, "t", wave.time);
+                }
                 wave.telemetry = json::getString(waveValue, "telemetry", wave.telemetry);
                 if (const json::JsonValue *sets = json::getObjectField(waveValue, "sets"))
                 {
@@ -1146,6 +1399,31 @@ std::optional<SpawnScript> parseSpawnScript(ParseContext &ctx, const std::string
                         }
                     }
                 }
+                auto parseHazardList = [](const json::JsonValue *value, std::vector<std::string> &out) {
+                    if (!value)
+                    {
+                        return;
+                    }
+                    auto append = [&out](const json::JsonValue &entry) {
+                        if (entry.type == json::JsonValue::Type::String && !entry.string.empty())
+                        {
+                            out.push_back(entry.string);
+                        }
+                    };
+                    if (value->type == json::JsonValue::Type::Array)
+                    {
+                        for (const auto &entry : value->array)
+                        {
+                            append(entry);
+                        }
+                    }
+                    else
+                    {
+                        append(*value);
+                    }
+                };
+                parseHazardList(json::getObjectField(waveValue, "activate_hazards"), wave.activateHazards);
+                parseHazardList(json::getObjectField(waveValue, "deactivate_hazards"), wave.deactivateHazards);
                 script.waves.push_back(wave);
             }
         }
@@ -1166,6 +1444,523 @@ std::optional<SpawnScript> parseSpawnScript(ParseContext &ctx, const std::string
         }
     }
     return script;
+}
+
+std::optional<StageConfig> parseStageConfig(ParseContext &ctx, const std::string &path)
+{
+    if (path.empty())
+    {
+        return std::nullopt;
+    }
+
+    AssetManager::AssetLoadStatus status;
+    auto jsonDoc = ctx.assets.acquireJson(path);
+    status = jsonDoc.status();
+    if (!jsonDoc.get())
+    {
+        auto &errors = *ctx.errors;
+        if (!status.message.empty())
+        {
+            errors.push_back({path, status.message});
+        }
+        else
+        {
+            errors.push_back({path, "Failed to load stage config"});
+        }
+        return std::nullopt;
+    }
+    if (!status.ok && !status.message.empty())
+    {
+        ctx.errors->push_back({path, status.message});
+    }
+
+    const json::JsonValue &root = *jsonDoc.get();
+    auto resolvedPath = fs::path(ctx.assets.resolvePath(path));
+    if (!validateSchema(root, kStageConfigSchemaVersion, resolvedPath, *ctx.errors))
+    {
+        return std::nullopt;
+    }
+
+    StageConfig config;
+    config.schemaVersion = static_cast<int>(json::getNumber(root, "schema_version", 1.0f));
+
+    if (const json::JsonValue *allyFactory = json::getObjectField(root, "ally_factory"))
+    {
+        config.allyFactory.ratePerSecond =
+            json::getNumber(*allyFactory, "rate_per_s", config.allyFactory.ratePerSecond);
+        config.allyFactory.cap = json::getInt(*allyFactory, "cap", config.allyFactory.cap);
+    }
+
+    if (const json::JsonValue *seal = json::getObjectField(root, "on_base_sealed"))
+    {
+        config.sealBehavior.stopSpawn = json::getBool(*seal, "stop_spawn", config.sealBehavior.stopSpawn);
+        config.sealBehavior.visualOnly = json::getBool(*seal, "visual_only", config.sealBehavior.visualOnly);
+        config.sealBehavior.removeCollision =
+            json::getBool(*seal, "no_collision", config.sealBehavior.removeCollision);
+    }
+
+    if (const json::JsonValue *caps = json::getObjectField(root, "global_caps"))
+    {
+        config.globalCaps.enemies = json::getInt(*caps, "enemies", config.globalCaps.enemies);
+        config.globalCaps.chibi = json::getInt(*caps, "chibi", config.globalCaps.chibi);
+    }
+
+    if (const json::JsonValue *victory = json::getObjectField(root, "victory"))
+    {
+        config.victory.requireDragon =
+            json::getBool(*victory, "require_dragon", config.victory.requireDragon);
+        config.victory.requireAllEnemyBases =
+            json::getBool(*victory, "require_all_bases", config.victory.requireAllEnemyBases);
+    }
+
+    if (const json::JsonValue *speed = json::getObjectField(root, "speed"))
+    {
+        auto steps = json::getNumberArray(*speed, "steps");
+        if (!steps.empty())
+        {
+            config.speed.steps = steps;
+        }
+        config.speed.hpBarFastInterval =
+            json::getNumber(*speed, "hp_bar_fast_interval", config.speed.hpBarFastInterval);
+    }
+
+    if (const json::JsonValue *allyBases = json::getObjectField(root, "ally_bases"))
+    {
+        if (allyBases->type != json::JsonValue::Type::Array)
+        {
+            ctx.errors->push_back({path, "ally_bases must be an array"});
+        }
+        else
+        {
+            for (const auto &entry : allyBases->array)
+            {
+                if (entry.type != json::JsonValue::Type::Object)
+                {
+                    continue;
+                }
+                StageAllyBaseConfig base;
+                base.id = json::getString(entry, "id", base.id);
+                base.hp = json::getNumber(entry, "hp", base.hp);
+                base.auraRadiusPx = json::getNumber(entry, "aura_radius_px", base.auraRadiusPx);
+                if (const json::JsonValue *posValue = json::getObjectField(entry, "pos"))
+                {
+                    if (auto pos = parseVec2Array(posValue))
+                    {
+                        base.position = *pos;
+                    }
+                    else
+                    {
+                        ctx.errors->push_back({path, "ally_bases entry missing valid pos"});
+                    }
+                }
+                else
+                {
+                    ctx.errors->push_back({path, "ally_bases entry missing pos"});
+                }
+                config.allyBases.push_back(base);
+            }
+        }
+    }
+
+    if (const json::JsonValue *enemyBases = json::getObjectField(root, "enemy_bases"))
+    {
+        if (enemyBases->type != json::JsonValue::Type::Array)
+        {
+            ctx.errors->push_back({path, "enemy_bases must be an array"});
+        }
+        else
+        {
+            for (const auto &entry : enemyBases->array)
+            {
+                if (entry.type != json::JsonValue::Type::Object)
+                {
+                    continue;
+                }
+                StageEnemyBaseConfig base;
+                base.id = json::getString(entry, "id", base.id);
+                base.hp = json::getNumber(entry, "hp", base.hp);
+                base.ratePerSecond = json::getNumber(entry, "rate_per_s", base.ratePerSecond);
+                base.rateMax = json::getNumber(entry, "rate_max", base.rateMax);
+                if (const json::JsonValue *posValue = json::getObjectField(entry, "pos"))
+                {
+                    if (auto pos = parseVec2Array(posValue))
+                    {
+                        base.position = *pos;
+                    }
+                    else
+                    {
+                        ctx.errors->push_back({path, "enemy_bases entry missing valid pos"});
+                    }
+                }
+                else
+                {
+                    ctx.errors->push_back({path, "enemy_bases entry missing pos"});
+                }
+                if (const json::JsonValue *weights = json::getObjectField(entry, "weights"))
+                {
+                    if (weights->type == json::JsonValue::Type::Object)
+                    {
+                        for (const auto &kv : weights->object)
+                        {
+                            if (kv.second.type == json::JsonValue::Type::Number)
+                            {
+                                base.weights[kv.first] = static_cast<float>(kv.second.number);
+                            }
+                        }
+                    }
+                }
+                config.enemyBases.push_back(base);
+            }
+        }
+    }
+
+    if (const json::JsonValue *hazards = json::getObjectField(root, "hazards"))
+    {
+        if (hazards->type != json::JsonValue::Type::Array)
+        {
+            ctx.errors->push_back({path, "hazards must be an array"});
+        }
+        else
+        {
+            for (const auto &entry : hazards->array)
+            {
+                if (entry.type != json::JsonValue::Type::Object)
+                {
+                    continue;
+                }
+                StageHazardConfig hazard;
+                hazard.id = json::getString(entry, "id", hazard.id);
+                hazard.radiusPx = json::getNumber(entry, "radius_px", hazard.radiusPx);
+                hazard.weight = json::getNumber(entry, "weight", hazard.weight);
+                hazard.enabled = json::getBool(entry, "enabled", hazard.enabled);
+                hazard.enabled = json::getBool(entry, "active", hazard.enabled);
+                hazard.triggerEnemyBase = json::getString(entry, "trigger_enemy_base", hazard.triggerEnemyBase);
+                if (const json::JsonValue *posValue = json::getObjectField(entry, "pos"))
+                {
+                    if (auto pos = parseVec2Array(posValue))
+                    {
+                        hazard.position = *pos;
+                    }
+                    else
+                    {
+                        ctx.errors->push_back({path, "hazards entry missing valid pos"});
+                        continue;
+                    }
+                }
+                else
+                {
+                    ctx.errors->push_back({path, "hazards entry missing pos"});
+                    continue;
+                }
+                config.hazards.push_back(hazard);
+            }
+        }
+    }
+
+    if (config.enemyBases.empty())
+    {
+        ctx.errors->push_back({path, "enemy_bases must contain at least one entry"});
+    }
+
+    return config;
+}
+
+std::optional<EconomyConfig> parseEconomyConfig(ParseContext &ctx, const std::string &path)
+{
+    if (path.empty())
+    {
+        return std::nullopt;
+    }
+
+    AssetManager::AssetLoadStatus status;
+    auto jsonDoc = ctx.assets.acquireJson(path);
+    status = jsonDoc.status();
+    if (!jsonDoc.get())
+    {
+        auto &errors = *ctx.errors;
+        if (!status.message.empty())
+        {
+            errors.push_back({path, status.message});
+        }
+        else
+        {
+            errors.push_back({path, "Failed to load economy config"});
+        }
+        return std::nullopt;
+    }
+    if (!status.ok && !status.message.empty())
+    {
+        ctx.errors->push_back({path, status.message});
+    }
+
+    const json::JsonValue &root = *jsonDoc.get();
+    auto resolvedPath = fs::path(ctx.assets.resolvePath(path));
+    if (!validateSchema(root, kEconomySchemaVersion, resolvedPath, *ctx.errors))
+    {
+        return std::nullopt;
+    }
+
+    EconomyConfig config;
+    config.baseCap = json::getInt(root, "base_cap", config.baseCap);
+    config.tokenBonus = json::getNumber(root, "token_bonus", config.tokenBonus);
+    if (const json::JsonValue *rewards = json::getObjectField(root, "enemy_rewards"))
+    {
+        if (rewards->type == json::JsonValue::Type::Object)
+        {
+            for (const auto &kv : rewards->object)
+            {
+                if (kv.second.type == json::JsonValue::Type::Number)
+                {
+                    config.enemyRewards[kv.first] = static_cast<int>(kv.second.number);
+                }
+            }
+        }
+    }
+    if (config.enemyRewards.empty())
+    {
+        config.enemyRewards["slime"] = 1;
+        config.enemyRewards["wallbreaker"] = 5;
+        config.enemyRewards["boss"] = 60;
+    }
+    return config;
+}
+
+std::optional<std::vector<CampUpgradeEntry>> parseCampUpgrades(ParseContext &ctx, const std::string &path)
+{
+    if (path.empty())
+    {
+        return std::nullopt;
+    }
+    AssetManager::AssetLoadStatus status;
+    auto jsonDoc = ctx.assets.acquireJson(path);
+    status = jsonDoc.status();
+    if (!jsonDoc.get())
+    {
+        auto &errors = *ctx.errors;
+        errors.push_back({path, status.message.empty() ? "Failed to load camp upgrades" : status.message});
+        return std::nullopt;
+    }
+    const json::JsonValue &root = *jsonDoc.get();
+    auto resolvedPath = fs::path(ctx.assets.resolvePath(path));
+    if (!validateSchema(root, kCampUpgradesSchemaVersion, resolvedPath, *ctx.errors))
+    {
+        return std::nullopt;
+    }
+    std::vector<CampUpgradeEntry> entries;
+    if (const json::JsonValue *cats = json::getObjectField(root, "categories"))
+    {
+        if (cats->type == json::JsonValue::Type::Array)
+        {
+            for (const auto &value : cats->array)
+            {
+                if (value.type != json::JsonValue::Type::Object)
+                {
+                    continue;
+                }
+                CampUpgradeEntry entry;
+                entry.id = json::getString(value, "id", entry.id);
+                entry.label = json::getString(value, "label", entry.id);
+                entry.type = json::getString(value, "type", "additive");
+                entry.maxLevel = json::getInt(value, "max_level", entry.maxLevel);
+                entry.delta = json::getNumber(value, "delta", entry.delta);
+                if (const json::JsonValue *costs = json::getObjectField(value, "costs"))
+                {
+                    if (costs->type == json::JsonValue::Type::Array)
+                    {
+                        for (const auto &c : costs->array)
+                        {
+                            if (c.type == json::JsonValue::Type::Number)
+                            {
+                                entry.costs.push_back(static_cast<int>(c.number));
+                            }
+                        }
+                    }
+                }
+                entries.push_back(entry);
+            }
+        }
+    }
+    return entries;
+}
+
+std::optional<std::vector<TrainingEntry>> parseTrainingEntries(ParseContext &ctx, const std::string &path)
+{
+    if (path.empty())
+    {
+        return std::nullopt;
+    }
+    AssetManager::AssetLoadStatus status;
+    auto jsonDoc = ctx.assets.acquireJson(path);
+    status = jsonDoc.status();
+    if (!jsonDoc.get())
+    {
+        ctx.errors->push_back({path, status.message.empty() ? "Failed to load training config" : status.message});
+        return std::nullopt;
+    }
+    const json::JsonValue &root = *jsonDoc.get();
+    auto resolvedPath = fs::path(ctx.assets.resolvePath(path));
+    if (!validateSchema(root, kTrainingSchemaVersion, resolvedPath, *ctx.errors))
+    {
+        return std::nullopt;
+    }
+    std::vector<TrainingEntry> entries;
+    if (const json::JsonValue *arr = json::getObjectField(root, "entries"))
+    {
+        if (arr->type == json::JsonValue::Type::Array)
+        {
+            for (const auto &value : arr->array)
+            {
+                if (value.type != json::JsonValue::Type::Object)
+                {
+                    continue;
+                }
+                TrainingEntry entry;
+                entry.id = json::getString(value, "id", entry.id);
+                entry.label = json::getString(value, "label", entry.id);
+                if (const json::JsonValue *steps = json::getObjectField(value, "steps"))
+                {
+                    if (steps->type == json::JsonValue::Type::Array)
+                    {
+                        for (const auto &stepValue : steps->array)
+                        {
+                            if (stepValue.type != json::JsonValue::Type::Object)
+                            {
+                                continue;
+                            }
+                            TrainingStep step;
+                            step.delta = json::getNumber(stepValue, "delta", step.delta);
+                            step.cost = json::getInt(stepValue, "cost", step.cost);
+                            entry.steps.push_back(step);
+                        }
+                    }
+                }
+                if (const json::JsonValue *repeat = json::getObjectField(value, "repeatable"))
+                {
+                    if (repeat->type == json::JsonValue::Type::Object)
+                    {
+                        entry.repeatable.enabled = json::getBool(*repeat, "enabled", true);
+                        entry.repeatable.delta = json::getNumber(*repeat, "delta", entry.repeatable.delta);
+                        entry.repeatable.maxLevel = json::getInt(*repeat, "max_level", entry.repeatable.maxLevel);
+                        entry.repeatable.baseCost = json::getNumber(*repeat, "base_cost", entry.repeatable.baseCost);
+                        entry.repeatable.costGrowth =
+                            json::getNumber(*repeat, "cost_growth", entry.repeatable.costGrowth);
+                        if (entry.repeatable.costGrowth <= 0.0f)
+                        {
+                            entry.repeatable.costGrowth = 1.0f;
+                        }
+                    }
+                }
+                entries.push_back(entry);
+            }
+        }
+    }
+    return entries;
+}
+
+std::optional<std::vector<StrategyCharacter>> parseStrategyCharacters(ParseContext &ctx, const std::string &path)
+{
+    if (path.empty())
+    {
+        return std::nullopt;
+    }
+    AssetManager::AssetLoadStatus status;
+    auto jsonDoc = ctx.assets.acquireJson(path);
+    status = jsonDoc.status();
+    if (!jsonDoc.get())
+    {
+        ctx.errors->push_back({path, status.message.empty() ? "Failed to load strategies" : status.message});
+        return std::nullopt;
+    }
+    const json::JsonValue &root = *jsonDoc.get();
+    auto resolvedPath = fs::path(ctx.assets.resolvePath(path));
+    if (!validateSchema(root, kStrategiesSchemaVersion, resolvedPath, *ctx.errors))
+    {
+        return std::nullopt;
+    }
+    std::vector<StrategyCharacter> chars;
+    if (const json::JsonValue *arr = json::getObjectField(root, "characters"))
+    {
+        if (arr->type == json::JsonValue::Type::Array)
+        {
+            for (const auto &entry : arr->array)
+            {
+                if (entry.type != json::JsonValue::Type::Object)
+                {
+                    continue;
+                }
+                StrategyCharacter character;
+                character.id = json::getString(entry, "id", character.id);
+                character.label = json::getString(entry, "label", character.id);
+                character.defaultOption = json::getString(entry, "default", character.defaultOption);
+                if (const json::JsonValue *options = json::getObjectField(entry, "options"))
+                {
+                    if (options->type == json::JsonValue::Type::Array)
+                    {
+                        for (const auto &optValue : options->array)
+                        {
+                            if (optValue.type != json::JsonValue::Type::Object)
+                            {
+                                continue;
+                            }
+                            StrategyOption option;
+                            option.id = json::getString(optValue, "id", option.id);
+                            option.label = json::getString(optValue, "label", option.id);
+                            character.options.push_back(option);
+                        }
+                    }
+                }
+                chars.push_back(character);
+            }
+        }
+    }
+    return chars;
+}
+
+std::optional<std::vector<MetaShopItem>> parseMetaShop(ParseContext &ctx, const std::string &path)
+{
+    if (path.empty())
+    {
+        return std::nullopt;
+    }
+    AssetManager::AssetLoadStatus status;
+    auto jsonDoc = ctx.assets.acquireJson(path);
+    status = jsonDoc.status();
+    if (!jsonDoc.get())
+    {
+        ctx.errors->push_back({path, status.message.empty() ? "Failed to load meta shop" : status.message});
+        return std::nullopt;
+    }
+    const json::JsonValue &root = *jsonDoc.get();
+    auto resolvedPath = fs::path(ctx.assets.resolvePath(path));
+    if (!validateSchema(root, kMetaShopSchemaVersion, resolvedPath, *ctx.errors))
+    {
+        return std::nullopt;
+    }
+    std::vector<MetaShopItem> items;
+    if (const json::JsonValue *arr = json::getObjectField(root, "items"))
+    {
+        if (arr->type == json::JsonValue::Type::Array)
+        {
+            for (const auto &entry : arr->array)
+            {
+                if (entry.type != json::JsonValue::Type::Object)
+                {
+                    continue;
+                }
+                MetaShopItem item;
+                item.id = json::getString(entry, "id", item.id);
+                item.label = json::getString(entry, "label", item.id);
+                item.type = json::getString(entry, "type", item.type);
+                item.maxLevel = json::getInt(entry, "max_level", item.maxLevel);
+                item.baseCost = json::getInt(entry, "base_cost", item.baseCost);
+                item.perLevelCost = json::getInt(entry, "per_level_cost", item.perLevelCost);
+                item.delta = json::getNumber(entry, "delta", item.delta);
+                item.gainBonus = json::getNumber(entry, "gain_bonus", item.gainBonus);
+                items.push_back(item);
+            }
+        }
+    }
+    return items;
 }
 
 std::optional<MissionConfig> parseMissionConfig(ParseContext &ctx, const std::string &path)
@@ -1379,6 +2174,10 @@ std::optional<std::vector<SkillDef>> parseSkillCatalog(ParseContext &ctx, const 
         {
             def.type = SkillType::Detonate;
         }
+        else if (type == "hazard")
+        {
+            def.type = SkillType::Hazard;
+        }
         else
         {
             def.type = SkillType::ToggleFollow;
@@ -1479,6 +2278,14 @@ std::optional<std::vector<SkillDef>> parseSkillCatalog(ParseContext &ctx, const 
         {
             def.respawnBonusCap = *bonusCap;
         }
+        if (auto hazardWeight = getNumberOpt(value, "hazard_weight"))
+        {
+            def.hazardWeight = *hazardWeight;
+        }
+        if (auto hazardDuration = getNumberOpt(value, "hazard_duration_s"))
+        {
+            def.hazardDuration = *hazardDuration;
+        }
 
         if (def.id.empty())
         {
@@ -1576,6 +2383,7 @@ InputBindings parseInputBindings(const json::JsonValue &root, std::vector<AppCon
     bindings.reloadConfig = json::getString(root, "ReloadConfig", bindings.reloadConfig);
     bindings.dumpSpawnHistory = json::getString(root, "DumpSpawnHistory", bindings.dumpSpawnHistory);
     bindings.quit = json::getString(root, "Quit", bindings.quit);
+    bindings.toggleSpeed = json::getString(root, "ToggleGameSpeed", bindings.toggleSpeed);
     bindings.formationPrevious = json::getString(root, "FormationPrevious", bindings.formationPrevious);
     bindings.formationNext = json::getString(root, "FormationNext", bindings.formationNext);
     bindings.skillActivate = json::getString(root, "SkillActivate", bindings.skillActivate);
@@ -1653,6 +2461,7 @@ InputBindings parseInputBindings(const json::JsonValue &root, std::vector<AppCon
     validateKey(bindings.toggleDebugOverlay, "ToggleDebugOverlay");
     validateKey(bindings.reloadConfig, "ReloadConfig");
     validateKey(bindings.dumpSpawnHistory, "DumpSpawnHistory");
+    validateKey(bindings.toggleSpeed, "ToggleGameSpeed");
 
     return bindings;
 }
@@ -1767,6 +2576,14 @@ AppConfigLoadResult AppConfigLoader::load(AssetManager &assets)
     std::string atlasPath = "assets/atlas.json";
     std::string moralePath = "assets/morale.json";
     std::string spawnWeightsPath = "assets/spawn_weights.json";
+    std::string economyPath = "assets/economy.json";
+    std::string campUpgradesPath = "assets/camp_upgrades.json";
+    std::string trainingPath = "assets/training.json";
+    std::string strategiesPath = "assets/strategies.json";
+    std::string metaShopPath = "assets/meta_shop.json";
+    std::string stageConfigPath = "assets/stage1_config.json";
+    std::string chibiPersonalityPath = "assets/chibi_personality.json";
+    std::string chibiAiParamsPath = "assets/ai_params.json";
     if (assetsObj)
     {
         gamePath = json::getString(*assetsObj, "game", gamePath);
@@ -1779,6 +2596,14 @@ AppConfigLoadResult AppConfigLoader::load(AssetManager &assets)
         atlasPath = json::getString(*assetsObj, "atlas", atlasPath);
         moralePath = json::getString(*assetsObj, "morale", moralePath);
         spawnWeightsPath = json::getString(*assetsObj, "spawn_weights", spawnWeightsPath);
+        economyPath = json::getString(*assetsObj, "economy", economyPath);
+        campUpgradesPath = json::getString(*assetsObj, "camp_upgrades", campUpgradesPath);
+        trainingPath = json::getString(*assetsObj, "training", trainingPath);
+        strategiesPath = json::getString(*assetsObj, "strategies", strategiesPath);
+        metaShopPath = json::getString(*assetsObj, "meta_shop", metaShopPath);
+        stageConfigPath = json::getString(*assetsObj, "stage_config", stageConfigPath);
+        chibiPersonalityPath = json::getString(*assetsObj, "chibi_personality", chibiPersonalityPath);
+        chibiAiParamsPath = json::getString(*assetsObj, "ai_params", chibiAiParamsPath);
     }
 
     const fs::path rendererPath = m_configRoot / "renderer.json";
@@ -1835,6 +2660,18 @@ AppConfigLoadResult AppConfigLoader::load(AssetManager &assets)
         result.errors = std::move(errors);
         return result;
     }
+    auto chibiPersonality = parseChibiPersonalityConfig(ctx, chibiPersonalityPath);
+    if (!chibiPersonality)
+    {
+        result.errors = std::move(errors);
+        return result;
+    }
+    auto chibiAiParams = parseChibiAiParams(ctx, chibiAiParamsPath);
+    if (!chibiAiParams)
+    {
+        result.errors = std::move(errors);
+        return result;
+    }
     auto jobs = parseJobsConfig(ctx, jobsPath);
     if (!jobs)
     {
@@ -1879,6 +2716,46 @@ AppConfigLoadResult AppConfigLoader::load(AssetManager &assets)
         result.errors = std::move(errors);
         return result;
     }
+    std::optional<StageConfig> stageConfig;
+    if (!stageConfigPath.empty())
+    {
+        stageConfig = parseStageConfig(ctx, stageConfigPath);
+        if (!stageConfig)
+        {
+            result.errors = std::move(errors);
+            return result;
+        }
+    }
+    auto economyConfig = parseEconomyConfig(ctx, economyPath);
+    if (!economyConfig)
+    {
+        result.errors = std::move(errors);
+        return result;
+    }
+    auto campUpgrades = parseCampUpgrades(ctx, campUpgradesPath);
+    if (!campUpgrades)
+    {
+        result.errors = std::move(errors);
+        return result;
+    }
+    auto trainingEntries = parseTrainingEntries(ctx, trainingPath);
+    if (!trainingEntries)
+    {
+        result.errors = std::move(errors);
+        return result;
+    }
+    auto strategyEntries = parseStrategyCharacters(ctx, strategiesPath);
+    if (!strategyEntries)
+    {
+        result.errors = std::move(errors);
+        return result;
+    }
+    auto metaShopItems = parseMetaShop(ctx, metaShopPath);
+    if (!metaShopItems)
+    {
+        result.errors = std::move(errors);
+        return result;
+    }
     std::optional<MissionConfig> mission;
     if (!gameCfg->mission_path.empty())
     {
@@ -1906,6 +2783,14 @@ AppConfigLoadResult AppConfigLoader::load(AssetManager &assets)
     trackFile("assets/entities", assets.resolvePath(entitiesPath));
     trackFile("assets/map_defs", assets.resolvePath(mapDefsPath));
     trackFile("assets/temperaments", assets.resolvePath(temperamentPath));
+    if (!chibiPersonalityPath.empty())
+    {
+        trackFile("assets/chibi_personality", assets.resolvePath(chibiPersonalityPath));
+    }
+    if (!chibiAiParamsPath.empty())
+    {
+        trackFile("assets/chibi_ai_params", assets.resolvePath(chibiAiParamsPath));
+    }
     trackFile("assets/jobs", assets.resolvePath(jobsPath));
     trackFile("assets/spawn", assets.resolvePath(gameCfg->enemy_script));
     trackFile("assets/morale", assets.resolvePath(moralePath));
@@ -1915,11 +2800,35 @@ AppConfigLoadResult AppConfigLoader::load(AssetManager &assets)
     {
         trackFile("assets/spawn_weights", assets.resolvePath(spawnWeightsPath));
     }
+    if (!economyPath.empty())
+    {
+        trackFile("assets/economy", assets.resolvePath(economyPath));
+    }
+    if (!campUpgradesPath.empty())
+    {
+        trackFile("assets/camp_upgrades", assets.resolvePath(campUpgradesPath));
+    }
+    if (!trainingPath.empty())
+    {
+        trackFile("assets/training", assets.resolvePath(trainingPath));
+    }
+    if (!strategiesPath.empty())
+    {
+        trackFile("assets/strategies", assets.resolvePath(strategiesPath));
+    }
+    if (!metaShopPath.empty())
+    {
+        trackFile("assets/meta_shop", assets.resolvePath(metaShopPath));
+    }
     if (!gameCfg->mission_path.empty())
     {
         trackFile("assets/mission", assets.resolvePath(gameCfg->mission_path));
     }
     trackFile("assets/atlas", assets.resolvePath(atlasPath));
+    if (!stageConfigPath.empty())
+    {
+        trackFile("assets/stage_config", assets.resolvePath(stageConfigPath));
+    }
 
     result.config = loadFallback();
     result.config.telemetry = telemetryOptions;
@@ -1937,9 +2846,17 @@ AppConfigLoadResult AppConfigLoader::load(AssetManager &assets)
     result.config.entityCatalog = *entities;
     result.config.mapDefs = *mapDefs;
     result.config.temperament = *temperament;
+    result.config.chibiPersonality = *chibiPersonality;
+    result.config.chibiAiParams = *chibiAiParams;
     result.config.spawnScript = *spawnScript;
     result.config.game.morale = *morale;
     result.config.mission = mission;
+    result.config.stageConfig = stageConfig;
+    result.config.economy = *economyConfig;
+    result.config.campUpgrades = *campUpgrades;
+    result.config.trainingEntries = *trainingEntries;
+    result.config.strategyCharacters = *strategyEntries;
+    result.config.metaShopItems = *metaShopItems;
     result.config.skills = *skills;
     result.config.atlasPath = atlasPath;
 

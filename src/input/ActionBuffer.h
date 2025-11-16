@@ -42,6 +42,7 @@ enum class ActionId : std::uint16_t
     FocusCommander,
     FocusBase,
     ActivateSkill,
+    ToggleGameSpeed,
     QuitGame,
     Count
 };

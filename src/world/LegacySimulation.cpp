@@ -1,6 +1,7 @@
 #include "world/LegacySimulation.h"
 
 #include <algorithm>
+#include <array>
 #include <chrono>
 #include <cctype>
 #include <filesystem>
@@ -21,6 +22,10 @@ std::string_view enemyTypeLabel(EnemyArchetype type)
     switch (type)
     {
     case EnemyArchetype::Wallbreaker: return "wallbreaker";
+    case EnemyArchetype::Goblin: return "goblin";
+    case EnemyArchetype::Magician: return "magician";
+    case EnemyArchetype::Bat: return "bat";
+    case EnemyArchetype::Toritori: return "toritori";
     case EnemyArchetype::Boss: return "boss";
     case EnemyArchetype::Slime:
     default: return "slime";
@@ -117,6 +122,105 @@ std::filesystem::path LegacySimulation::telemetryDebugDirectory(const TelemetryS
         dir = std::filesystem::path("build") / "debug_dumps";
     }
     return dir;
+}
+
+void LegacySimulation::appendAiTelemetryCsv(
+    const std::array<float, static_cast<std::size_t>(ChibiAction::Wander) + 1> &ratios,
+    float panicRatio,
+    float unitSeconds,
+    float avgRadius,
+    float exceedRatio,
+    int tokkouActive,
+    int tokkouPeak,
+    float clingRatio,
+    float kaitenRatio,
+    float runRatio,
+    const std::string &tokkouUnits,
+    const std::string &clingUnits,
+    const std::string &kaitenUnits,
+    const std::string &runUnits)
+{
+    auto sink = telemetry.lock();
+    if (!sink)
+    {
+        return;
+    }
+    namespace fs = std::filesystem;
+    fs::path dir = telemetryDebugDirectory(*sink);
+    std::error_code ec;
+    fs::create_directories(dir, ec);
+    fs::path filePath = dir / "ai_actions.tsv";
+    std::ofstream stream(filePath, std::ios::out | std::ios::binary | std::ios::app);
+    if (!stream.is_open())
+    {
+        return;
+    }
+    if (!aiTelemetryHeaderWritten || stream.tellp() == 0)
+    {
+        stream << "wall_time\tsim_time\tunit_seconds\tpanic_ratio\tavg_radius\texceed_ratio\ttokkou_active\ttokkou_peak"
+                  "\tcling_ratio\tkaiten_ratio\trun_ratio\t"
+                  "tokkou_units\tcling_units\tkaiten_units\trun_units";
+        for (std::size_t i = 0; i < ratios.size(); ++i)
+        {
+            stream << '\t' << chibiActionKey(static_cast<ChibiAction>(i));
+        }
+        stream << '\n';
+        aiTelemetryHeaderWritten = true;
+    }
+    const std::string wallTime = formatTimestamp(std::chrono::system_clock::now());
+    stream << wallTime << '\t' << formatFloat(simTime) << '\t' << formatFloat(unitSeconds) << '\t'
+           << formatFloat(panicRatio) << '\t' << formatFloat(avgRadius) << '\t' << formatFloat(exceedRatio) << '\t'
+           << tokkouActive << '\t' << tokkouPeak << '\t' << formatFloat(clingRatio) << '\t' << formatFloat(kaitenRatio)
+           << '\t' << formatFloat(runRatio) << '\t' << sanitizeForTsv(tokkouUnits) << '\t'
+           << sanitizeForTsv(clingUnits) << '\t' << sanitizeForTsv(kaitenUnits) << '\t' << sanitizeForTsv(runUnits);
+    for (float ratio : ratios)
+    {
+        stream << '\t' << formatFloat(ratio);
+    }
+    stream << '\n';
+
+    fs::path checklistPath = dir / "ai_checklist.tsv";
+    std::ofstream checklist(checklistPath, std::ios::out | std::ios::binary | std::ios::app);
+    if (checklist.is_open())
+    {
+        if (!aiChecklistHeaderWritten || checklist.tellp() == 0)
+        {
+            checklist << "wall_time\tsim_time\tavg_radius\tavg_radius_ok\tgreater_96_ratio\t"
+                         "tokkou_active\ttokkou_cap\ttokkou_ok\tpanic_ratio\tcling_ratio\tkaiten_ratio\trun_ratio\n";
+            aiChecklistHeaderWritten = true;
+        }
+        const float radiusThreshold = 96.0f;
+        const bool avgRadiusOk = avgRadius <= radiusThreshold + 0.001f;
+        const int tokkouCap = std::max(chibiPersonalityConfig.tokkou.maxSimultaneous, 0);
+        const bool tokkouOk = tokkouCap <= 0 || tokkouActive <= tokkouCap;
+        checklist << wallTime << '\t' << formatFloat(simTime) << '\t' << formatFloat(avgRadius) << '\t'
+                  << (avgRadiusOk ? '1' : '0') << '\t' << formatFloat(exceedRatio) << '\t' << tokkouActive << '\t'
+                  << tokkouCap << '\t' << (tokkouOk ? '1' : '0') << '\t' << formatFloat(panicRatio) << '\t'
+                  << formatFloat(clingRatio) << '\t' << formatFloat(kaitenRatio) << '\t' << formatFloat(runRatio) << '\n';
+    }
+}
+
+void LegacySimulation::recordHazardTelemetry(const char *event, const std::string &id, const Vec2 &pos, float radius, float weight)
+{
+    if (!event)
+    {
+        return;
+    }
+    auto sink = telemetry.lock();
+    if (!sink)
+    {
+        return;
+    }
+    TelemetrySink::Payload payload;
+    if (!id.empty())
+    {
+        payload.emplace("id", id);
+    }
+    payload.emplace("x", formatFloat(pos.x));
+    payload.emplace("y", formatFloat(pos.y));
+    payload.emplace("radius", formatFloat(radius));
+    payload.emplace("weight", formatFloat(weight));
+    sink->recordEvent(event, payload);
 }
 
 void LegacySimulation::captureFrameSnapshot(TelemetrySink &sink)
@@ -387,4 +491,3 @@ LegacySimulation::SpawnHistoryDumpResult LegacySimulation::dumpSpawnHistory(cons
 }
 
 } // namespace world
-

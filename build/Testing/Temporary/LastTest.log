@@ -1,0 +1,169 @@
+Start testing: Nov 16 19:24 JST
+----------------------------------------------------------
+1/11 Testing: config_schema
+1/11 Test: config_schema
+Command: "/Users/izumimotohayato/development/kusozako/build/config_schema_test"
+Directory: /Users/izumimotohayato/development/kusozako/build
+"config_schema" start time: Nov 16 19:24 JST
+Output:
+----------------------------------------------------------
+<end of output>
+Test time =   0.56 sec
+----------------------------------------------------------
+Test Passed.
+"config_schema" end time: Nov 16 19:24 JST
+"config_schema" time elapsed: 00:00:00
+----------------------------------------------------------
+
+2/11 Testing: world_state_step_order
+2/11 Test: world_state_step_order
+Command: "/Users/izumimotohayato/development/kusozako/build/world_state_step_order_test"
+Directory: /Users/izumimotohayato/development/kusozako/build
+"world_state_step_order" start time: Nov 16 19:24 JST
+Output:
+----------------------------------------------------------
+<end of output>
+Test time =   0.45 sec
+----------------------------------------------------------
+Test Passed.
+"world_state_step_order" end time: Nov 16 19:24 JST
+"world_state_step_order" time elapsed: 00:00:00
+----------------------------------------------------------
+
+3/11 Testing: systems_behavior
+3/11 Test: systems_behavior
+Command: "/Users/izumimotohayato/development/kusozako/build/systems_behavior_test"
+Directory: /Users/izumimotohayato/development/kusozako/build
+"systems_behavior" start time: Nov 16 19:24 JST
+Output:
+----------------------------------------------------------
+<end of output>
+Test time =   0.48 sec
+----------------------------------------------------------
+Test Passed.
+"systems_behavior" end time: Nov 16 19:24 JST
+"systems_behavior" time elapsed: 00:00:00
+----------------------------------------------------------
+
+4/11 Testing: job_ability_system
+4/11 Test: job_ability_system
+Command: "/Users/izumimotohayato/development/kusozako/build/job_ability_system_test"
+Directory: /Users/izumimotohayato/development/kusozako/build
+"job_ability_system" start time: Nov 16 19:24 JST
+Output:
+----------------------------------------------------------
+<end of output>
+Test time =   0.46 sec
+----------------------------------------------------------
+Test Passed.
+"job_ability_system" end time: Nov 16 19:24 JST
+"job_ability_system" time elapsed: 00:00:00
+----------------------------------------------------------
+
+5/11 Testing: event_bus
+5/11 Test: event_bus
+Command: "/Users/izumimotohayato/development/kusozako/build/event_bus_test"
+Directory: /Users/izumimotohayato/development/kusozako/build
+"event_bus" start time: Nov 16 19:24 JST
+Output:
+----------------------------------------------------------
+<end of output>
+Test time =   0.38 sec
+----------------------------------------------------------
+Test Passed.
+"event_bus" end time: Nov 16 19:24 JST
+"event_bus" time elapsed: 00:00:00
+----------------------------------------------------------
+
+6/11 Testing: spawner
+6/11 Test: spawner
+Command: "/Users/izumimotohayato/development/kusozako/build/spawner_test"
+Directory: /Users/izumimotohayato/development/kusozako/build
+"spawner" start time: Nov 16 19:24 JST
+Output:
+----------------------------------------------------------
+Spawner tests passed
+<end of output>
+Test time =   0.35 sec
+----------------------------------------------------------
+Test Passed.
+"spawner" end time: Nov 16 19:24 JST
+"spawner" time elapsed: 00:00:00
+----------------------------------------------------------
+
+7/11 Testing: performance_budget_monitor
+7/11 Test: performance_budget_monitor
+Command: "/Users/izumimotohayato/development/kusozako/build/performance_budget_monitor_test"
+Directory: /Users/izumimotohayato/development/kusozako/build
+"performance_budget_monitor" start time: Nov 16 19:24 JST
+Output:
+----------------------------------------------------------
+<end of output>
+Test time =   0.34 sec
+----------------------------------------------------------
+Test Passed.
+"performance_budget_monitor" end time: Nov 16 19:24 JST
+"performance_budget_monitor" time elapsed: 00:00:00
+----------------------------------------------------------
+
+8/11 Testing: asset_manager_memory_warning
+8/11 Test: asset_manager_memory_warning
+Command: "/Users/izumimotohayato/development/kusozako/build/asset_manager_memory_warning_test"
+Directory: /Users/izumimotohayato/development/kusozako/build
+"asset_manager_memory_warning" start time: Nov 16 19:24 JST
+Output:
+----------------------------------------------------------
+<end of output>
+Test time =   0.37 sec
+----------------------------------------------------------
+Test Passed.
+"asset_manager_memory_warning" end time: Nov 16 19:24 JST
+"asset_manager_memory_warning" time elapsed: 00:00:00
+----------------------------------------------------------
+
+9/11 Testing: ui_presenter
+9/11 Test: ui_presenter
+Command: "/Users/izumimotohayato/development/kusozako/build/ui_presenter_test"
+Directory: /Users/izumimotohayato/development/kusozako/build
+"ui_presenter" start time: Nov 16 19:24 JST
+Output:
+----------------------------------------------------------
+<end of output>
+Test time =   0.37 sec
+----------------------------------------------------------
+Test Passed.
+"ui_presenter" end time: Nov 16 19:24 JST
+"ui_presenter" time elapsed: 00:00:00
+----------------------------------------------------------
+
+10/11 Testing: ui_view
+10/11 Test: ui_view
+Command: "/Users/izumimotohayato/development/kusozako/build/ui_view_test"
+Directory: /Users/izumimotohayato/development/kusozako/build
+"ui_view" start time: Nov 16 19:24 JST
+Output:
+----------------------------------------------------------
+<end of output>
+Test time =   0.36 sec
+----------------------------------------------------------
+Test Passed.
+"ui_view" end time: Nov 16 19:24 JST
+"ui_view" time elapsed: 00:00:00
+----------------------------------------------------------
+
+11/11 Testing: camp_state
+11/11 Test: camp_state
+Command: "/Users/izumimotohayato/development/kusozako/build/camp_state_test"
+Directory: /Users/izumimotohayato/development/kusozako/build
+"camp_state" start time: Nov 16 19:24 JST
+Output:
+----------------------------------------------------------
+<end of output>
+Test time =   0.36 sec
+----------------------------------------------------------
+Test Passed.
+"camp_state" end time: Nov 16 19:24 JST
+"camp_state" time elapsed: 00:00:00
+----------------------------------------------------------
+
+End testing: Nov 16 19:24 JST

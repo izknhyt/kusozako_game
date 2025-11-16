@@ -28,5 +28,34 @@
     "dps": { "wall": 15, "unit": 5, "base": 5 },
     "sprite_prefix": "elite_wallbreaker",
     "traits": { "ignore_knockback": true, "prefer_wall_radius_px": 256 }
+  },
+  "goblin": {
+    "r_px": 10,
+    "speed_u_s": 1.5,
+    "hp": 65,
+    "dps": 6,
+    "sprite_prefix": "slime_walk"
+  },
+  "magician": {
+    "r_px": 11,
+    "speed_u_s": 1.1,
+    "hp": 55,
+    "dps": 7,
+    "attack_range_px": 150,
+    "sprite_prefix": "slime_walk"
+  },
+  "bat": {
+    "r_px": 8,
+    "speed_u_s": 3.2,
+    "hp": 40,
+    "dps": 4,
+    "sprite_prefix": "slime_walk"
+  },
+  "toritori": {
+    "r_px": 12,
+    "speed_u_s": 1.4,
+    "hp": 90,
+    "dps": 8,
+    "sprite_prefix": "slime_walk"
   }
 }

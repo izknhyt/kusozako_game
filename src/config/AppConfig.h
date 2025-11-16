@@ -10,6 +10,7 @@
 
 #include "core/Vec2.h"
 #include "world/MoraleTypes.h"
+#include "world/StageConfig.h"
 
 struct RespawnSettings
 {
@@ -230,6 +231,7 @@ struct EntityStats
     float speed_u_s = 1.8f;
     float hp = 10.0f;
     float dps = 3.0f;
+    float attackRangePx = 0.0f;
     std::string spritePrefix;
 };
 
@@ -261,12 +263,20 @@ struct EntityCatalog
     CommanderStats commander;
     EntityStats yuna;
     EntityStats slime;
+    EntityStats goblin;
+    EntityStats magician;
+    EntityStats bat;
+    EntityStats toritori;
     WallbreakerStats wallbreaker;
 };
 
 enum class EnemyArchetype
 {
     Slime,
+    Goblin,
+    Magician,
+    Bat,
+    Toritori,
     Wallbreaker,
     Boss
 };
@@ -292,7 +302,8 @@ enum class SkillType
     ToggleFollow,
     MakeWall,
     SpawnRate,
-    Detonate
+    Detonate,
+    Hazard
 };
 
 struct SkillDef
@@ -314,6 +325,8 @@ struct SkillDef
     float spawnSlowDuration = 0.0f;
     float respawnBonusPerHit = 0.0f;
     float respawnBonusCap = 0.0f;
+    float hazardWeight = 1.0f;
+    float hazardDuration = 0.0f;
 };
 
 struct TemperamentRange
@@ -327,6 +340,72 @@ struct TemperamentFollowCatchup
     float distance = 0.0f;
     float duration = 0.0f;
     float multiplier = 1.0f;
+};
+
+struct EconomyConfig
+{
+    int baseCap = 100;
+    float tokenBonus = 0.10f;
+    std::unordered_map<std::string, int> enemyRewards;
+};
+
+struct CampUpgradeEntry
+{
+    std::string id;
+    std::string label;
+    std::string type;
+    int maxLevel = 1;
+    std::vector<int> costs;
+    float delta = 0.0f;
+};
+
+struct TrainingStep
+{
+    float delta = 0.0f;
+    int cost = 0;
+};
+
+struct TrainingRepeatable
+{
+    bool enabled = false;
+    float delta = 0.0f;
+    int maxLevel = 0;
+    float baseCost = 0.0f;
+    float costGrowth = 1.0f;
+};
+
+struct TrainingEntry
+{
+    std::string id;
+    std::string label;
+    std::vector<TrainingStep> steps;
+    TrainingRepeatable repeatable{};
+};
+
+struct StrategyOption
+{
+    std::string id;
+    std::string label;
+};
+
+struct StrategyCharacter
+{
+    std::string id;
+    std::string label;
+    std::vector<StrategyOption> options;
+    std::string defaultOption;
+};
+
+struct MetaShopItem
+{
+    std::string id;
+    std::string label;
+    std::string type;
+    int maxLevel = 1;
+    int baseCost = 0;
+    int perLevelCost = 0;
+    float delta = 0.0f;
+    float gainBonus = 0.0f;
 };
 
 struct TemperamentChargeDash
@@ -380,6 +459,97 @@ struct TemperamentConfig
     std::vector<float> cumulativeWeights;
 };
 
+struct ChibiTokkouConfig
+{
+    int braveryMin = 0;
+    int braveryMax = 2;
+    int wisdomMin = -2;
+    int wisdomMax = 2;
+    float duration = 0.0f;
+    float attackMultiplier = 1.0f;
+    float speedMultiplier = 1.0f;
+    float cooldownMultiplier = 1.0f;
+    float takenMultiplier = 1.0f;
+    int maxSimultaneous = 0;
+};
+
+struct ChibiClingConfig
+{
+    int braveryMax = 0;
+    int wisdomMin = 0;
+    float rearDegrees = 150.0f;
+    float radiusMin = 36.0f;
+    float radiusMax = 56.0f;
+    float exitHpBonus = 0.0f;
+    float exitAuraSeconds = 0.0f;
+};
+
+struct ChibiKaitenConfig
+{
+    int wisdomMin = 1;
+    float hpSafe = 0.85f;
+    float minStaySeconds = 4.0f;
+    float guardBiasSeconds = 2.0f;
+    float exitHpBonus = 0.25f;
+    float damageMultiplier = 0.8f;
+};
+
+struct ChibiRunAroundConfig
+{
+    int wisdomMax = -1;
+    float dashSeconds = 0.8f;
+    float jitterSeconds = 0.2f;
+    float repathSeconds = 0.5f;
+    float exitHpBonus = 0.2f;
+    float exitAuraSeconds = 2.0f;
+    float damageMultiplier = 0.9f;
+};
+
+struct ChibiPersonalityConfig
+{
+    std::vector<float> panicThresholds;
+    std::vector<float> panicMinimumSeconds;
+    ChibiTokkouConfig tokkou;
+    ChibiClingConfig cling;
+    ChibiKaitenConfig kaiten;
+    ChibiRunAroundConfig runAround;
+};
+
+struct ChibiAiActionConfig
+{
+    float baseScore = 0.0f;
+    float bonusScore = 0.0f;
+    float rangePixels = 0.0f;
+    float braveryWeight = 0.0f;
+    float wisdomWeight = 0.0f;
+};
+
+struct ChibiAiParams
+{
+    float tickSeconds = 0.5f;
+    float hysteresisMultiplier = 1.2f;
+    float hysteresisDuration = 0.4f;
+    float cohesionRadius = 96.0f;
+    float cohesionStrength = 0.2f;
+    float cohesionStrengthLow = 0.2f;
+    float cohesionStrengthHigh = 0.2f;
+    float separationRadius = 18.0f;
+    float separationStrength = 0.4f;
+    float separationStrengthLow = 0.4f;
+    float separationStrengthHigh = 0.4f;
+    float aoeAvoidRadius = 0.0f;
+    float aoeAvoidStrength = 0.0f;
+    float aoeAvoidFalloff = 1.0f;
+    float aoeAvoidMultiplierLow = 0.85f;
+    float aoeAvoidMultiplierHigh = 1.30f;
+    float orderRushBonus = 0.5f;
+    float orderPushBonus = 0.4f;
+    float orderFollowBonus = 1.0f;
+    float orderDefendBonus = 0.6f;
+    float followerBonus = 0.8f;
+    std::unordered_map<std::string, ChibiAiActionConfig> actions;
+};
+
 struct MapDefs
 {
     int tile_size = 16;
@@ -402,6 +572,8 @@ struct Wave
     float time = 0.0f;
     std::vector<SpawnSet> sets;
     std::string telemetry;
+    std::vector<std::string> activateHazards;
+    std::vector<std::string> deactivateHazards;
 };
 
 struct SpawnScript
@@ -540,6 +712,7 @@ struct InputBindings
     std::string reloadConfig{"F9"};
     std::string dumpSpawnHistory{"Shift+F10"};
     std::string quit{"Escape"};
+    std::string toggleSpeed{"F8"};
     std::string formationPrevious{"Z"};
     std::string formationNext{"X"};
     std::string skillActivate{"MouseRight"};
@@ -556,8 +729,16 @@ struct AppConfig
     EntityCatalog entityCatalog;
     MapDefs mapDefs;
     TemperamentConfig temperament;
+    ChibiPersonalityConfig chibiPersonality;
+    ChibiAiParams chibiAiParams;
     SpawnScript spawnScript;
     std::optional<MissionConfig> mission;
+    std::optional<StageConfig> stageConfig;
+    EconomyConfig economy;
+    std::vector<CampUpgradeEntry> campUpgrades;
+    std::vector<TrainingEntry> trainingEntries;
+    std::vector<StrategyCharacter> strategyCharacters;
+    std::vector<MetaShopItem> metaShopItems;
     std::vector<SkillDef> skills;
     std::string atlasPath = "assets/atlas.json";
 };

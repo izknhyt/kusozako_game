@@ -1,0 +1,24 @@
+{
+  "wallet": 3,
+  "mana_gain_tokens": 0,
+  "camp_upgrades": {
+    "aura_regen": 1,
+    "base_def": 2,
+    "base_hp": 4,
+    "spawn_rate": 2
+  },
+  "training": {
+    "elite_rate": 3,
+    "mean_level": 3,
+    "yuna_level": 4
+  },
+  "meta_levels": {
+    "good_title_rate": 3,
+    "mana_cap_up": 1
+  },
+  "strategies": {
+    "coco": "focus_fire",
+    "mary": "defend_base",
+    "milly": "defend_base"
+  }
+}

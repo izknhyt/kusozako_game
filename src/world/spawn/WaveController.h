@@ -3,6 +3,7 @@
 #include <chrono>
 #include <cstddef>
 #include <deque>
+#include <functional>
 #include <memory>
 #include <optional>
 #include <string>
@@ -33,6 +34,8 @@ class WaveController
     void setSpawner(Spawner *spawner);
     void setEventBus(std::shared_ptr<EventBus> bus);
     void setTelemetrySink(std::shared_ptr<TelemetrySink> sink);
+    using StageHazardCallback = std::function<void(const std::string &, bool)>;
+    void setStageHazardCallback(StageHazardCallback callback);
 
     void setSpawnScript(const SpawnScript &script, const MapDefs &map);
     void reset();
@@ -59,6 +62,7 @@ class WaveController
     std::optional<Vec2> resolveGateWorld(const std::string &gateId) const;
     void notifyWave(std::size_t index, const Wave &wave) const;
     void recordHistory(std::size_t index, const Wave &wave, float triggerTime);
+    void applyHazardOps(const Wave &wave) const;
 
     Spawner *m_spawner = nullptr;
     SpawnScript m_script;
@@ -68,6 +72,7 @@ class WaveController
     std::weak_ptr<TelemetrySink> m_telemetry;
     std::size_t m_historyLimit = 64;
     std::deque<WaveHistoryEntry> m_history;
+    StageHazardCallback m_stageHazardCallback;
 };
 
 } // namespace world::spawn

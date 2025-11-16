@@ -13,12 +13,26 @@
 #include <SDL.h>
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cctype>
 #include <iomanip>
 #include <sstream>
 #include <string>
 #include <vector>
+
+namespace
+{
+const std::array<SDL_Color, HUDState::kHudActionCount> kActionHistoryColors = {
+    SDL_Color{230, 120, 120, 220}, // AssaultEnemy
+    SDL_Color{246, 178, 107, 220}, // AssaultBase
+    SDL_Color{130, 195, 105, 220}, // Flee
+    SDL_Color{108, 198, 241, 220}, // FollowCommander
+    SDL_Color{176, 135, 235, 220}, // FollowAlly
+    SDL_Color{255, 214, 102, 220}, // DefendBase
+    SDL_Color{160, 176, 185, 220}  // Wander
+};
+} // namespace
 
 UiView::UiView() = default;
 
@@ -122,6 +136,8 @@ const char *UiView::actionDisplayName(ActionId id)
         return "FocusBase";
     case ActionId::ActivateSkill:
         return "ActivateSkill";
+    case ActionId::ToggleGameSpeed:
+        return "ToggleGameSpeed";
     case ActionId::QuitGame:
         return "QuitGame";
     case ActionId::Count:
@@ -197,6 +213,179 @@ void UiView::render(const DrawContext &context) const
         SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
         font.drawText(renderer, timerText, timerRect.x + padX, timerRect.y + padY, &stats);
         topUiAnchor = timerRect.y + timerRect.h + 10;
+    }
+
+    if (context.showSpeedIndicator)
+    {
+        const float clampedScale = context.timeScale > 0.0f ? context.timeScale : 1.0f;
+        std::ostringstream oss;
+        oss << "SPEED x" << std::fixed << std::setprecision(clampedScale >= 2.0f ? 0 : 1) << clampedScale;
+        const std::string speedText = oss.str();
+        const int padX = 12;
+        const int padY = 6;
+        const int textWidth = measureWithFallback(font, speedText, lineHeight);
+        SDL_Rect speedRect{20, topUiAnchor, textWidth + padX * 2, lineHeight + padY * 2};
+        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+        SDL_Color bgColor = clampedScale > 1.0f ? SDL_Color{60, 40, 100, 220} : SDL_Color{30, 30, 60, 160};
+        SDL_SetRenderDrawColor(renderer, bgColor.r, bgColor.g, bgColor.b, bgColor.a);
+        countedRenderFillRect(renderer, &speedRect, stats);
+        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
+        font.drawText(renderer, speedText, speedRect.x + padX, speedRect.y + padY, &stats, SDL_Color{255, 255, 255, 255});
+        topUiAnchor = speedRect.y + speedRect.h + 10;
+    }
+
+    if (sim.stageState().enabled)
+    {
+        const auto &stage = sim.stageState();
+        std::vector<std::string> lines;
+        auto makeName = [](const std::string &id, std::size_t index, const char *prefix) {
+            if (!id.empty())
+            {
+                return id;
+            }
+            std::ostringstream oss;
+            oss << prefix << (index + 1);
+            return oss.str();
+        };
+
+        std::ostringstream victoryLine;
+        victoryLine << "Victory ";
+        if (stage.victory.requireDragon)
+        {
+            victoryLine << "[Dragon " << (stage.dragonDefeated ? "OK" : "Pending") << "] ";
+        }
+        if (!stage.enemyBases.empty())
+        {
+            victoryLine << "[Bases " << sim.sealedEnemyBases() << '/' << stage.enemyBases.size() << ']';
+        }
+        lines.push_back(victoryLine.str());
+
+        for (std::size_t i = 0; i < stage.allyBases.size(); ++i)
+        {
+            const auto &base = stage.allyBases[i];
+            std::ostringstream line;
+            line << "Ally " << makeName(base.id, i, "Camp") << ": ";
+            if (base.destroyed)
+            {
+                line << "Down";
+            }
+            else
+            {
+                line << static_cast<int>(std::round(base.hp)) << '/' << static_cast<int>(std::round(base.maxHp));
+            }
+            lines.push_back(line.str());
+        }
+
+        for (std::size_t i = 0; i < stage.enemyBases.size(); ++i)
+        {
+            const auto &base = stage.enemyBases[i];
+            std::ostringstream line;
+            line << "Enemy " << makeName(base.id, i, "Base") << ": ";
+            if (base.sealed)
+            {
+                line << "Sealed";
+            }
+            else if (base.maxHp > 0.0f)
+            {
+                line << static_cast<int>(std::round(std::max(base.hp, 0.0f))) << '/'
+                     << static_cast<int>(std::round(base.maxHp));
+            }
+            else
+            {
+                line << "Active";
+            }
+            lines.push_back(line.str());
+        }
+
+        if (!lines.empty())
+        {
+            const int padX = 16;
+            const int padY = 8;
+            int panelWidth = 0;
+            for (const std::string &line : lines)
+            {
+                panelWidth = std::max(panelWidth, measureWithFallback(font, line, lineHeight));
+            }
+            SDL_Rect stageRect{20, topUiAnchor, panelWidth + padX * 2,
+                               static_cast<int>(lines.size()) * lineHeight + padY * 2};
+            SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+            SDL_SetRenderDrawColor(renderer, 12, 18, 26, 170);
+            countedRenderFillRect(renderer, &stageRect, stats);
+            SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
+            int textY = stageRect.y + padY;
+            for (const std::string &line : lines)
+            {
+                font.drawText(renderer, line, stageRect.x + padX, textY, &stats, SDL_Color{230, 240, 255, 255});
+                textY += lineHeight;
+            }
+            topUiAnchor = stageRect.y + stageRect.h + 10;
+        }
+    }
+
+    if (sim.hud.stageBanner.timer > 0.0f && !sim.hud.stageBanner.text.empty())
+    {
+        const int padX = 18;
+        const int padY = 8;
+        const int textWidth = measureWithFallback(font, sim.hud.stageBanner.text, lineHeight);
+        SDL_Rect bannerRect{screenW / 2 - (textWidth + padX * 2) / 2, topUiAnchor,
+                            textWidth + padX * 2, lineHeight + padY * 2};
+        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+        SDL_SetRenderDrawColor(renderer, 32, 28, 12, 200);
+        countedRenderFillRect(renderer, &bannerRect, stats);
+        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
+        font.drawText(renderer, sim.hud.stageBanner.text, bannerRect.x + padX, bannerRect.y + padY, &stats,
+                      SDL_Color{255, 230, 120, 255});
+        topUiAnchor = bannerRect.y + bannerRect.h + 10;
+    }
+
+    if (sim.hud.tip.timer > 0.0f && !sim.hud.tip.text.empty())
+    {
+        const int padX = 14;
+        const int padY = 6;
+        const int textWidth = measureWithFallback(font, sim.hud.tip.text, lineHeight);
+        SDL_Rect tipRect{20, topUiAnchor, textWidth + padX * 2, lineHeight + padY * 2};
+        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+        SDL_SetRenderDrawColor(renderer, 12, 26, 40, 200);
+        countedRenderFillRect(renderer, &tipRect, stats);
+        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
+        font.drawText(renderer, sim.hud.tip.text, tipRect.x + padX, tipRect.y + padY, &stats,
+                      SDL_Color{200, 235, 255, 255});
+        topUiAnchor = tipRect.y + tipRect.h + 10;
+    }
+
+    if (sim.hud.economy.cap > 0)
+    {
+        std::vector<std::string> lines;
+        std::ostringstream manaLine;
+        manaLine << "Mana " << sim.hud.economy.currency << '/' << sim.hud.economy.cap;
+        lines.push_back(manaLine.str());
+        std::ostringstream tokenLine;
+        tokenLine << "Tokens " << sim.hud.economy.tokens;
+        lines.push_back(tokenLine.str());
+        if (!sim.hud.economy.recommended.empty())
+        {
+            lines.push_back(sim.hud.economy.recommended);
+        }
+        const int padX = 14;
+        const int padY = 6;
+        int width = 0;
+        for (const std::string &line : lines)
+        {
+            width = std::max(width, measureWithFallback(font, line, lineHeight));
+        }
+        SDL_Rect ecoRect{20, topUiAnchor, width + padX * 2,
+                         static_cast<int>(lines.size()) * lineHeight + padY * 2};
+        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+        SDL_SetRenderDrawColor(renderer, 15, 32, 18, 180);
+        countedRenderFillRect(renderer, &ecoRect, stats);
+        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
+        int textY = ecoRect.y + padY;
+        for (const std::string &line : lines)
+        {
+            font.drawText(renderer, line, ecoRect.x + padX, textY, &stats, SDL_Color{210, 255, 210, 255});
+            textY += lineHeight;
+        }
+        topUiAnchor = ecoRect.y + ecoRect.h + 10;
     }
 
     if (sim.isOrderActive())
@@ -720,6 +909,126 @@ void UiView::render(const DrawContext &context) const
         topRightAnchorY += diagPanel.h + 12;
     }
 
+    if (context.showDebugHud && sim.hud.aiDebug.available && debugFontRef.isLoaded())
+    {
+        const auto &aiDebug = sim.hud.aiDebug;
+        std::vector<std::string> aiLines;
+        {
+            std::ostringstream header;
+            header << std::fixed << std::setprecision(1) << "Panic " << aiDebug.panicRatio * 100.0f << "%  AvgR "
+                   << aiDebug.avgRadius << "px  >96 " << aiDebug.exceedRatio * 100.0f << '%';
+            aiLines.push_back(header.str());
+        }
+        {
+            std::ostringstream extra;
+            extra << "Cling " << std::fixed << std::setprecision(1) << aiDebug.clingRatio * 100.0f << "%  Kaiten "
+                  << aiDebug.kaitenRatio * 100.0f << "%  Run " << aiDebug.runRatio * 100.0f << '%';
+            aiLines.push_back(extra.str());
+        }
+        for (std::size_t i = 0; i < aiDebug.actionRatios.size(); ++i)
+        {
+            std::ostringstream line;
+            line << chibiActionLabel(static_cast<ChibiAction>(i)) << ": "
+                 << std::fixed << std::setprecision(1) << aiDebug.actionRatios[i] * 100.0f << '%';
+            aiLines.push_back(line.str());
+        }
+        int aiWidth = 0;
+        for (const std::string &line : aiLines)
+        {
+            aiWidth = std::max(aiWidth, measureWithFallback(debugFontRef, line, debugLineHeight));
+        }
+        const int padX = 10;
+        const int padY = 8;
+        SDL_Rect panel{screenW - (aiWidth + padX * 2) - 12, topRightAnchorY,
+                       aiWidth + padX * 2, static_cast<int>(aiLines.size()) * debugLineHeight + padY * 2};
+        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+        SDL_SetRenderDrawColor(renderer, 5, 18, 45, 170);
+        countedRenderFillRect(renderer, &panel, stats);
+        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
+        int textY = panel.y + padY;
+        for (const std::string &line : aiLines)
+        {
+            debugFontRef.drawText(renderer, line, panel.x + padX, textY, &stats);
+            textY += debugLineHeight;
+        }
+        topRightAnchorY += panel.h + 12;
+
+        if (!aiDebug.history.empty())
+        {
+            int histWidth = 0;
+            for (const std::string &entry : aiDebug.history)
+            {
+                histWidth = std::max(histWidth, measureWithFallback(debugFontRef, entry, debugLineHeight));
+            }
+            const int hPadX = 10;
+            const int hPadY = 6;
+            SDL_Rect historyPanel{screenW - (histWidth + hPadX * 2) - 12, topRightAnchorY,
+                                  histWidth + hPadX * 2, static_cast<int>(aiDebug.history.size()) * debugLineHeight + hPadY * 2};
+            SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+            SDL_SetRenderDrawColor(renderer, 8, 8, 20, 150);
+            countedRenderFillRect(renderer, &historyPanel, stats);
+            SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
+            int histY = historyPanel.y + hPadY;
+            for (const std::string &entry : aiDebug.history)
+            {
+                debugFontRef.drawText(renderer, entry, historyPanel.x + hPadX, histY, &stats);
+                histY += debugLineHeight;
+            }
+            topRightAnchorY += historyPanel.h + 12;
+        }
+        if (!aiDebug.ratioHistory.empty())
+        {
+            const int columnWidth = 6;
+            const int columnGap = 2;
+            const int columns = static_cast<int>(aiDebug.ratioHistory.size());
+            const int startIndex = std::max(0, columns - 32);
+            const int drawColumns = columns - startIndex;
+            const int titleHeight = debugLineHeight;
+            const int graphHeight = 80;
+            const int graphWidth = drawColumns * columnWidth + std::max(0, drawColumns - 1) * columnGap;
+            const int padX = 10;
+            const int padY = 6;
+            SDL_Rect graphPanel{screenW - (graphWidth + padX * 2) - 12,
+                                topRightAnchorY,
+                                graphWidth + padX * 2,
+                                graphHeight + padY * 2 + titleHeight};
+            SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+            SDL_SetRenderDrawColor(renderer, 10, 10, 26, 150);
+            countedRenderFillRect(renderer, &graphPanel, stats);
+            SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
+            debugFontRef.drawText(renderer, "行動履歴", graphPanel.x + padX, graphPanel.y + padY, &stats);
+            const int graphBottom = graphPanel.y + padY + titleHeight + graphHeight;
+            int columnX = graphPanel.x + padX;
+            for (int idx = startIndex; idx < columns; ++idx)
+            {
+                const auto &column = aiDebug.ratioHistory[static_cast<std::size_t>(idx)];
+                int barTop = graphBottom;
+                for (std::size_t actionIdx = 0; actionIdx < column.size(); ++actionIdx)
+                {
+                    float ratio = std::clamp(column[actionIdx], 0.0f, 1.0f);
+                    if (ratio <= 0.0f)
+                    {
+                        continue;
+                    }
+                    int barHeight = static_cast<int>(std::round(ratio * graphHeight));
+                    if (barHeight <= 0)
+                    {
+                        continue;
+                    }
+                    barTop -= barHeight;
+                    SDL_Rect bar{columnX, barTop, columnWidth, barHeight};
+                    const SDL_Color color = kActionHistoryColors[actionIdx % kActionHistoryColors.size()];
+                    SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+                    SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, color.a);
+                    countedRenderFillRect(renderer, &bar, stats);
+                    SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
+                }
+                columnX += columnWidth + columnGap;
+            }
+            topRightAnchorY += graphPanel.h + 12;
+        }
+    }
+
     if (!queue.performanceWarningText.empty() && queue.performanceWarningTimer > 0.0f)
     {
         const int warnPadX = 12;
@@ -829,16 +1138,16 @@ std::string UiView::moraleDisplayName(MoraleState state)
 {
     std::string name{moraleStateLabel(state)};
     if (!name.empty())
-    {
-        name[0] = static_cast<char>(std::toupper(name[0]));
-        for (std::size_t i = 1; i < name.size(); ++i)
         {
-            if (name[i] == '_')
+            name[0] = static_cast<char>(std::toupper(name[0]));
+            for (std::size_t i = 1; i < name.size(); ++i)
             {
-                name[i] = ' ';
+                if (name[i] == '_')
+                {
+                    name[i] = ' ';
+                }
             }
         }
-    }
     return name;
 }
 

@@ -180,6 +180,10 @@ void InputMapper::configure(const InputBindings &bindings)
     {
         bindKey(bindings.quit, ActionId::QuitGame);
     }
+    if (!bindings.toggleSpeed.empty())
+    {
+        bindKey(bindings.toggleSpeed, ActionId::ToggleGameSpeed);
+    }
     if (!bindings.formationPrevious.empty())
     {
         bindKey(bindings.formationPrevious, ActionId::CycleFormationPrevious);

@@ -133,6 +133,7 @@ class WorldState
     void advanceLegacyState(float dt);
     void runSpawnStage(float dt, systems::SystemContext &context);
     systems::FormationSystem *formationSystem() const;
+    bool stageEnemySpawnsEnabled() const;
 };
 
 } // namespace world

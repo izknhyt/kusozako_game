@@ -10,6 +10,10 @@
     "spawn_weights": "assets/spawn_weights.json",
     "skills": "assets/skills.json",
     "formations": "assets/formations.json",
-    "atlas": "assets/atlas.json"
-  }
+    "economy": "assets/economy.json",
+  "atlas": "assets/atlas.json",
+  "stage_config": "assets/stage1_config.json",
+  "chibi_personality": "assets/chibi_personality.json",
+  "ai_params": "assets/ai_params.json"
+}
 }

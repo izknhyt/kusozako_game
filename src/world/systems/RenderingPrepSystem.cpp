@@ -84,6 +84,7 @@ void RenderingPrepSystem::update(float, SystemContext &context)
         commanderSprite.alpha = 255;
         commanderSprite.morale = sim.moraleSummary.commanderState;
         commanderSprite.hasUnitIndex = false;
+        commanderSprite.action = ChibiAction::FollowCommander;
         queue.allies.push_back(commanderSprite);
 
         LegacySimulation::RenderQueue::MoraleIcon commanderIcon;
@@ -126,7 +127,7 @@ void RenderingPrepSystem::update(float, SystemContext &context)
     for (std::size_t i = 0; i < allyCount; ++i)
     {
         const Unit &yuna = sim.yunas[i];
-        if (yuna.effectiveFollower)
+        if (yuna.followByStance || yuna.followBySkill)
         {
             ++followerCount;
         }
@@ -144,6 +145,38 @@ void RenderingPrepSystem::update(float, SystemContext &context)
         allySprite.temperamentMimicBehavior = yuna.temperament.mimicBehavior;
         allySprite.unitIndex = i;
         allySprite.hasUnitIndex = true;
+        allySprite.braveryAxis = yuna.braveryAxis;
+        allySprite.wisdomAxis = yuna.wisdomAxis;
+        allySprite.forcePanic = yuna.forcePanic;
+        allySprite.panicTimer = yuna.temperament.panicTimer;
+        allySprite.panicActive = yuna.forcePanic || yuna.temperament.panicTimer > 0.0f;
+        allySprite.panicTokkou = yuna.panicTokkouActive;
+        allySprite.panicCling = yuna.panicClingActive;
+        allySprite.panicKaiten = yuna.panicKaitenActive;
+        allySprite.panicRunAround = yuna.panicRunActive;
+        allySprite.panicBranchTimer = 0.0f;
+        if (allySprite.panicTokkou)
+        {
+            allySprite.panicBranchTimer = std::max(yuna.panicTokkouTimer, 0.0f);
+        }
+        else if (allySprite.panicCling && sim.chibiPersonalityConfig.cling.exitAuraSeconds > 0.0f)
+        {
+            const float remaining = sim.chibiPersonalityConfig.cling.exitAuraSeconds - yuna.panicClingAuraTimer;
+            allySprite.panicBranchTimer = std::max(remaining, 0.0f);
+        }
+        else if (allySprite.panicKaiten)
+        {
+            allySprite.panicBranchTimer = std::max(yuna.panicKaitenTimer, yuna.panicKaitenGuardTimer);
+        }
+        else if (allySprite.panicRunAround)
+        {
+            allySprite.panicBranchTimer = std::max(yuna.panicRunDashTimer + yuna.panicRunJitterTimer, 0.0f);
+        }
+        else if (allySprite.panicActive)
+        {
+            allySprite.panicBranchTimer = std::max(yuna.temperament.panicTimer, 0.0f);
+        }
+        allySprite.action = yuna.temperament.microAction;
         queue.allies.push_back(allySprite);
 
         LegacySimulation::RenderQueue::MoraleIcon icon;
@@ -218,4 +251,3 @@ void RenderingPrepSystem::update(float, SystemContext &context)
 }
 
 } // namespace world::systems
-

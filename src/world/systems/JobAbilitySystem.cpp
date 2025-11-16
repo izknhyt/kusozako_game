@@ -27,6 +27,7 @@ constexpr const char *RallySkillId = "rally";
 constexpr const char *WallSkillId = "wall";
 constexpr const char *SurgeSkillId = "surge";
 constexpr const char *SelfDestructSkillId = "self_destruct";
+constexpr const char *ImpBombSkillId = "imp_bomb";
 
 const std::unordered_map<std::string, JobAbilitySystem::SkillHandler> &defaultSkillHandlers()
 {
@@ -60,6 +61,12 @@ const std::unordered_map<std::string, JobAbilitySystem::SkillHandler> &defaultSk
                     context.simulation.detonateCommander(skill.def);
                     skill.cooldownRemaining = skill.def.cooldown;
                     context.requestComponentSync();
+                }});
+        map.emplace(
+            ImpBombSkillId,
+            JobAbilitySystem::SkillHandler{
+                [](JobAbilitySystem &system, SystemContext &context, RuntimeSkill &skill, const SkillCommand &command) {
+                    system.spawnHazardSkill(context, skill, command);
                 }});
         return map;
     }();
@@ -466,6 +473,17 @@ void JobAbilitySystem::activateSpawnRate(SystemContext &context, RuntimeSkill &s
     skill.activeTimer = skill.def.duration;
     skill.cooldownRemaining = skill.def.cooldown;
     context.simulation.pushTelemetry("Spawn surge");
+    context.requestComponentSync();
+}
+
+void JobAbilitySystem::spawnHazardSkill(SystemContext &context, RuntimeSkill &skill, const SkillCommand &command)
+{
+    const float radius = std::max(skill.def.radius, 1.0f);
+    const float duration = skill.def.hazardDuration > 0.0f ? skill.def.hazardDuration
+                                                          : (skill.def.duration > 0.0f ? skill.def.duration : 2.0f);
+    const float weight = skill.def.hazardWeight > 0.0f ? skill.def.hazardWeight : 1.0f;
+    context.simulation.addDynamicHazard(command.worldTarget, radius, weight, duration);
+    skill.cooldownRemaining = skill.def.cooldown;
     context.requestComponentSync();
 }
 

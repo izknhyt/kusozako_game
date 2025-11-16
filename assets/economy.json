@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "base_cap": 200,
+  "token_bonus": 0.10,
+  "enemy_rewards": {
+    "slime": 1,
+    "wallbreaker": 5,
+    "boss": 60
+  }
+}
+

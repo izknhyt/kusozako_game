@@ -183,7 +183,6 @@ void FormationSystem::update(float dt, SystemContext &context)
     for (Unit &unit : yunas)
     {
         unit.followByStance = false;
-        unit.effectiveFollower = false;
     }
 
     if (context.orderActive && sim.stance == ArmyStance::FollowLeader && commander.alive)
@@ -223,7 +222,6 @@ void FormationSystem::update(float dt, SystemContext &context)
         {
             break;
         }
-        entry.second->effectiveFollower = true;
         followers.push_back(entry.second);
     }
     if (followers.size() < kFollowLimit)
@@ -236,7 +234,6 @@ void FormationSystem::update(float dt, SystemContext &context)
             }
             if (!unit.followBySkill && unit.followByStance)
             {
-                unit.effectiveFollower = true;
                 followers.push_back(&unit);
             }
         }
@@ -246,6 +243,7 @@ void FormationSystem::update(float dt, SystemContext &context)
     for (std::size_t i = 0; i < followers.size(); ++i)
     {
         followers[i]->formationOffset = formationOffsets[i];
+        followers[i]->followByStance = true;
     }
 
     if (!commander.alive || followers.empty())

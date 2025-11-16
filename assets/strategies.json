@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "characters": [
+    {
+      "id": "milly",
+      "label": "Milly",
+      "options": [
+        { "id": "rear_safe", "label": "Rear Guard" },
+        { "id": "defend_base", "label": "Defend Base" },
+        { "id": "focus_fire", "label": "Focus Fire" }
+      ],
+      "default": "rear_safe"
+    },
+    {
+      "id": "mary",
+      "label": "Mary",
+      "options": [
+        { "id": "rear_safe", "label": "Rear Guard" },
+        { "id": "defend_base", "label": "Defend Base" }
+      ],
+      "default": "rear_safe"
+    },
+    {
+      "id": "coco",
+      "label": "Coco",
+      "options": [
+        { "id": "defend_base", "label": "Defend Base" },
+        { "id": "focus_fire", "label": "Focus Fire" },
+        { "id": "ambush", "label": "Ambush" }
+      ],
+      "default": "defend_base"
+    }
+  ]
+}
+

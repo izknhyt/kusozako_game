@@ -23,6 +23,15 @@
     "mana": 30,
     "key": 3
   },
+  "imp_bomb": {
+    "type": "hazard",
+    "radius_px": 40,
+    "hazard_duration_s": 2.0,
+    "hazard_weight": 1.2,
+    "cooldown_s": 12,
+    "mana": 0,
+    "key": 5
+  },
   "self_destruct": {
     "type": "detonate",
     "radius_px": 128,

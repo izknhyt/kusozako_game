@@ -38,6 +38,7 @@ class JobAbilitySystem : public ISystem
 
     void toggleRally(SystemContext &context, RuntimeSkill &skill, const SkillCommand &command);
     void activateSpawnRate(SystemContext &context, RuntimeSkill &skill);
+    void spawnHazardSkill(SystemContext &context, RuntimeSkill &skill, const SkillCommand &command);
 
   private:
 

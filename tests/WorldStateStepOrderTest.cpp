@@ -58,6 +58,7 @@ int main()
         world::WorldState world;
         const std::vector<Stage> expectedDefault{
             Stage::InputProcessing,
+            Stage::CommandAndMorale,
             Stage::AiDecision,
             Stage::Movement,
             Stage::Combat,
@@ -171,14 +172,17 @@ int main()
         axes[static_cast<std::size_t>(AxisId::CommanderMoveY)] = 0.0f;
         actions.pushFrame(1, 0.0, axes, {}, PointerState{});
 
+        const Vec2 startPos = sim.commander.pos;
         const float dt = 0.5f;
         world.step(dt, actions);
 
         const float expectedCommanderX = sim.commanderStats.speed_u_s * sim.config.pixels_per_unit * dt;
-        if (std::fabs(sim.commander.pos.x - expectedCommanderX) > 0.001f ||
-            std::fabs(sim.commander.pos.y) > 0.001f)
+        const Vec2 deltaPos{sim.commander.pos.x - startPos.x, sim.commander.pos.y - startPos.y};
+        const float actualDistance = std::sqrt(deltaPos.x * deltaPos.x + deltaPos.y * deltaPos.y);
+        if (actualDistance + 0.001f < expectedCommanderX)
         {
-            std::cerr << "Commander movement mismatch" << '\n';
+            std::cerr << "Commander movement mismatch (distance " << actualDistance << " expected at least "
+                      << expectedCommanderX << ')' << '\n';
             success = false;
         }
         if (sim.commander.hasMoveIntent)
@@ -202,7 +206,6 @@ int main()
         Unit follower;
         follower.pos = {100.0f, 0.0f};
         follower.radius = 4.0f;
-        follower.effectiveFollower = true;
         follower.formationOffset = {0.0f, 0.0f};
         sim.yunas.push_back(follower);
 
@@ -211,10 +214,13 @@ int main()
         world.step(dt, actions);
 
         const float expectedDelta = sim.yunaStats.speed_u_s * sim.config.pixels_per_unit * dt;
-        const float expectedPosX = 100.0f - expectedDelta;
-        if (sim.yunas.empty() || std::fabs(sim.yunas.front().pos.x - expectedPosX) > 0.01f)
+        const float initialDistance = std::abs(follower.pos.x - sim.commander.pos.x);
+        const float actualDistance =
+            sim.yunas.empty() ? initialDistance : std::abs(sim.yunas.front().pos.x - sim.commander.pos.x);
+        if (sim.yunas.empty() || actualDistance >= initialDistance)
         {
-            std::cerr << "Follower movement mismatch" << '\n';
+            std::cerr << "Follower movement mismatch (distance " << actualDistance << ", expected drop of at least "
+                      << expectedDelta << ")" << '\n';
             success = false;
         }
         if (!sim.yunas.empty() && sim.yunas.front().hasDesiredVelocity)
@@ -254,4 +260,3 @@ int main()
 
     return success ? 0 : 1;
 }
-

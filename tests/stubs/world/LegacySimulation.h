@@ -4,10 +4,52 @@
 #include "world/LegacyTypes.h"
 #include "world/MoraleTypes.h"
 #include "world/SkillRuntime.h"
+#include "world/StageConfig.h"
 
 #include <algorithm>
 #include <string>
 #include <vector>
+
+enum class ChibiAction
+{
+    AssaultEnemy,
+    AssaultBase,
+    Flee,
+    FollowCommander,
+    FollowAlly,
+    DefendBase,
+    Wander
+};
+
+inline const char *chibiActionLabel(ChibiAction action)
+{
+    switch (action)
+    {
+    case ChibiAction::AssaultEnemy: return "てきにとつげき";
+    case ChibiAction::AssaultBase: return "きょてんこうげき";
+    case ChibiAction::Flee: return "てきからにげる";
+    case ChibiAction::FollowCommander: return "ユウナをおいかける";
+    case ChibiAction::FollowAlly: return "みかたをおいかける";
+    case ChibiAction::DefendBase: return "きょてんまもる";
+    case ChibiAction::Wander:
+    default: return "うろうろ";
+    }
+}
+
+inline const char *chibiActionKey(ChibiAction action)
+{
+    switch (action)
+    {
+    case ChibiAction::AssaultEnemy: return "assault_enemy";
+    case ChibiAction::AssaultBase: return "assault_base";
+    case ChibiAction::Flee: return "flee";
+    case ChibiAction::FollowCommander: return "follow_commander";
+    case ChibiAction::FollowAlly: return "follow_ally";
+    case ChibiAction::DefendBase: return "defend_base";
+    case ChibiAction::Wander:
+    default: return "wander";
+    }
+}
 
 enum class MissionMode
 {
@@ -106,11 +148,58 @@ struct LegacySimulation
     bool orderActive = false;
     float orderTimer = 0.0f;
     float orderDuration = 0.0f;
+    struct StubAllyBase
+    {
+        std::string id;
+        float hp = 0.0f;
+        float maxHp = 0.0f;
+        bool destroyed = false;
+        float auraRadiusPx = 0.0f;
+    };
+    struct StubEnemyBase
+    {
+        std::string id;
+        float hp = 0.0f;
+        float maxHp = 0.0f;
+        bool sealed = false;
+    };
+    struct StageRuntimeState
+    {
+        bool enabled = false;
+        bool dragonDefeated = false;
+        StageVictoryRequirements victory{};
+        std::vector<StubAllyBase> allyBases;
+        std::vector<StubEnemyBase> enemyBases;
+    } stage;
 
     bool isOrderActive() const { return orderActive; }
     float orderTimeRemaining() const { return std::max(orderTimer, 0.0f); }
     ArmyStance currentOrder() const { return stance; }
+    StageRuntimeState &stageState() { return stage; }
+    const StageRuntimeState &stageState() const { return stage; }
+    std::size_t sealedEnemyBases() const
+    {
+        if (!stage.enabled)
+        {
+            return 0;
+        }
+        std::size_t count = 0;
+        for (const auto &base : stage.enemyBases)
+        {
+            if (base.sealed)
+            {
+                ++count;
+            }
+        }
+        return count;
+    }
+    void addDynamicHazard(const Vec2 &, float, float, float) {}
+    void decayDynamicHazards(float) {}
+    void setStageHazardActive(const std::string &, bool) {}
+    void appendAiTelemetryCsv(
+        const std::array<float, 7> &, float, float, float, float, int, int, float, float, float, const std::string &, const std::string &, const std::string &, const std::string &)
+    {
+    }
 };
 
 } // namespace world
-

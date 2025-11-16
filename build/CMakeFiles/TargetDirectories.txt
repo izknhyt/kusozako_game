@@ -9,6 +9,7 @@
 /Users/izumimotohayato/development/kusozako/build/CMakeFiles/asset_manager_memory_warning_test.dir
 /Users/izumimotohayato/development/kusozako/build/CMakeFiles/ui_presenter_test.dir
 /Users/izumimotohayato/development/kusozako/build/CMakeFiles/ui_view_test.dir
+/Users/izumimotohayato/development/kusozako/build/CMakeFiles/camp_state_test.dir
 /Users/izumimotohayato/development/kusozako/build/CMakeFiles/test.dir
 /Users/izumimotohayato/development/kusozako/build/CMakeFiles/edit_cache.dir
 /Users/izumimotohayato/development/kusozako/build/CMakeFiles/rebuild_cache.dir

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <array>
+#include <deque>
 #include <cstddef>
 #include <string>
 #include <vector>
@@ -18,6 +19,7 @@ inline constexpr std::size_t UnitJobCount = 3;
 
 struct HUDState
 {
+    static constexpr std::size_t kHudActionCount = 7;
     std::string telemetryText;
     float telemetryTimer = 0.0f;
     std::string resultText;
@@ -84,6 +86,40 @@ struct HUDState
         std::size_t lastDeferred = 0;
         std::size_t totalDeferred = 0;
     } spawnBudget;
+
+    struct StageBanner
+    {
+        std::string text;
+        float timer = 0.0f;
+    } stageBanner;
+
+    struct TipMessage
+    {
+        std::string text;
+        float timer = 0.0f;
+    } tip;
+
+    struct EconomyHud
+    {
+        int currency = 0;
+        int cap = 0;
+        int tokens = 0;
+        std::string recommended;
+    } economy;
+
+    struct AiDebugInfo
+    {
+        bool available = false;
+        float panicRatio = 0.0f;
+        float avgRadius = 0.0f;
+        float exceedRatio = 0.0f;
+        float clingRatio = 0.0f;
+        float kaitenRatio = 0.0f;
+        float runRatio = 0.0f;
+        std::array<float, 7> actionRatios{};
+        std::vector<std::string> history;
+        std::deque<std::array<float, 7>> ratioHistory;
+    } aiDebug;
 };
 
 enum class GameResult
@@ -92,4 +128,3 @@ enum class GameResult
     Victory,
     Defeat,
 };
-

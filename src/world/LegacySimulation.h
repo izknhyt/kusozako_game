@@ -6,6 +6,7 @@
 #include "world/LegacyTypes.h"
 #include "world/MoraleTypes.h"
 #include "world/SkillRuntime.h"
+#include "world/StageConfig.h"
 
 #include <algorithm>
 #include <array>
@@ -47,6 +48,47 @@ namespace world::spawn
 class WaveController;
 }
 
+enum class ChibiAction
+{
+    AssaultEnemy,
+    AssaultBase,
+    Flee,
+    FollowCommander,
+    FollowAlly,
+    DefendBase,
+    Wander
+};
+
+inline const char *chibiActionLabel(ChibiAction action)
+{
+    switch (action)
+    {
+    case ChibiAction::AssaultEnemy: return "てきにとつげき";
+    case ChibiAction::AssaultBase: return "きょてんこうげき";
+    case ChibiAction::Flee: return "てきからにげる";
+    case ChibiAction::FollowCommander: return "ユウナをおいかける";
+    case ChibiAction::FollowAlly: return "みかたをおいかける";
+    case ChibiAction::DefendBase: return "きょてんまもる";
+    case ChibiAction::Wander:
+    default: return "うろうろ";
+    }
+}
+
+inline const char *chibiActionKey(ChibiAction action)
+{
+    switch (action)
+    {
+    case ChibiAction::AssaultEnemy: return "assault_enemy";
+    case ChibiAction::AssaultBase: return "assault_base";
+    case ChibiAction::Flee: return "flee";
+    case ChibiAction::FollowCommander: return "follow_commander";
+    case ChibiAction::FollowAlly: return "follow_ally";
+    case ChibiAction::DefendBase: return "defend_base";
+    case ChibiAction::Wander:
+    default: return "wander";
+    }
+}
+
 struct TemperamentState
 {
     const TemperamentDefinition *definition = nullptr;
@@ -67,6 +109,10 @@ struct TemperamentState
     bool crying = false;
     float panicTimer = 0.0f;
     float chargeDashTimer = 0.0f;
+    ChibiAction microAction = ChibiAction::Wander;
+    ChibiAction previousMicroAction = ChibiAction::Wander;
+    float microActionDecisionTimer = 0.0f;
+    float microActionStickyTimer = 0.0f;
 };
 
 struct WarriorJobRuntime
@@ -100,10 +146,10 @@ struct Unit
 {
     Vec2 pos;
     float hp = 0.0f;
+    float maxHp = 0.0f;
     float radius = 4.0f;
     bool followBySkill = false;
     bool followByStance = false;
-    bool effectiveFollower = false;
     Vec2 formationOffset{0.0f, 0.0f};
     Vec2 desiredVelocity{0.0f, 0.0f};
     bool hasDesiredVelocity = false;
@@ -134,6 +180,24 @@ struct Unit
     float moraleIgnoreOrdersTimer = 0.0f;
     bool moraleIgnoringOrders = false;
     bool moraleLightMesomesoPending = false;
+    int braveryAxis = 0;
+    int wisdomAxis = 0;
+    bool forcePanic = false;
+    bool panicTokkouActive = false;
+    float panicTokkouTimer = 0.0f;
+    bool panicClingActive = false;
+    float panicClingAuraTimer = 0.0f;
+    bool panicKaitenActive = false;
+    float panicKaitenTimer = 0.0f;
+    float panicKaitenGuardTimer = 0.0f;
+    Vec2 panicKaitenGuardDirection{1.0f, 0.0f};
+    bool panicRunActive = false;
+    float panicRunDashTimer = 0.0f;
+    float panicRunJitterTimer = 0.0f;
+    float panicRunRepathTimer = 0.0f;
+    float panicRunAuraTimer = 0.0f;
+    Vec2 panicRunDirection{0.0f, 0.0f};
+    Vec2 panicRunJitterDirection{0.0f, 0.0f};
     JobRuntimeState job{};
 };
 
@@ -152,6 +216,7 @@ struct EnemyUnit
     Vec2 pos;
     float hp = 0.0f;
     float radius = 0.0f;
+    float attackRangePx = 0.0f;
     EnemyArchetype type = EnemyArchetype::Slime;
     float speedPx = 0.0f;
     float dpsUnit = 0.0f;
@@ -185,6 +250,57 @@ namespace world
 
 std::string normalizeTelemetry(const std::string &text);
 
+struct StageAllyBaseState
+{
+    std::string id;
+    Vec2 pos;
+    float hp = 0.0f;
+    float maxHp = 0.0f;
+    float baseMaxHp = 0.0f;
+    float auraRadiusPx = 0.0f;
+    bool destroyed = false;
+    bool destroyedDefault = false;
+};
+
+struct StageEnemyBaseState
+{
+    std::string id;
+    Vec2 pos;
+    float hp = 0.0f;
+    float maxHp = 0.0f;
+    float ratePerSecond = 0.0f;
+    float rateMax = 0.0f;
+    std::unordered_map<std::string, float> weights;
+    bool sealed = false;
+    bool sealedDefault = false;
+    float spawnAccumulator = 0.0f;
+};
+
+struct StageHazardState
+{
+    std::string id;
+    Vec2 pos;
+    float radius = 0.0f;
+    float weight = 1.0f;
+    bool active = true;
+    bool activeDefault = true;
+    std::string triggerEnemyBase;
+};
+
+struct StageRuntimeState
+{
+    bool enabled = false;
+    StageAllyFactoryConfig allyFactory{};
+    StageBaseSealBehavior sealBehavior{};
+    StageGlobalCaps globalCaps{};
+    StageVictoryRequirements victory{};
+    StageSpeedConfig speed{};
+    bool dragonDefeated = false;
+    std::vector<StageAllyBaseState> allyBases;
+    std::vector<StageEnemyBaseState> enemyBases;
+    std::vector<StageHazardState> hazards;
+};
+
 struct LegacySimulation
 {
     enum class SpawnOrigin
@@ -202,13 +318,28 @@ struct LegacySimulation
 
     GameConfig config;
     TemperamentConfig temperamentConfig;
+    ChibiPersonalityConfig chibiPersonalityConfig;
+    ChibiAiParams chibiAiParams;
     EntityStats yunaStats;
     EntityStats slimeStats;
+    EntityStats goblinStats;
+    EntityStats magicianStats;
+    EntityStats batStats;
+    EntityStats toritoriStats;
     WallbreakerStats wallbreakerStats;
     CommanderStats commanderStats;
     CommanderUnit commander;
     MapDefs mapDefs;
     SpawnScript spawnScript;
+    StageRuntimeState stage;
+    EconomyConfig economyConfig;
+    struct EconomyState
+    {
+        int mana = 0;
+        int cap = 0;
+        int tokens = 0;
+        float tokenBonus = 0.0f;
+    } economy;
     std::vector<Unit> yunas;
     std::deque<UnitJob> jobHistory;
     std::size_t jobHistoryLimit = 32;
@@ -217,11 +348,22 @@ struct LegacySimulation
     std::deque<UnitJob> spawnTelemetryWindow;
     std::array<std::uint64_t, UnitJobCount> spawnTelemetryTotals{};
     std::uint64_t spawnTelemetryTotal = 0;
+    bool aiTelemetryHeaderWritten = false;
+    bool aiChecklistHeaderWritten = false;
     std::weak_ptr<TelemetrySink> telemetry;
+    void recordHazardTelemetry(const char *event, const std::string &id, const Vec2 &pos, float radius, float weight);
     std::vector<EnemyUnit> enemies;
     std::vector<WallSegment> walls;
     std::vector<GateRuntime> gates;
     std::vector<RuntimeSkill> skills;
+    struct DynamicHazard
+    {
+        Vec2 pos;
+        float radius = 0.0f;
+        float weight = 1.0f;
+        float timer = 0.0f;
+    };
+    std::vector<DynamicHazard> dynamicHazards;
     Vec2 worldMin{0.0f, 0.0f};
     Vec2 worldMax{1280.0f, 720.0f};
     float spawnTimer = 0.0f;
@@ -293,6 +435,17 @@ struct LegacySimulation
             TemperamentBehavior temperamentMimicBehavior = TemperamentBehavior::Wander;
             std::size_t unitIndex = 0;
             bool hasUnitIndex = false;
+            int braveryAxis = 0;
+            int wisdomAxis = 0;
+            bool panicActive = false;
+            bool forcePanic = false;
+            float panicTimer = 0.0f;
+            bool panicTokkou = false;
+            bool panicCling = false;
+            bool panicKaiten = false;
+            bool panicRunAround = false;
+            float panicBranchTimer = 0.0f;
+            ChibiAction action = ChibiAction::Wander;
         };
 
         struct EnemySprite
@@ -354,6 +507,22 @@ struct LegacySimulation
         std::size_t totalDeferred = 0;
     } spawnBudgetState;
 
+    struct ActionTelemetryState
+    {
+        std::array<float, static_cast<std::size_t>(ChibiAction::Wander) + 1> unitTime{};
+        float panicUnitTime = 0.0f;
+        float totalUnitTime = 0.0f;
+        float timer = 0.0f;
+        float boidRadiusAccum = 0.0f;
+        int boidRadiusSamples = 0;
+        int boidRadiusExceed = 0;
+        int tokkouActive = 0;
+        int tokkouPeak = 0;
+        float clingUnitTime = 0.0f;
+        float kaitenUnitTime = 0.0f;
+        float runUnitTime = 0.0f;
+    } actionTelemetry;
+
     struct SurvivalRuntime
     {
         float elapsed = 0.0f;
@@ -378,6 +547,9 @@ struct LegacySimulation
     int selectedSkill = 0;
     bool rallyState = false;
     float spawnRateMultiplier = 1.0f;
+    float spawnRateBaseMultiplier = 1.0f;
+    float baseDamageReduction = 0.0f;
+    float baseAuraRegenPerSecond = 0.0f;
     float moraleSpawnMultiplier = 1.0f;
     float spawnSlowMultiplier = 1.0f;
     float spawnSlowTimer = 0.0f;
@@ -460,6 +632,553 @@ struct LegacySimulation
         selectedSkill = 0;
     }
 
+    void clearStageConfiguration()
+    {
+        stage = {};
+        dynamicHazards.clear();
+    }
+
+    void configureStage(const StageConfig &cfg)
+    {
+        stage.enabled = true;
+        stage.allyFactory = cfg.allyFactory;
+        stage.sealBehavior = cfg.sealBehavior;
+        stage.globalCaps = cfg.globalCaps;
+        stage.victory = cfg.victory;
+        stage.speed = cfg.speed;
+        stage.allyBases.clear();
+        stage.enemyBases.clear();
+        dynamicHazards.clear();
+        stage.hazards.clear();
+
+        const int tileSize = mapDefs.tile_size > 0 ? mapDefs.tile_size : config.pixels_per_unit;
+
+        for (const StageAllyBaseConfig &baseCfg : cfg.allyBases)
+        {
+            StageAllyBaseState base;
+            base.id = baseCfg.id;
+            base.maxHp = baseCfg.hp;
+            base.hp = baseCfg.hp;
+            base.baseMaxHp = baseCfg.hp;
+            base.auraRadiusPx = baseCfg.auraRadiusPx;
+            base.destroyed = baseCfg.sealedByDefault;
+            base.destroyedDefault = baseCfg.sealedByDefault;
+            if (base.destroyed)
+            {
+                base.hp = 0.0f;
+            }
+            base.pos = tileToWorld(baseCfg.position, tileSize);
+            stage.allyBases.push_back(base);
+        }
+
+        for (const StageEnemyBaseConfig &baseCfg : cfg.enemyBases)
+        {
+            StageEnemyBaseState base;
+            base.id = baseCfg.id;
+            base.pos = tileToWorld(baseCfg.position, tileSize);
+            base.maxHp = baseCfg.hp;
+            base.hp = baseCfg.hp;
+            base.ratePerSecond = baseCfg.ratePerSecond;
+            base.rateMax = baseCfg.rateMax;
+            base.weights = baseCfg.weights;
+            base.sealed = baseCfg.sealedByDefault;
+            base.sealedDefault = baseCfg.sealedByDefault;
+            base.spawnAccumulator = 0.0f;
+            stage.enemyBases.push_back(base);
+        }
+        for (const StageHazardConfig &hazardCfg : cfg.hazards)
+        {
+            StageHazardState hazard;
+            hazard.id = hazardCfg.id;
+            hazard.pos = tileToWorld(hazardCfg.position, tileSize);
+            hazard.radius = hazardCfg.radiusPx;
+            hazard.weight = hazardCfg.weight;
+            hazard.active = hazardCfg.enabled;
+            hazard.activeDefault = hazardCfg.enabled;
+            hazard.triggerEnemyBase = hazardCfg.triggerEnemyBase;
+            stage.hazards.push_back(hazard);
+        }
+        stage.dragonDefeated = false;
+    }
+
+    void addDynamicHazard(const Vec2 &pos, float radius, float weight, float duration)
+    {
+        if (radius <= 0.0f || duration <= 0.0f)
+        {
+            return;
+        }
+        dynamicHazards.push_back({pos, radius, weight, duration});
+        recordHazardTelemetry("world.hazard.dynamic", "", pos, radius, weight);
+    }
+
+    void decayDynamicHazards(float dt)
+    {
+        if (dynamicHazards.empty())
+        {
+            return;
+        }
+        for (DynamicHazard &hazard : dynamicHazards)
+        {
+            hazard.timer = std::max(0.0f, hazard.timer - dt);
+        }
+        dynamicHazards.erase(
+            std::remove_if(dynamicHazards.begin(), dynamicHazards.end(),
+                           [](const DynamicHazard &hazard) { return hazard.timer <= 0.0f; }),
+            dynamicHazards.end());
+    }
+
+    void setStageHazardActive(const std::string &id, bool active)
+    {
+        if (!stage.enabled)
+        {
+            return;
+        }
+        for (StageHazardState &hazard : stage.hazards)
+        {
+            if (hazard.id == id)
+            {
+                hazard.active = active;
+                if (active)
+                {
+                    pushTelemetry(std::string("Hazard active: ") + hazard.id);
+                    recordHazardTelemetry("world.hazard.stage_activated", hazard.id, hazard.pos, hazard.radius, hazard.weight);
+                }
+                else
+                {
+                    recordHazardTelemetry("world.hazard.stage_deactivated", hazard.id, hazard.pos, hazard.radius, hazard.weight);
+                }
+                break;
+            }
+        }
+    }
+
+    void activateHazardsForBase(const std::string &baseId)
+    {
+        if (!stage.enabled)
+        {
+            return;
+        }
+        for (StageHazardState &hazard : stage.hazards)
+        {
+            if (!hazard.triggerEnemyBase.empty() && hazard.triggerEnemyBase == baseId && !hazard.active)
+            {
+                hazard.active = true;
+                pushTelemetry(std::string("Hazard active: ") + hazard.id);
+                recordHazardTelemetry("world.hazard.stage_activated", hazard.id, hazard.pos, hazard.radius, hazard.weight);
+            }
+        }
+    }
+
+    StageAllyBaseState *findAllyBase(const std::string &id)
+    {
+        if (!stage.enabled)
+        {
+            return nullptr;
+        }
+        for (StageAllyBaseState &base : stage.allyBases)
+        {
+            if (base.id == id)
+            {
+                return &base;
+            }
+        }
+        return nullptr;
+    }
+
+    StageEnemyBaseState *findEnemyBase(const std::string &id)
+    {
+        if (!stage.enabled)
+        {
+            return nullptr;
+        }
+        for (StageEnemyBaseState &base : stage.enemyBases)
+        {
+            if (base.id == id)
+            {
+                return &base;
+            }
+        }
+        return nullptr;
+    }
+
+    std::size_t sealedEnemyBases() const
+    {
+        if (!stage.enabled)
+        {
+            return 0;
+        }
+        return std::count_if(stage.enemyBases.begin(), stage.enemyBases.end(),
+                             [](const StageEnemyBaseState &base) { return base.sealed; });
+    }
+
+    bool allEnemyBasesSealed() const
+    {
+        if (!stage.enabled)
+        {
+            return false;
+        }
+        if (stage.enemyBases.empty())
+        {
+            return true;
+        }
+        return sealedEnemyBases() == stage.enemyBases.size();
+    }
+
+    bool sealEnemyBase(const std::string &id)
+    {
+        if (StageEnemyBaseState *base = findEnemyBase(id))
+        {
+            return sealEnemyBase(*base);
+        }
+        return false;
+    }
+
+    bool sealEnemyBase(StageEnemyBaseState &base)
+    {
+        if (base.sealed)
+        {
+            return false;
+        }
+        base.sealed = true;
+        base.spawnAccumulator = 0.0f;
+        base.hp = 0.0f;
+        pushTelemetry(std::string("Enemy base sealed: ") + (base.id.empty() ? "base" : base.id));
+        activateHazardsForBase(base.id);
+        maybeDeclareStageVictory();
+        return true;
+    }
+
+    StageRuntimeState &stageState() { return stage; }
+    const StageRuntimeState &stageState() const { return stage; }
+
+    bool areAllAllyBasesDestroyed() const
+    {
+        if (!stage.enabled || stage.allyBases.empty())
+        {
+            return false;
+        }
+        return std::all_of(stage.allyBases.begin(), stage.allyBases.end(),
+                           [](const StageAllyBaseState &base) { return base.destroyed; });
+    }
+
+    float totalAllyBaseMaxHp() const
+    {
+        float total = 0.0f;
+        for (const StageAllyBaseState &base : stage.allyBases)
+        {
+            total += base.maxHp;
+        }
+        return total;
+    }
+
+    void damageAllyBase(StageAllyBaseState &base, float amount)
+    {
+        if (!stage.enabled || amount <= 0.0f || base.destroyed)
+        {
+            return;
+        }
+        const float mitigation = std::clamp(baseDamageReduction, 0.0f, 0.95f);
+        const float effectiveDamage = amount * (1.0f - mitigation);
+        if (effectiveDamage <= 0.0f)
+        {
+            return;
+        }
+        const float delta = std::min(effectiveDamage, base.hp);
+        base.hp = std::max(0.0f, base.hp - delta);
+        baseHp = std::max(0.0f, baseHp - delta);
+        if (base.hp <= 0.0f && !base.destroyed)
+        {
+            base.destroyed = true;
+            std::string name = base.id.empty() ? "Camp" : base.id;
+            pushStageBanner(std::string("Ally base lost: ") + name);
+            pushTip("Defend remaining bases!");
+            checkCommanderLossCondition();
+        }
+    }
+
+    bool damageEnemyBase(const std::string &id, float amount)
+    {
+        if (StageEnemyBaseState *base = findEnemyBase(id))
+        {
+            damageEnemyBase(*base, amount);
+            return true;
+        }
+        return false;
+    }
+
+    void damageEnemyBase(StageEnemyBaseState &base, float amount)
+    {
+        if (!stage.enabled || amount <= 0.0f || base.sealed)
+        {
+            return;
+        }
+        base.hp = std::max(0.0f, base.hp - amount);
+        if (base.hp <= 0.0f)
+        {
+            std::string name = base.id.empty() ? "Enemy base" : base.id;
+            const bool newlySealed = !base.sealed;
+            sealEnemyBase(base);
+            if (newlySealed)
+            {
+                pushStageBanner(std::string("Enemy base sealed: ") + name);
+                std::ostringstream oss;
+                oss << "Enemy bases sealed " << sealedEnemyBases() << '/' << stage.enemyBases.size();
+                pushTip(oss.str());
+            }
+        }
+    }
+
+    void resetEconomyState()
+    {
+        economy.cap = economyConfig.baseCap;
+        economy.mana = 0;
+        economy.tokens = 0;
+        economy.tokenBonus = economyConfig.tokenBonus;
+        updateEconomyHud();
+    }
+
+    void updateEconomyHud()
+    {
+        std::string recommendation;
+        if (economy.cap > 0)
+        {
+            if (economy.mana >= economy.cap)
+            {
+                recommendation = "Return to camp to spend mana";
+            }
+            else
+            {
+                recommendation = "Seal bases to gain mana";
+            }
+        }
+        setEconomyHud(economy.mana, economy.cap, economy.tokens, recommendation);
+    }
+
+    int economyRewardForType(EnemyArchetype type) const
+    {
+        auto lookup = [this](const std::string &key) -> int {
+            auto it = economyConfig.enemyRewards.find(key);
+            if (it != economyConfig.enemyRewards.end())
+            {
+                return it->second;
+            }
+            return 0;
+        };
+        switch (type)
+        {
+        case EnemyArchetype::Wallbreaker: return lookup("wallbreaker");
+        case EnemyArchetype::Boss: return lookup("boss");
+        case EnemyArchetype::Slime:
+        default: return lookup("slime");
+        }
+    }
+
+    void grantMana(float amount)
+    {
+        if (amount <= 0.0f || economy.cap <= 0)
+        {
+            return;
+        }
+        const float bonus = 1.0f + std::max(0, economy.tokens) * std::max(economy.tokenBonus, 0.0f);
+        int delta = static_cast<int>(std::round(amount * std::max(bonus, 0.0f)));
+        if (delta <= 0)
+        {
+            return;
+        }
+        economy.mana = std::min(economy.cap, economy.mana + delta);
+        updateEconomyHud();
+    }
+
+    void rewardEnemyKill(EnemyArchetype type)
+    {
+        const int reward = economyRewardForType(type);
+        if (reward > 0)
+        {
+            grantMana(static_cast<float>(reward));
+        }
+    }
+
+    bool stageVictoryReady() const
+    {
+        if (!stage.enabled)
+        {
+            return false;
+        }
+        if (stage.victory.requireAllEnemyBases && !allEnemyBasesSealed())
+        {
+            return false;
+        }
+        if (stage.victory.requireDragon && !stage.dragonDefeated)
+        {
+            return false;
+        }
+        return true;
+    }
+
+    void maybeDeclareStageVictory()
+    {
+        if (result != GameResult::Playing)
+        {
+            return;
+        }
+        if (stageVictoryReady())
+        {
+            setResult(GameResult::Victory, "Victory");
+        }
+    }
+
+    void handleEnemyDefeated(const EnemyUnit &enemy)
+    {
+        rewardEnemyKill(enemy.type);
+        if (!stage.enabled)
+        {
+            return;
+        }
+        if (enemy.type == EnemyArchetype::Boss)
+        {
+            stage.dragonDefeated = true;
+            maybeDeclareStageVictory();
+        }
+    }
+
+    void checkCommanderLossCondition()
+    {
+        if (!stage.enabled)
+        {
+            return;
+        }
+        if (areAllAllyBasesDestroyed() && !commander.alive)
+        {
+            setResult(GameResult::Defeat, "Defeat");
+        }
+    }
+
+    bool updateStageEnemySpawns(float dt)
+    {
+        if (!stage.enabled)
+        {
+            return false;
+        }
+        const int enemyCap = stage.globalCaps.enemies > 0 ? stage.globalCaps.enemies : std::numeric_limits<int>::max();
+        int currentEnemies = static_cast<int>(enemies.size());
+        if (currentEnemies >= enemyCap)
+        {
+            return false;
+        }
+
+        auto pickType = [this](const StageEnemyBaseState &base) {
+            float total = 0.0f;
+            for (const auto &kv : base.weights)
+            {
+                total += std::max(kv.second, 0.0f);
+            }
+            if (total <= 0.0f)
+            {
+                return EnemyArchetype::Slime;
+            }
+            std::uniform_real_distribution<float> dist(0.0f, total);
+            float needle = dist(rng);
+            for (const auto &kv : base.weights)
+            {
+                const float weight = std::max(kv.second, 0.0f);
+                if (weight <= 0.0f)
+                {
+                    continue;
+                }
+                if (needle <= weight)
+                {
+                    return enemyTypeFromString(kv.first);
+                }
+                needle -= weight;
+            }
+            return EnemyArchetype::Slime;
+        };
+
+        bool spawned = false;
+        for (StageEnemyBaseState &base : stage.enemyBases)
+        {
+            if (base.sealed)
+            {
+                continue;
+            }
+            const float targetRate = base.ratePerSecond > 0.0f ? base.ratePerSecond : base.rateMax;
+            if (targetRate <= 0.0f)
+            {
+                continue;
+            }
+            base.spawnAccumulator += targetRate * dt;
+            const int maxSpawnsThisTick = enemyCap - currentEnemies;
+            int spawnsPerformed = 0;
+            while (base.spawnAccumulator >= 1.0f && currentEnemies < enemyCap)
+            {
+                EnemyArchetype type = pickType(base);
+                spawnOneEnemy(base.pos, type);
+                base.spawnAccumulator -= 1.0f;
+                ++currentEnemies;
+                ++spawnsPerformed;
+                spawned = true;
+            }
+            if (spawnsPerformed >= maxSpawnsThisTick || currentEnemies >= enemyCap)
+            {
+                break;
+            }
+        }
+        if (spawned)
+        {
+            maybeDeclareStageVictory();
+        }
+        return spawned;
+    }
+
+    void regenAllyBases(float dt)
+    {
+        if (baseAuraRegenPerSecond <= 0.0f || dt <= 0.0f)
+        {
+            return;
+        }
+        const bool stageEnabled = stage.enabled && !stage.allyBases.empty();
+        const float maxHpTotal = stageEnabled ? totalAllyBaseMaxHp() : static_cast<float>(config.base_hp);
+        if (maxHpTotal <= 0.0f)
+        {
+            return;
+        }
+        const float perBase = baseAuraRegenPerSecond * dt;
+        if (perBase <= 0.0f)
+        {
+            return;
+        }
+        if (stageEnabled)
+        {
+            for (StageAllyBaseState &base : stage.allyBases)
+            {
+                if (base.destroyed || base.hp >= base.maxHp)
+                {
+                    continue;
+                }
+                const float delta = std::min(base.maxHp - base.hp, perBase);
+                if (delta <= 0.0f)
+                {
+                    continue;
+                }
+                base.hp = std::min(base.maxHp, base.hp + delta);
+                baseHp = std::min(maxHpTotal, baseHp + delta);
+            }
+        }
+        else
+        {
+            const float missing = std::max(0.0f, maxHpTotal - baseHp);
+            if (missing <= 0.0f)
+            {
+                return;
+            }
+            const float delta = std::min(missing, perBase);
+            if (delta > 0.0f)
+            {
+                baseHp = std::min(maxHpTotal, baseHp + delta);
+            }
+        }
+    }
+
     void setTelemetrySink(std::weak_ptr<TelemetrySink> sink)
     {
         telemetry = std::move(sink);
@@ -485,10 +1204,39 @@ struct LegacySimulation
         spawnBudgetState = {};
         enemies.clear();
         walls.clear();
+        for (StageAllyBaseState &base : stage.allyBases)
+        {
+            base.hp = base.maxHp;
+            base.destroyed = base.destroyedDefault;
+            if (base.destroyed)
+            {
+                base.hp = 0.0f;
+            }
+        }
+        for (StageEnemyBaseState &base : stage.enemyBases)
+        {
+            base.sealed = base.sealedDefault;
+            base.spawnAccumulator = 0.0f;
+            base.hp = base.sealed ? 0.0f : base.maxHp;
+        }
         spawnEnabled = true;
         result = GameResult::Playing;
-        baseHp = static_cast<float>(config.base_hp);
+        if (stage.enabled && !stage.allyBases.empty())
+        {
+            float totalHp = 0.0f;
+            for (const StageAllyBaseState &base : stage.allyBases)
+            {
+                totalHp += base.maxHp;
+            }
+            baseHp = totalHp;
+            stage.dragonDefeated = false;
+        }
+        else
+        {
+            baseHp = static_cast<float>(config.base_hp);
+        }
         hud = {};
+        resetEconomyState();
         rng.seed(static_cast<std::mt19937::result_type>(config.rng_seed));
         scatterY = std::uniform_real_distribution<float>(-config.yuna_scatter_y, config.yuna_scatter_y);
         gateJitter = std::uniform_real_distribution<float>(-spawnScript.y_jitter, spawnScript.y_jitter);
@@ -504,7 +1252,7 @@ struct LegacySimulation
         commander.alive = true;
         commanderRespawnTimer = 0.0f;
         commanderInvulnTimer = 0.0f;
-        spawnRateMultiplier = 1.0f;
+        spawnRateMultiplier = std::max(spawnRateBaseMultiplier, 0.1f);
         moraleSpawnMultiplier = 1.0f;
         spawnSlowMultiplier = 1.0f;
         spawnSlowTimer = 0.0f;
@@ -572,10 +1320,10 @@ struct LegacySimulation
                 skill.activeTimer = std::max(0.0f, skill.activeTimer - dt);
                 if (skill.activeTimer <= 0.0f)
                 {
-                    if (skill.def.type == SkillType::SpawnRate)
-                    {
-                        spawnRateMultiplier = 1.0f;
-                    }
+                if (skill.def.type == SkillType::SpawnRate)
+                {
+                    spawnRateMultiplier = std::max(spawnRateBaseMultiplier, 0.1f);
+                }
                 }
             }
         }
@@ -608,6 +1356,7 @@ struct LegacySimulation
                 commander.hp = commanderStats.hp;
                 commander.pos = yunaSpawnPos;
                 commanderInvulnTimer = config.commander_respawn.invuln;
+                setChibiForcePanic(false);
             }
         }
     }
@@ -708,6 +1457,59 @@ struct LegacySimulation
         state.crying = false;
         state.panicTimer = 0.0f;
         state.chargeDashTimer = state.currentBehavior == TemperamentBehavior::ChargeNearest ? temperamentConfig.chargeDash.duration : 0.0f;
+        state.microAction = ChibiAction::Wander;
+        state.previousMicroAction = ChibiAction::Wander;
+        state.microActionDecisionTimer = 0.0f;
+        state.microActionStickyTimer = 0.0f;
+
+        std::uniform_int_distribution<int> axis(-2, 2);
+        yuna.braveryAxis = axis(rng);
+        yuna.wisdomAxis = axis(rng);
+    }
+
+    float panicThresholdForAxis(int axis) const
+    {
+        if (chibiPersonalityConfig.panicThresholds.empty())
+        {
+            return 0.35f;
+        }
+        const int maxIndex = static_cast<int>(chibiPersonalityConfig.panicThresholds.size()) - 1;
+        const int index = std::clamp(axis + 2, 0, maxIndex);
+        return chibiPersonalityConfig.panicThresholds[static_cast<std::size_t>(index)];
+    }
+
+    float panicMinimumDurationForAxis(int axis) const
+    {
+        if (chibiPersonalityConfig.panicMinimumSeconds.empty())
+        {
+            return 1.2f;
+        }
+        const int maxIndex = static_cast<int>(chibiPersonalityConfig.panicMinimumSeconds.size()) - 1;
+        const int index = std::clamp(axis + 2, 0, maxIndex);
+        return chibiPersonalityConfig.panicMinimumSeconds[static_cast<std::size_t>(index)];
+    }
+
+    float panicThresholdFor(const Unit &unit) const
+    {
+        return panicThresholdForAxis(unit.braveryAxis);
+    }
+
+    float panicMinimumDurationFor(const Unit &unit) const
+    {
+        return panicMinimumDurationForAxis(unit.braveryAxis);
+    }
+
+    void setChibiForcePanic(bool active)
+    {
+        for (Unit &yuna : yunas)
+        {
+            yuna.forcePanic = active;
+            if (active)
+            {
+                yuna.temperament.panicTimer =
+                    std::max(yuna.temperament.panicTimer, panicMinimumDurationFor(yuna));
+            }
+        }
     }
 
     void resetUnitMorale(Unit &unit)
@@ -969,6 +1771,7 @@ struct LegacySimulation
         yuna.pos = yunaSpawnPos;
         yuna.pos.y += scatterY(rng);
         yuna.hp = yunaStats.hp;
+        yuna.maxHp = yunaStats.hp;
         yuna.radius = yunaStats.radius;
         resetUnitMorale(yuna);
         yuna.moraleLightMesomesoPending = !commander.alive &&
@@ -977,6 +1780,12 @@ struct LegacySimulation
         yunas.push_back(yuna);
         assignTemperament(yunas.back());
         clampToWorld(yunas.back().pos, yunas.back().radius);
+        yunas.back().forcePanic = !commander.alive;
+        if (yunas.back().forcePanic)
+        {
+            yunas.back().temperament.panicTimer =
+                std::max(yunas.back().temperament.panicTimer, panicMinimumDurationFor(yunas.back()));
+        }
         recordSpawnTelemetry(job, origin);
     }
 
@@ -1444,10 +2253,10 @@ struct LegacySimulation
         {
             yuna.followBySkill = false;
             yuna.followByStance = false;
-            yuna.effectiveFollower = false;
         }
         hud.resultText = "Commander Down";
         hud.resultTimer = config.telemetry_duration;
+        setChibiForcePanic(true);
     }
 
     void spawnWallSegments(const SkillDef &def, const Vec2 &worldTarget)
@@ -1562,6 +2371,7 @@ struct LegacySimulation
         const float bonus = std::min(def.respawnBonusCap, def.respawnBonusPerHit * static_cast<float>(hits));
         commander.hp = 0.0f;
         scheduleCommanderRespawn(def.respawnPenalty, bonus, 0.0f);
+        addDynamicHazard(commander.pos, def.radius, 1.0f, 1.5f);
         pushTelemetry("Self Destruct!");
     }
 
@@ -1632,15 +2442,27 @@ struct LegacySimulation
             skill.cooldownRemaining = skill.def.cooldown;
             break;
         case SkillType::SpawnRate:
-            spawnRateMultiplier = skill.def.multiplier;
+        {
+            const float surgeMul = skill.def.multiplier > 0.0f ? skill.def.multiplier : 1.0f;
+            spawnRateMultiplier = std::max(spawnRateBaseMultiplier * surgeMul, 0.1f);
             skill.activeTimer = skill.def.duration;
             skill.cooldownRemaining = skill.def.cooldown;
             pushTelemetry("Spawn surge");
             break;
+        }
         case SkillType::Detonate:
             detonateCommander(skill.def);
             skill.cooldownRemaining = skill.def.cooldown;
             break;
+        case SkillType::Hazard:
+        {
+            const float hazardDuration = skill.def.hazardDuration > 0.0f
+                                             ? skill.def.hazardDuration
+                                             : (skill.def.duration > 0.0f ? skill.def.duration : 2.0f);
+            addDynamicHazard(worldTarget, skill.def.radius, skill.def.hazardWeight, hazardDuration);
+            skill.cooldownRemaining = skill.def.cooldown;
+            break;
+        }
         }
     }
 
@@ -1671,6 +2493,44 @@ struct LegacySimulation
     {
         hud.telemetryText = normalizeTelemetry(text);
         hud.telemetryTimer = config.telemetry_duration;
+    }
+
+    void appendAiTelemetryCsv(
+        const std::array<float, static_cast<std::size_t>(ChibiAction::Wander) + 1> &ratios,
+        float panicRatio,
+        float unitSeconds,
+        float avgRadius,
+        float exceedRatio,
+        int tokkouActive,
+        int tokkouPeak,
+        float clingRatio,
+        float kaitenRatio,
+        float runRatio,
+        const std::string &tokkouUnits,
+        const std::string &clingUnits,
+        const std::string &kaitenUnits,
+        const std::string &runUnits);
+
+    void pushStageBanner(const std::string &text, float duration = 0.0f)
+    {
+        const float display = duration > 0.0f ? duration : config.telemetry_duration;
+        hud.stageBanner.text = normalizeTelemetry(text);
+        hud.stageBanner.timer = display;
+    }
+
+    void pushTip(const std::string &text, float duration = 0.0f)
+    {
+        const float display = duration > 0.0f ? duration : config.telemetry_duration;
+        hud.tip.text = normalizeTelemetry(text);
+        hud.tip.timer = display;
+    }
+
+    void setEconomyHud(int currency, int cap, int tokens, std::string recommended)
+    {
+        hud.economy.currency = currency;
+        hud.economy.cap = cap;
+        hud.economy.tokens = tokens;
+        hud.economy.recommended = std::move(recommended);
     }
 
     void handleSpawnDeferral(int deferredCount);
@@ -1714,6 +2574,7 @@ struct LegacySimulation
         updateCommanderRespawn(dt);
         updateWalls(dt);
         updateMission(dt);
+        regenAllyBases(dt);
 
         if (frameCapturePending > 0)
         {
@@ -1742,6 +2603,7 @@ struct LegacySimulation
         enemy.pos = gatePos;
         enemy.pos.y += gateJitter(rng);
         enemy.type = type;
+        enemy.attackRangePx = 0.0f;
         if (type == EnemyArchetype::Wallbreaker)
         {
             enemy.hp = wallbreakerStats.hp;
@@ -1751,6 +2613,7 @@ struct LegacySimulation
             enemy.dpsBase = wallbreakerStats.dps_base;
             enemy.dpsWall = wallbreakerStats.dps_wall;
             enemy.noOverlap = wallbreakerStats.ignoreKnockback;
+            enemy.attackRangePx = enemy.radius;
         }
         else if (type == EnemyArchetype::Boss)
         {
@@ -1761,15 +2624,28 @@ struct LegacySimulation
             enemy.dpsBase = slimeStats.dps;
             enemy.dpsWall = slimeStats.dps;
             enemy.noOverlap = missionConfig.boss.noOverlap;
+            enemy.attackRangePx = enemy.radius;
         }
         else
         {
-            enemy.hp = slimeStats.hp;
-            enemy.radius = slimeStats.radius;
-            enemy.speedPx = slimeStats.speed_u_s * config.pixels_per_unit;
-            enemy.dpsUnit = slimeStats.dps;
-            enemy.dpsBase = slimeStats.dps;
-            enemy.dpsWall = slimeStats.dps;
+            auto applyEntityStats = [&](const EntityStats &stats) {
+                enemy.hp = stats.hp;
+                enemy.radius = stats.radius;
+                enemy.speedPx = stats.speed_u_s * config.pixels_per_unit;
+                enemy.dpsUnit = stats.dps;
+                enemy.dpsBase = stats.dps;
+                enemy.dpsWall = stats.dps;
+                enemy.attackRangePx = stats.attackRangePx > 0.0f ? stats.attackRangePx : stats.radius;
+            };
+            switch (type)
+            {
+            case EnemyArchetype::Goblin: applyEntityStats(goblinStats); break;
+            case EnemyArchetype::Magician: applyEntityStats(magicianStats); break;
+            case EnemyArchetype::Bat: applyEntityStats(batStats); break;
+            case EnemyArchetype::Toritori: applyEntityStats(toritoriStats); break;
+            case EnemyArchetype::Slime:
+            default: applyEntityStats(slimeStats); break;
+            }
         }
         enemies.push_back(enemy);
         timeSinceLastEnemySpawn = 0.0f;
@@ -1783,12 +2659,27 @@ struct LegacySimulation
         }
         const float rateMultiplier = std::max(spawnRateMultiplier, 0.1f);
         const float slowMultiplier = std::max(std::max(spawnSlowMultiplier, moraleSpawnMultiplier), 0.1f);
+        const bool stageEnabled = stage.enabled;
+        int allyCap = config.yuna_max;
+        if (stageEnabled && stage.allyFactory.cap > 0)
+        {
+            allyCap = stage.allyFactory.cap;
+        }
+        if (stageEnabled && stage.globalCaps.chibi > 0)
+        {
+            allyCap = std::min(allyCap, stage.globalCaps.chibi);
+        }
         yunaSpawnTimer -= dt;
         const float minInterval = 0.1f;
-        const float spawnInterval = std::max(minInterval, (config.yuna_interval / rateMultiplier) * slowMultiplier);
+        float baseInterval = config.yuna_interval;
+        if (stageEnabled && stage.allyFactory.ratePerSecond > 0.0f)
+        {
+            baseInterval = 1.0f / stage.allyFactory.ratePerSecond;
+        }
+        const float spawnInterval = std::max(minInterval, (baseInterval / rateMultiplier) * slowMultiplier);
         while (yunaSpawnTimer <= 0.0f)
         {
-            if (static_cast<int>(yunas.size()) < config.yuna_max)
+            if (static_cast<int>(yunas.size()) < allyCap)
             {
                 spawnYunaUnit(chooseSpawnJob(), SpawnOrigin::Natural);
                 yunaSpawnTimer += spawnInterval;
@@ -1809,7 +2700,7 @@ struct LegacySimulation
         remainingRespawns.reserve(yunaRespawns.size());
         for (PendingRespawn &pending : yunaRespawns)
         {
-            if (pending.timer <= 0.0f && static_cast<int>(yunas.size()) < config.yuna_max)
+            if (pending.timer <= 0.0f && static_cast<int>(yunas.size()) < allyCap)
             {
                 spawnYunaUnit(pending.job, SpawnOrigin::Respawn);
             }
@@ -1824,7 +2715,7 @@ struct LegacySimulation
         }
         yunaRespawns.swap(remainingRespawns);
 
-        while (!reinforcementJobs.empty() && static_cast<int>(yunas.size()) < config.yuna_max)
+        while (!reinforcementJobs.empty() && static_cast<int>(yunas.size()) < allyCap)
         {
             UnitJob job = reinforcementJobs.front();
             reinforcementJobs.pop_front();

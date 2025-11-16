@@ -32,6 +32,11 @@ void WaveController::setTelemetrySink(std::shared_ptr<TelemetrySink> sink)
     m_telemetry = sink;
 }
 
+void WaveController::setStageHazardCallback(StageHazardCallback callback)
+{
+    m_stageHazardCallback = std::move(callback);
+}
+
 void WaveController::setSpawnScript(const SpawnScript &script, const MapDefs &map)
 {
     m_script = script;
@@ -79,6 +84,7 @@ std::vector<std::string> WaveController::advance(float currentTime)
         }
         recordHistory(m_nextWave, wave, currentTime);
         notifyWave(m_nextWave, wave);
+        applyHazardOps(wave);
         ++m_nextWave;
     }
 
@@ -117,6 +123,7 @@ bool WaveController::triggerNextWave(float currentTime, std::vector<std::string>
 
     recordHistory(m_nextWave, wave, currentTime);
     notifyWave(m_nextWave, wave);
+    applyHazardOps(wave);
     ++m_nextWave;
     return true;
 }
@@ -201,6 +208,28 @@ void WaveController::recordHistory(std::size_t index, const Wave &wave, float tr
     while (m_history.size() > m_historyLimit)
     {
         m_history.pop_front();
+    }
+}
+
+void WaveController::applyHazardOps(const Wave &wave) const
+{
+    if (!m_stageHazardCallback)
+    {
+        return;
+    }
+    for (const std::string &id : wave.activateHazards)
+    {
+        if (!id.empty())
+        {
+            m_stageHazardCallback(id, true);
+        }
+    }
+    for (const std::string &id : wave.deactivateHazards)
+    {
+        if (!id.empty())
+        {
+            m_stageHazardCallback(id, false);
+        }
     }
 }
 

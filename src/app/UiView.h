@@ -40,6 +40,8 @@ class UiView
         bool showDebugHud = false;
         double performanceFrequency = 0.0;
         double *hudTimeMs = nullptr;
+        float timeScale = 1.0f;
+        bool showSpeedIndicator = false;
         struct InputDiagnosticsState
         {
             struct Event

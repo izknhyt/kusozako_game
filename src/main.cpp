@@ -2,6 +2,7 @@
 #include <SDL_image.h>
 #include <SDL_ttf.h>
 
+#include <cstdio>
 #include "app/GameApplication.h"
 #include "app/UiPresenter.h"
 #include "app/RenderUtils.h"
@@ -11,6 +12,9 @@
 #include "assets/AssetManager.h"
 #include "config/AppConfig.h"
 #include "config/AppConfigLoader.h"
+#include "game/CampaignState.h"
+#include "game/CampShop.h"
+#include "game/TrainingMath.h"
 #include "json/JsonUtils.h"
 #include "debug/DebugController.h"
 #include "debug/DebugOverlayView.h"
@@ -127,6 +131,8 @@ Vec2 normalize(const Vec2 &v)
 }
 
 using namespace json;
+
+class BattleScene;
 
 std::optional<JsonValue> loadJsonDocument(AssetManager &assets, const std::string &path,
                                           AssetManager::AssetLoadStatus *outStatus = nullptr)
@@ -581,11 +587,17 @@ WorldState::WorldState()
       m_enemies(std::make_unique<ComponentPool<EnemyUnit>>()),
       m_walls(std::make_unique<ComponentPool<WallSegment>>()),
       m_captureZones(std::make_unique<ComponentPool<CaptureRuntime>>()),
-      m_waveController(std::make_unique<spawn::WaveController>()),
-      m_spawner(std::make_unique<spawn::Spawner>()),
-      m_frameAllocator()
+    m_waveController(std::make_unique<spawn::WaveController>()),
+    m_spawner(std::make_unique<spawn::Spawner>()),
+    m_frameAllocator()
 {
     m_waveController->setSpawner(m_spawner.get());
+    m_waveController->setStageHazardCallback([this](const std::string &hazardId, bool active) {
+        if (m_sim)
+        {
+            m_sim->setStageHazardActive(hazardId, active);
+        }
+    });
     m_spawner->setGateChecks(
         [this](const std::string &gate) {
             return m_sim->disabledGates.find(gate) != m_sim->disabledGates.end();
@@ -809,9 +821,11 @@ void WorldState::runSpawnStage(float dt, systems::SystemContext &context)
         return;
     }
 
+    const bool stageSpawns = stageEnemySpawnsEnabled();
+
     if (m_sim->spawnEnabled)
     {
-        if (m_waveController)
+        if (m_waveController && !stageSpawns)
         {
             std::vector<std::string> announcements = m_waveController->advance(m_sim->simTime);
             for (const std::string &text : announcements)
@@ -823,7 +837,7 @@ void WorldState::runSpawnStage(float dt, systems::SystemContext &context)
             }
         }
 
-        if (m_spawner)
+        if (m_spawner && !stageSpawns)
         {
             const float survivalMult = (m_sim->missionMode == MissionMode::Survival && m_sim->survival.spawnMultiplier > 0.0f)
                                            ? std::max(m_sim->survival.spawnMultiplier, 0.1f)
@@ -854,16 +868,34 @@ void WorldState::runSpawnStage(float dt, systems::SystemContext &context)
                 m_sim->handleSpawnDeferral(emitResult.deferred);
             }
         }
+
+        if (m_sim->updateStageEnemySpawns(dt))
+        {
+            context.requestComponentSync();
+        }
     }
 
-    if (m_waveController)
+    if (stageSpawns)
     {
-        m_sim->waveScriptComplete = m_waveController->isComplete();
+        m_sim->waveScriptComplete = true;
+        m_sim->spawnerIdle = true;
     }
-    if (m_spawner)
+    else
     {
-        m_sim->spawnerIdle = m_spawner->empty();
+        if (m_waveController)
+        {
+            m_sim->waveScriptComplete = m_waveController->isComplete();
+        }
+        if (m_spawner)
+        {
+            m_sim->spawnerIdle = m_spawner->empty();
+        }
     }
+}
+
+bool WorldState::stageEnemySpawnsEnabled() const
+{
+    return m_sim && m_sim->stage.enabled && !m_sim->stage.enemyBases.empty();
 }
 
 void WorldState::step(float dt, const ActionBuffer &actions)
@@ -1077,7 +1109,7 @@ float WorldState::enemySpawnMultiplier() const
 
 bool WorldState::skipNextWave()
 {
-    if (!m_waveController)
+    if (stageEnemySpawnsEnabled() || !m_waveController)
     {
         return false;
     }
@@ -1282,40 +1314,135 @@ void renderWorld(SDL_Renderer *renderer, const LegacySimulation &sim, const Form
         SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
     };
 
-    auto temperamentColorForBehavior = [](TemperamentBehavior behavior) -> SDL_Color {
-        switch (behavior)
+    auto braveryLabel = [](int axis) -> const char * {
+        static const char *labels[] = {"びびり", "ひかえめ", "ふつう", "ゆうかん", "ちょとつ"};
+        int idx = std::clamp(axis + 2, 0, 4);
+        return labels[idx];
+    };
+    auto wisdomLabel = [](int axis) -> const char * {
+        static const char *labels[] = {"おばか", "ぽやん", "ふつう", "なやみがち", "かんがえるこ"};
+        int idx = std::clamp(axis + 2, 0, 4);
+        return labels[idx];
+    };
+    auto temperamentColorForAxes = [](int bravery, int wisdom, bool panic) -> SDL_Color {
+        if (panic)
         {
-        case TemperamentBehavior::ChargeNearest: return SDL_Color{255, 120, 80, 255};
-        case TemperamentBehavior::FleeNearest: return SDL_Color{110, 190, 255, 255};
-        case TemperamentBehavior::FollowYuna: return SDL_Color{120, 255, 170, 255};
-        case TemperamentBehavior::RaidGate: return SDL_Color{220, 140, 255, 255};
-        case TemperamentBehavior::Homebound: return SDL_Color{120, 230, 210, 255};
-        case TemperamentBehavior::Wander: return SDL_Color{255, 230, 120, 255};
-        case TemperamentBehavior::Doze: return SDL_Color{180, 200, 255, 255};
-        case TemperamentBehavior::GuardBase: return SDL_Color{255, 190, 110, 255};
-        case TemperamentBehavior::TargetTag: return SDL_Color{255, 140, 190, 255};
-        case TemperamentBehavior::Mimic: return SDL_Color{210, 210, 210, 255};
+            return SDL_Color{235, 70, 85, 255};
         }
-        return SDL_Color{240, 240, 240, 255};
+        const std::uint8_t base = 150;
+        std::uint8_t r = static_cast<std::uint8_t>(std::clamp(base + bravery * 20, 60, 255));
+        std::uint8_t b = static_cast<std::uint8_t>(std::clamp(base + wisdom * 20, 60, 255));
+        return SDL_Color{r, 180, b, 255};
+    };
+
+    auto drawPanicBadge = [&](const LegacySimulation::RenderQueue::AllySprite &ally, float spriteTopY, float centerX) -> int {
+        if (!debugFont.isLoaded())
+        {
+            return 0;
+        }
+        const char *badge = nullptr;
+        SDL_Color color{235, 70, 85, 230};
+        if (ally.panicTokkou)
+        {
+            badge = "とっこう";
+            color = SDL_Color{255, 150, 90, 235};
+        }
+        else if (ally.panicCling)
+        {
+            badge = "すがる";
+            color = SDL_Color{120, 200, 255, 230};
+        }
+        else if (ally.panicKaiten)
+        {
+            badge = "かいてん";
+            color = SDL_Color{130, 200, 150, 230};
+        }
+        else if (ally.panicRunAround)
+        {
+            badge = "にげまどう";
+            color = SDL_Color{200, 140, 255, 230};
+        }
+        else if (ally.panicActive)
+        {
+            badge = "Panic";
+        }
+        if (!badge)
+        {
+            return 0;
+        }
+        const int padX = 4;
+        const int padY = 2;
+        const int textWidth = measureWorldText(debugFont, badge, debugLineHeight);
+        SDL_Rect badgeBg{
+            static_cast<int>(std::round(centerX)) - textWidth / 2 - padX,
+            static_cast<int>(std::round(spriteTopY)) - (debugLineHeight + padY * 2) - 10,
+            textWidth + padX * 2,
+            debugLineHeight + padY * 2};
+        if (badgeBg.x < 4) badgeBg.x = 4;
+        if (badgeBg.x + badgeBg.w > screenW - 4) badgeBg.x = screenW - badgeBg.w - 4;
+        if (badgeBg.y < 4) badgeBg.y = 4;
+        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+        SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, color.a);
+        countedRenderFillRect(renderer, &badgeBg, stats);
+        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
+        debugFont.drawText(renderer, badge, badgeBg.x + padX, badgeBg.y + padY, &stats, SDL_Color{255, 255, 255, 255});
+        return badgeBg.h + 4;
     };
 
     auto drawTemperamentLabel = [&](const LegacySimulation::RenderQueue::AllySprite &ally, float spriteTopY, float centerX) {
-        if (!debugFont.isLoaded() || !ally.temperamentDefinition)
+        if (!debugFont.isLoaded())
         {
             return;
         }
-        std::string label = ally.temperamentDefinition->label.empty() ? ally.temperamentDefinition->id : ally.temperamentDefinition->label;
-        if (ally.temperamentDefinition->behavior == TemperamentBehavior::Mimic && ally.temperamentMimicActive)
+        std::string label = std::string("ゆ:") + braveryLabel(ally.braveryAxis) + " ち:" + wisdomLabel(ally.wisdomAxis);
+        const char *branchLabel = nullptr;
+        if (ally.panicTokkou)
         {
-            label += " -> ";
-            label += temperamentBehaviorName(ally.temperamentMimicBehavior);
+            branchLabel = "とっこう";
         }
+        else if (ally.panicCling)
+        {
+            branchLabel = "すがる";
+        }
+        else if (ally.panicKaiten)
+        {
+            branchLabel = "かいてん";
+        }
+        else if (ally.panicRunAround)
+        {
+            branchLabel = "にげまどう";
+        }
+        if (!branchLabel && ally.panicTimer > 0.0f)
+        {
+            char timeBuf[16];
+            std::snprintf(timeBuf, sizeof(timeBuf), " 残%.1fs", ally.panicTimer);
+            label += timeBuf;
+        }
+        label += " 行動:" + std::string(chibiActionLabel(ally.action));
+        if (branchLabel)
+        {
+            label += " [";
+            label += branchLabel;
+            if (ally.panicBranchTimer > 0.0f)
+            {
+                char timeBuf[16];
+                std::snprintf(timeBuf, sizeof(timeBuf), " 残%.1fs", ally.panicBranchTimer);
+                label += timeBuf;
+            }
+            label += "]";
+        }
+        else if (ally.panicActive)
+        {
+            label += ally.forcePanic ? " [強Panic]" : " [Panic]";
+        }
+
         const int textWidth = measureWorldText(debugFont, label, debugLineHeight);
         const int padX = 4;
         const int padY = 2;
+        const int panicOffset = drawPanicBadge(ally, spriteTopY, centerX);
         SDL_Rect bg{
             static_cast<int>(std::round(centerX)) - textWidth / 2 - padX,
-            static_cast<int>(std::round(spriteTopY)) - (debugLineHeight + padY * 2) - 6,
+            static_cast<int>(std::round(spriteTopY)) - panicOffset - (debugLineHeight + padY * 2) - 6,
             textWidth + padX * 2,
             debugLineHeight + padY * 2
         };
@@ -1326,7 +1453,7 @@ void renderWorld(SDL_Renderer *renderer, const LegacySimulation &sim, const Form
         SDL_SetRenderDrawColor(renderer, 0, 0, 0, 170);
         countedRenderFillRect(renderer, &bg, stats);
         SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
-        SDL_Color color = temperamentColorForBehavior(ally.temperamentBehavior);
+        SDL_Color color = temperamentColorForAxes(ally.braveryAxis, ally.wisdomAxis, ally.panicActive);
         debugFont.drawText(renderer, label, bg.x + padX, bg.y + padY, &stats, color);
     };
 
@@ -1467,24 +1594,41 @@ void renderWorld(SDL_Renderer *renderer, const LegacySimulation &sim, const Form
 
     const SDL_Rect *commanderFrame = nullptr;
     const SDL_Rect *yunaFrame = nullptr;
-    const SDL_Rect *enemyFrame = nullptr;
+    const SDL_Rect *slimeFrame = nullptr;
+    const SDL_Rect *goblinFrame = nullptr;
+    const SDL_Rect *magicianFrame = nullptr;
+    const SDL_Rect *batFrame = nullptr;
+    const SDL_Rect *toritoriFrame = nullptr;
     const SDL_Rect *wallbreakerFrame = nullptr;
-    if (!sim.commanderStats.spritePrefix.empty())
-    {
-        commanderFrame = atlas.getFrame(sim.commanderStats.spritePrefix + "_0");
-    }
-    if (!sim.yunaStats.spritePrefix.empty())
-    {
-        yunaFrame = atlas.getFrame(sim.yunaStats.spritePrefix + "_0");
-    }
-    if (!sim.slimeStats.spritePrefix.empty())
-    {
-        enemyFrame = atlas.getFrame(sim.slimeStats.spritePrefix + "_0");
-    }
-    if (!sim.wallbreakerStats.spritePrefix.empty())
-    {
-        wallbreakerFrame = atlas.getFrame(sim.wallbreakerStats.spritePrefix + "_0");
-    }
+    auto fetchFrame = [&](const std::string &prefix) -> const SDL_Rect * {
+        if (prefix.empty())
+        {
+            return nullptr;
+        }
+        return atlas.getFrame(prefix + "_0");
+    };
+    commanderFrame = fetchFrame(sim.commanderStats.spritePrefix);
+    yunaFrame = fetchFrame(sim.yunaStats.spritePrefix);
+    slimeFrame = fetchFrame(sim.slimeStats.spritePrefix);
+    goblinFrame = fetchFrame(sim.goblinStats.spritePrefix);
+    magicianFrame = fetchFrame(sim.magicianStats.spritePrefix);
+    batFrame = fetchFrame(sim.batStats.spritePrefix);
+    toritoriFrame = fetchFrame(sim.toritoriStats.spritePrefix);
+    wallbreakerFrame = fetchFrame(sim.wallbreakerStats.spritePrefix);
+    auto frameForEnemy = [&](EnemyArchetype type) -> const SDL_Rect * {
+        switch (type)
+        {
+        case EnemyArchetype::Goblin: return goblinFrame ? goblinFrame : slimeFrame;
+        case EnemyArchetype::Magician: return magicianFrame ? magicianFrame : slimeFrame;
+        case EnemyArchetype::Bat: return batFrame ? batFrame : slimeFrame;
+        case EnemyArchetype::Toritori: return toritoriFrame ? toritoriFrame : slimeFrame;
+        case EnemyArchetype::Wallbreaker: return wallbreakerFrame ? wallbreakerFrame : slimeFrame;
+        case EnemyArchetype::Boss:
+            return nullptr;
+        case EnemyArchetype::Slime:
+        default: return slimeFrame;
+        }
+    };
     const SDL_Rect *friendRing = atlas.getFrame("ring_friend");
     const SDL_Rect *enemyRing = atlas.getFrame("ring_enemy");
 
@@ -1615,7 +1759,7 @@ void renderWorld(SDL_Renderer *renderer, const LegacySimulation &sim, const Form
             {
                 continue;
             }
-            const SDL_Rect *frame = enemy.type == EnemyArchetype::Wallbreaker ? wallbreakerFrame : enemyFrame;
+            const SDL_Rect *frame = frameForEnemy(enemy.type);
             Vec2 screenPos = worldToScreen(enemy.position, camera);
             if (enemy.type == EnemyArchetype::Boss)
             {
@@ -1735,10 +1879,1352 @@ void renderWorld(SDL_Renderer *renderer, const LegacySimulation &sim, const Form
 }
 
 
+class CampScene : public Scene
+{
+  public:
+    enum class Tab : int
+    {
+        Upgrades = 0,
+        Training = 1,
+        Strategies = 2,
+        Shop = 3
+    };
+
+    struct RowDisplay
+    {
+        std::string title;
+        std::string subtitle;
+        std::string cost;
+        std::string hint;
+        int index = -1;
+        bool selected = false;
+        bool disabled = false;
+        bool affordable = false;
+    };
+
+    struct RowHitbox
+    {
+        SDL_Rect rect{0, 0, 0, 0};
+        int index = -1;
+        bool disabled = false;
+        bool affordable = false;
+    };
+
+    enum class PointerTargetKind
+    {
+        None,
+        Tab,
+        Row,
+        PurchaseButton,
+        DeployButton
+    };
+
+    struct PointerLatch
+    {
+        PointerTargetKind kind = PointerTargetKind::None;
+        int index = -1;
+    };
+
+    struct UndoRecord
+    {
+        enum class Kind
+        {
+            None,
+            CampUpgrade,
+            Training,
+            Meta,
+            Token
+        };
+
+        Kind kind = Kind::None;
+        std::string id;
+        int cost = 0;
+        int previousLevel = 0;
+        int previousTokens = 0;
+        double timer = 0.0;
+    };
+
+    CampScene(std::shared_ptr<CampaignState> campaign, BattleScene *battle)
+        : m_campaign(std::move(campaign)), m_battle(battle)
+    {
+    }
+
+    void onEnter(GameApplication &app, SceneStack &) override
+    {
+        AssetManager &assets = app.assetManager();
+        constexpr const char *kFontPath = "assets/ui/NotoSansJP-Regular.ttf";
+        if (!m_titleFont.isLoaded())
+        {
+            if (!m_titleFont.load(assets, kFontPath, 28))
+            {
+                std::cerr << "[camp] Failed to load title font (" << kFontPath << ")\n";
+            }
+        }
+        if (!m_bodyFont.isLoaded())
+        {
+            if (!m_bodyFont.load(assets, kFontPath, 22))
+            {
+                std::cerr << "[camp] Failed to load body font (" << kFontPath << ")\n";
+            }
+        }
+
+        autoFocusAll(app.appConfig());
+    }
+
+    void onExit(GameApplication &, SceneStack &) override {}
+
+    void handleEvent(const SDL_Event &event, GameApplication &app, SceneStack &stack) override
+    {
+        const AppConfig &config = app.appConfig();
+        switch (event.type)
+        {
+        case SDL_KEYDOWN:
+        {
+            const SDL_Keycode key = event.key.keysym.sym;
+            switch (key)
+            {
+            case SDLK_ESCAPE:
+            case SDLK_SPACE:
+                deploy(stack, app);
+                break;
+            case SDLK_RETURN:
+            case SDLK_KP_ENTER:
+                handlePurchase(config);
+                break;
+            case SDLK_UP:
+                moveSelection(-1, config);
+                break;
+            case SDLK_DOWN:
+                moveSelection(1, config);
+                break;
+            case SDLK_LEFT:
+                if (m_tab == Tab::Strategies)
+                {
+                    if (const StrategyCharacter *character = strategyAt(config, currentSelection()))
+                    {
+                        switchStrategyOption(*character, -1);
+                    }
+                }
+                break;
+            case SDLK_RIGHT:
+                if (m_tab == Tab::Strategies)
+                {
+                    if (const StrategyCharacter *character = strategyAt(config, currentSelection()))
+                    {
+                        switchStrategyOption(*character, 1);
+                    }
+                }
+                break;
+            case SDLK_z:
+                if (hasUndo())
+                {
+                    performUndo(config);
+                }
+                break;
+            case SDLK_1:
+            case SDLK_2:
+            case SDLK_3:
+            case SDLK_4:
+            {
+                const int idx = static_cast<int>(key - SDLK_1);
+                if (idx >= 0 && idx < 4)
+                {
+                    setTab(static_cast<Tab>(idx), config);
+                }
+                break;
+            }
+            default:
+                break;
+            }
+            break;
+        }
+        case SDL_MOUSEMOTION:
+            handleMouseMotion(event.motion);
+            break;
+        case SDL_MOUSEBUTTONDOWN:
+            handleMouseButtonDown(event.button, config);
+            break;
+        case SDL_MOUSEBUTTONUP:
+            handleMouseButtonUp(event.button, config, stack, app);
+            break;
+        case SDL_WINDOWEVENT:
+            if (event.window.event == SDL_WINDOWEVENT_LEAVE)
+            {
+                clearPointerHover();
+            }
+            break;
+        default:
+            break;
+        }
+    }
+
+    void update(double deltaSeconds, GameApplication &, SceneStack &) override
+    {
+        if (m_feedbackTimer > 0.0)
+        {
+            m_feedbackTimer = std::max(0.0, m_feedbackTimer - deltaSeconds);
+        }
+        updateUndo(deltaSeconds);
+    }
+
+    void render(SDL_Renderer *renderer, GameApplication &app) override
+    {
+        if (!renderer || (!m_titleFont.isLoaded() && !m_bodyFont.isLoaded()))
+        {
+            return;
+        }
+        SDL_SetRenderDrawColor(renderer, 8, 6, 18, 255);
+        SDL_RenderClear(renderer);
+
+        const AppConfig &config = app.appConfig();
+        const int screenW = app.windowWidth();
+        const int screenH = app.windowHeight();
+
+        const TextRenderer &titleFont = m_titleFont.isLoaded() ? m_titleFont : m_bodyFont;
+        const TextRenderer &bodyFont = m_bodyFont.isLoaded() ? m_bodyFont : m_titleFont;
+        const int headerY = 24;
+        titleFont.drawText(renderer, "Camp", 32, headerY, nullptr, SDL_Color{255, 230, 180, 255});
+
+        std::ostringstream walletText;
+        walletText << "Wallet: " << (m_campaign ? m_campaign->availableMana() : 0) << " mana";
+        bodyFont.drawText(renderer, walletText.str(), 32, headerY + titleFont.getLineHeight() + 10, nullptr,
+                          SDL_Color{210, 220, 255, 255});
+
+        if (m_campaign)
+        {
+            std::ostringstream tokenText;
+            tokenText << "Mana gain tokens: " << m_campaign->manaGainTokens;
+            bodyFont.drawText(renderer,
+                              tokenText.str(),
+                              32,
+                              headerY + titleFont.getLineHeight() + bodyFont.getLineHeight() + 18,
+                              nullptr,
+                              SDL_Color{200, 210, 255, 255});
+        }
+
+        beginHitTestFrame();
+        renderTabs(renderer, config, headerY + titleFont.getLineHeight() + bodyFont.getLineHeight() + 40);
+        renderContent(renderer, config, screenW, screenH);
+        renderButtons(renderer, bodyFont, screenW, headerY);
+        renderUndoPrompt(renderer, bodyFont, screenW, screenH);
+
+        if (m_feedbackTimer > 0.0 && !m_feedbackText.empty())
+        {
+            const int textWidth = bodyFont.measureText(m_feedbackText);
+            const int x = (screenW - textWidth) / 2;
+            const int y = screenH - bodyFont.getLineHeight() - 24;
+            bodyFont.drawText(renderer, m_feedbackText, x, y, nullptr, SDL_Color{255, 210, 160, 255});
+        }
+        refreshHoverTargets();
+    }
+
+  private:
+    std::shared_ptr<CampaignState> m_campaign;
+    BattleScene *m_battle = nullptr;
+    Tab m_tab = Tab::Upgrades;
+    std::array<int, 4> m_selection{{0, 0, 0, 0}};
+    TextRenderer m_titleFont;
+    TextRenderer m_bodyFont;
+    double m_feedbackTimer = 0.0;
+    std::string m_feedbackText;
+    UndoRecord m_undo;
+    static constexpr double UndoWindowSeconds = 3.0;
+    std::array<SDL_Rect, 4> m_tabRects{};
+    std::vector<RowHitbox> m_rowHits;
+    SDL_Rect m_buttonPurchase{0, 0, 0, 0};
+    SDL_Rect m_buttonDeploy{0, 0, 0, 0};
+    PointerLatch m_pressTarget;
+    SDL_Point m_pointerPos{0, 0};
+    bool m_pointerActive = false;
+    int m_hoverTab = -1;
+    int m_hoverRow = -1;
+    PointerTargetKind m_hoverButton = PointerTargetKind::None;
+
+    int tabIndex(Tab tab) const { return static_cast<int>(tab); }
+
+    int currentSelection() const
+    {
+        return m_selection[tabIndex(m_tab)];
+    }
+
+    void setTab(Tab tab, const AppConfig &config)
+    {
+        if (m_tab == tab)
+        {
+            return;
+        }
+        m_tab = tab;
+        clampSelection(config);
+    }
+
+    void clampSelection(const AppConfig &config)
+    {
+        const int idx = tabIndex(m_tab);
+        const int count = entryCountForTab(m_tab, config);
+        if (count <= 0)
+        {
+            m_selection[idx] = 0;
+        }
+        else if (m_selection[idx] >= count)
+        {
+            m_selection[idx] = count - 1;
+        }
+        else if (m_selection[idx] < 0)
+        {
+            m_selection[idx] = 0;
+        }
+    }
+
+    void moveSelection(int delta, const AppConfig &config)
+    {
+        if (delta == 0)
+        {
+            return;
+        }
+        const int idx = tabIndex(m_tab);
+        const int count = entryCountForTab(m_tab, config);
+        if (count <= 0)
+        {
+            m_selection[idx] = 0;
+            return;
+        }
+        int next = m_selection[idx] + delta;
+        next = std::clamp(next, 0, std::max(0, count - 1));
+        m_selection[idx] = next;
+    }
+
+    void handleMouseMotion(const SDL_MouseMotionEvent &motion)
+    {
+        updatePointerPosition(motion.x, motion.y);
+    }
+
+    void handleMouseButtonDown(const SDL_MouseButtonEvent &button, const AppConfig &config)
+    {
+        if (button.button != SDL_BUTTON_LEFT)
+        {
+            return;
+        }
+        updatePointerPosition(button.x, button.y);
+        const SDL_Point point{button.x, button.y};
+        int index = -1;
+        m_pressTarget.kind = determineTargetAtPoint(point, index);
+        m_pressTarget.index = index;
+        if (m_pressTarget.kind == PointerTargetKind::Row && index >= 0)
+        {
+            const int tabIdx = tabIndex(m_tab);
+            const int count = entryCountForTab(m_tab, config);
+            if (index >= 0 && index < count)
+            {
+                m_selection[tabIdx] = index;
+            }
+        }
+    }
+
+    void handleMouseButtonUp(const SDL_MouseButtonEvent &button,
+                             const AppConfig &config,
+                             SceneStack &stack,
+                             GameApplication &app)
+    {
+        if (button.button != SDL_BUTTON_LEFT)
+        {
+            return;
+        }
+        updatePointerPosition(button.x, button.y);
+        const SDL_Point point{button.x, button.y};
+        switch (m_pressTarget.kind)
+        {
+        case PointerTargetKind::Tab:
+            if (tabIndexAt(point.x, point.y) == m_pressTarget.index && m_pressTarget.index >= 0 &&
+                m_pressTarget.index < static_cast<int>(m_tabRects.size()))
+            {
+                setTab(static_cast<Tab>(m_pressTarget.index), config);
+            }
+            break;
+        case PointerTargetKind::Row:
+            if (rowIndexAt(point.x, point.y) == m_pressTarget.index)
+            {
+                if (const RowHitbox *hit = rowHitboxForIndex(m_pressTarget.index))
+                {
+                    if (!hit->disabled && hit->affordable)
+                    {
+                        handlePurchase(config);
+                    }
+                }
+            }
+            break;
+        case PointerTargetKind::PurchaseButton:
+            if (buttonAt(point.x, point.y) == PointerTargetKind::PurchaseButton)
+            {
+                handlePurchase(config);
+            }
+            break;
+        case PointerTargetKind::DeployButton:
+            if (buttonAt(point.x, point.y) == PointerTargetKind::DeployButton)
+            {
+                deploy(stack, app);
+            }
+            break;
+        case PointerTargetKind::None:
+        default:
+            break;
+        }
+        m_pressTarget = {};
+    }
+
+    void beginHitTestFrame()
+    {
+        m_rowHits.clear();
+        for (SDL_Rect &rect : m_tabRects)
+        {
+            rect = SDL_Rect{0, 0, 0, 0};
+        }
+        m_buttonPurchase = SDL_Rect{0, 0, 0, 0};
+        m_buttonDeploy = SDL_Rect{0, 0, 0, 0};
+    }
+
+    void updatePointerPosition(int x, int y)
+    {
+        m_pointerPos.x = x;
+        m_pointerPos.y = y;
+        m_pointerActive = true;
+        refreshHoverTargets();
+    }
+
+    void refreshHoverTargets()
+    {
+        if (!m_pointerActive)
+        {
+            m_hoverTab = -1;
+            m_hoverRow = -1;
+            m_hoverButton = PointerTargetKind::None;
+            return;
+        }
+        m_hoverTab = tabIndexAt(m_pointerPos.x, m_pointerPos.y);
+        m_hoverRow = rowIndexAt(m_pointerPos.x, m_pointerPos.y);
+        PointerTargetKind buttonTarget = buttonAt(m_pointerPos.x, m_pointerPos.y);
+        if (buttonTarget == PointerTargetKind::PurchaseButton || buttonTarget == PointerTargetKind::DeployButton)
+        {
+            m_hoverButton = buttonTarget;
+        }
+        else
+        {
+            m_hoverButton = PointerTargetKind::None;
+        }
+    }
+
+    void clearPointerHover()
+    {
+        m_pointerActive = false;
+        refreshHoverTargets();
+    }
+
+    PointerTargetKind determineTargetAtPoint(const SDL_Point &point, int &indexOut) const
+    {
+        if (PointerTargetKind buttonTarget = buttonAt(point.x, point.y); buttonTarget != PointerTargetKind::None)
+        {
+            indexOut = -1;
+            return buttonTarget;
+        }
+        const int row = rowIndexAt(point.x, point.y);
+        if (row >= 0)
+        {
+            indexOut = row;
+            return PointerTargetKind::Row;
+        }
+        const int tabHit = tabIndexAt(point.x, point.y);
+        if (tabHit >= 0)
+        {
+            indexOut = tabHit;
+            return PointerTargetKind::Tab;
+        }
+        indexOut = -1;
+        return PointerTargetKind::None;
+    }
+
+    void handlePurchase(const AppConfig &config)
+    {
+        if (!m_campaign)
+        {
+            pushFeedback("No campaign data");
+            return;
+        }
+        switch (m_tab)
+        {
+        case Tab::Upgrades:
+            if (const CampUpgradeEntry *entry = upgradeAt(config, currentSelection()))
+            {
+                if (purchaseUpgrade(*entry))
+                {
+                    autoFocusTab(m_tab, config);
+                }
+            }
+            break;
+        case Tab::Training:
+            if (const TrainingEntry *entry = trainingAt(config, currentSelection()))
+            {
+                if (purchaseTraining(*entry))
+                {
+                    autoFocusTab(m_tab, config);
+                }
+            }
+            break;
+        case Tab::Shop:
+            if (const MetaShopItem *item = metaAt(config, currentSelection()))
+            {
+                if (purchaseMeta(*item))
+                {
+                    autoFocusTab(m_tab, config);
+                }
+            }
+            break;
+        case Tab::Strategies:
+            if (const StrategyCharacter *character = strategyAt(config, currentSelection()))
+            {
+                switchStrategyOption(*character, 1);
+            }
+            break;
+        }
+    }
+
+    bool purchaseUpgrade(const CampUpgradeEntry &entry)
+    {
+        if (!m_campaign)
+        {
+            return false;
+        }
+        CampShop shop(*m_campaign);
+        CampShop::PurchaseOutcome outcome = shop.buyUpgrade(entry);
+        switch (outcome.status)
+        {
+        case CampShop::Status::Success:
+        {
+            UndoRecord record;
+            record.kind = UndoRecord::Kind::CampUpgrade;
+            record.id = entry.id;
+            record.previousLevel = outcome.previousLevel;
+            record.cost = outcome.cost;
+            beginUndo(record);
+            pushFeedback(entry.label + " を強化しました");
+            m_campaign->saveToDisk();
+            return true;
+        }
+        case CampShop::Status::MaxLevel:
+            pushFeedback(entry.label + " は最大です");
+            break;
+        case CampShop::Status::InsufficientMana:
+            pushFeedback("マナが足りません");
+            break;
+        case CampShop::Status::Invalid:
+        default:
+            pushFeedback("購入できません");
+            break;
+        }
+        return false;
+    }
+
+    bool purchaseTraining(const TrainingEntry &entry)
+    {
+        if (!m_campaign)
+        {
+            return false;
+        }
+        CampShop shop(*m_campaign);
+        CampShop::PurchaseOutcome outcome = shop.buyTraining(entry);
+        switch (outcome.status)
+        {
+        case CampShop::Status::Success:
+        {
+            UndoRecord record;
+            record.kind = UndoRecord::Kind::Training;
+            record.id = entry.id;
+            record.previousLevel = outcome.previousLevel;
+            record.cost = outcome.cost;
+            beginUndo(record);
+            pushFeedback(entry.label + " を伸ばしました");
+            m_campaign->saveToDisk();
+            return true;
+        }
+        case CampShop::Status::MaxLevel:
+            pushFeedback(entry.label + " は完了済み");
+            break;
+        case CampShop::Status::InsufficientMana:
+            pushFeedback("マナが足りません");
+            break;
+        case CampShop::Status::Invalid:
+        default:
+            pushFeedback("購入できません");
+            break;
+        }
+        return false;
+    }
+
+    bool purchaseMeta(const MetaShopItem &item)
+    {
+        if (!m_campaign)
+        {
+            return false;
+        }
+        CampShop shop(*m_campaign);
+        CampShop::PurchaseOutcome outcome = shop.buyMeta(item);
+        switch (outcome.status)
+        {
+        case CampShop::Status::Success:
+        {
+            UndoRecord record;
+            record.cost = outcome.cost;
+            record.previousLevel = outcome.previousLevel;
+            record.previousTokens = outcome.previousTokens;
+            if (outcome.consumable)
+            {
+                record.kind = UndoRecord::Kind::Token;
+                pushFeedback(item.label + " を補充しました");
+            }
+            else
+            {
+                record.kind = UndoRecord::Kind::Meta;
+                record.id = item.id;
+                pushFeedback(item.label + " を強化しました");
+            }
+            beginUndo(record);
+            m_campaign->saveToDisk();
+            return true;
+        }
+        case CampShop::Status::MaxLevel:
+            pushFeedback(item.label + " は最大です");
+            break;
+        case CampShop::Status::InsufficientMana:
+            pushFeedback("マナが足りません");
+            break;
+        case CampShop::Status::Invalid:
+        default:
+            pushFeedback("購入できません");
+            break;
+        }
+        return false;
+    }
+
+    void switchStrategyOption(const StrategyCharacter &character, int direction)
+    {
+        if (!m_campaign || character.options.empty() || direction == 0)
+        {
+            return;
+        }
+        const std::string currentId = m_campaign->strategyOption(character.id, character.defaultOption);
+        int currentIndex = 0;
+        for (std::size_t i = 0; i < character.options.size(); ++i)
+        {
+            if (character.options[i].id == currentId)
+            {
+                currentIndex = static_cast<int>(i);
+                break;
+            }
+        }
+        const int optionCount = static_cast<int>(character.options.size());
+        currentIndex = (currentIndex + optionCount + direction) % optionCount;
+        const StrategyOption &next = character.options[static_cast<std::size_t>(currentIndex)];
+        CampShop shop(*m_campaign);
+        if (shop.selectStrategy(character, next.id) == CampShop::Status::Success)
+        {
+            pushFeedback(character.label + " strategy set to " + next.label);
+            m_campaign->saveToDisk();
+        }
+        else
+        {
+            pushFeedback("作戦を変更できません");
+        }
+    }
+
+    void deploy(SceneStack &stack, GameApplication &app);
+    bool hasUndo() const { return m_undo.kind != UndoRecord::Kind::None; }
+
+    void pushFeedback(const std::string &text)
+    {
+        m_feedbackText = text;
+        m_feedbackTimer = 2.0;
+    }
+
+    int entryCountForTab(Tab tab, const AppConfig &config) const
+    {
+        switch (tab)
+        {
+        case Tab::Upgrades: return static_cast<int>(config.campUpgrades.size());
+        case Tab::Training: return static_cast<int>(config.trainingEntries.size());
+        case Tab::Strategies: return static_cast<int>(config.strategyCharacters.size());
+        case Tab::Shop: return static_cast<int>(config.metaShopItems.size());
+        }
+        return 0;
+    }
+
+    const CampUpgradeEntry *upgradeAt(const AppConfig &config, int index) const
+    {
+        if (index < 0 || index >= static_cast<int>(config.campUpgrades.size()))
+        {
+            return nullptr;
+        }
+        return &config.campUpgrades[static_cast<std::size_t>(index)];
+    }
+
+    const TrainingEntry *trainingAt(const AppConfig &config, int index) const
+    {
+        if (index < 0 || index >= static_cast<int>(config.trainingEntries.size()))
+        {
+            return nullptr;
+        }
+        return &config.trainingEntries[static_cast<std::size_t>(index)];
+    }
+
+    const StrategyCharacter *strategyAt(const AppConfig &config, int index) const
+    {
+        if (index < 0 || index >= static_cast<int>(config.strategyCharacters.size()))
+        {
+            return nullptr;
+        }
+        return &config.strategyCharacters[static_cast<std::size_t>(index)];
+    }
+
+    const MetaShopItem *metaAt(const AppConfig &config, int index) const
+    {
+        if (index < 0 || index >= static_cast<int>(config.metaShopItems.size()))
+        {
+            return nullptr;
+        }
+        return &config.metaShopItems[static_cast<std::size_t>(index)];
+    }
+
+    void autoFocusAll(const AppConfig &config)
+    {
+        autoFocusTab(Tab::Upgrades, config);
+        autoFocusTab(Tab::Training, config);
+        autoFocusTab(Tab::Shop, config);
+        autoFocusTab(Tab::Strategies, config);
+        clampSelection(config);
+    }
+
+    void autoFocusTab(Tab tab, const AppConfig &config)
+    {
+        const int idx = tabIndex(tab);
+        const int count = entryCountForTab(tab, config);
+        if (count <= 0)
+        {
+            m_selection[idx] = 0;
+            return;
+        }
+        const int selection = findInitialSelection(tab, config);
+        m_selection[idx] = std::clamp(selection, 0, count - 1);
+        if (tab == m_tab)
+        {
+            clampSelection(config);
+        }
+    }
+
+    int findInitialSelection(Tab tab, const AppConfig &config) const
+    {
+        const int wallet = m_campaign ? m_campaign->availableMana() : 0;
+        const int count = entryCountForTab(tab, config);
+        if (count <= 0)
+        {
+            return 0;
+        }
+
+        auto pickFromList = [&](auto begin, auto end, auto &&extractCost, auto &&isAvailable) {
+            int cheapestIdx = 0;
+            int cheapestCost = std::numeric_limits<int>::max();
+            bool hasCheapest = false;
+            for (auto it = begin; it != end; ++it)
+            {
+                const int idx = static_cast<int>(std::distance(begin, it));
+                if (!isAvailable(*it, idx))
+                {
+                    continue;
+                }
+                const int cost = extractCost(*it, idx);
+                if (wallet >= cost)
+                {
+                    return idx;
+                }
+                if (!hasCheapest || cost < cheapestCost)
+                {
+                    cheapestCost = cost;
+                    cheapestIdx = idx;
+                    hasCheapest = true;
+                }
+            }
+            return hasCheapest ? cheapestIdx : 0;
+        };
+
+        switch (tab)
+        {
+        case Tab::Upgrades:
+            return pickFromList(config.campUpgrades.begin(),
+                                config.campUpgrades.end(),
+                                [this](const CampUpgradeEntry &entry, int) {
+                                    return upgradeCost(entry, m_campaign ? m_campaign->campLevel(entry.id) : 0);
+                                },
+                                [this](const CampUpgradeEntry &entry, int) {
+                                    const int currentLevel = m_campaign ? m_campaign->campLevel(entry.id) : 0;
+                                    const int maxLevel =
+                                        entry.maxLevel > 0 ? entry.maxLevel : static_cast<int>(entry.costs.size());
+                                    return !(maxLevel > 0 && currentLevel >= maxLevel);
+                                });
+        case Tab::Training:
+            return pickFromList(config.trainingEntries.begin(),
+                                config.trainingEntries.end(),
+                                [this](const TrainingEntry &entry, int) {
+                                    return trainingCost(entry, m_campaign ? m_campaign->trainingStep(entry.id) : 0);
+                                },
+                                [this](const TrainingEntry &entry, int) {
+                                    const int currentLevel = m_campaign ? m_campaign->trainingStep(entry.id) : 0;
+                                    return !trainingIsMaxed(entry, currentLevel);
+                                });
+        case Tab::Shop:
+            return pickFromList(config.metaShopItems.begin(),
+                                config.metaShopItems.end(),
+                                [this](const MetaShopItem &item, int) {
+                                    const bool consumable = item.type == "consumable";
+                                    const int level = consumable ? 0 : (m_campaign ? m_campaign->metaLevel(item.id) : 0);
+                                    return metaCost(item, level);
+                                },
+                                [this](const MetaShopItem &item, int) {
+                                    if (item.type == "consumable")
+                                    {
+                                        return true;
+                                    }
+                                    const int currentLevel = m_campaign ? m_campaign->metaLevel(item.id) : 0;
+                                    return !(item.maxLevel > 0 && currentLevel >= item.maxLevel);
+                                });
+        case Tab::Strategies:
+        default:
+            return std::clamp(m_selection[tabIndex(Tab::Strategies)], 0, count - 1);
+        }
+    }
+
+    int upgradeCost(const CampUpgradeEntry &entry, int level) const
+    {
+        if (entry.maxLevel > 0 && level >= entry.maxLevel)
+        {
+            return 0;
+        }
+        if (!entry.costs.empty())
+        {
+            if (level < static_cast<int>(entry.costs.size()))
+            {
+                return entry.costs[static_cast<std::size_t>(level)];
+            }
+            return entry.costs.back();
+        }
+        return 0;
+    }
+
+    int trainingCost(const TrainingEntry &entry, int level) const
+    {
+        return trainingCostAtLevel(entry, level);
+    }
+
+    int metaCost(const MetaShopItem &item, int level) const
+    {
+        return item.baseCost + item.perLevelCost * std::max(level, 0);
+    }
+
+    std::string formatDelta(const CampUpgradeEntry &entry) const
+    {
+        std::ostringstream oss;
+        if (entry.type == "percent")
+        {
+            oss << '+' << std::round(entry.delta * 100.0f) << '%';
+        }
+        else
+        {
+            oss << (entry.delta >= 0.0f ? "+" : "") << entry.delta;
+        }
+        return oss.str();
+    }
+
+    std::string formatTrainingDelta(const TrainingEntry &entry, int level) const
+    {
+        std::ostringstream oss;
+        const float delta = trainingDeltaAtLevel(entry, level);
+        if (entry.id == "mean_level")
+        {
+            oss << "次 Lv+" << delta;
+        }
+        else if (entry.id == "elite_rate")
+        {
+            oss << "次 +" << static_cast<int>(std::round(delta * 100.0f)) << "%";
+        }
+        else if (entry.id == "yuna_level")
+        {
+            const AllyLevelingParams params = kCommanderLevelingParams;
+            const int nextLevel = trainingAbsoluteLevel(entry, level) + 1;
+            auto formatPercent = [](float value) {
+                std::ostringstream tmp;
+                tmp << std::fixed << std::setprecision(value < 0.1f ? 3 : 2) << value;
+                return tmp.str();
+            };
+            oss << "次 Lv" << nextLevel << "：HP+" << params.hpPerLevel;
+            oss << " / DPS+" << formatPercent(params.dpsPerLevel * 100.0f) << "%";
+            oss << " / SPD+" << formatPercent(params.speedPerLevel * 100.0f) << "%";
+        }
+        else
+        {
+            oss << "Next +" << delta;
+        }
+        return oss.str();
+    }
+
+    void renderTabs(SDL_Renderer *renderer, const AppConfig &, int startY)
+    {
+        if (!m_bodyFont.isLoaded())
+        {
+            return;
+        }
+        const std::array<std::string, 4> tabs{"拠点強化", "訓練", "作戦", "ルーの店"};
+        const int padding = 20;
+        int x = 32;
+        const int height = m_bodyFont.getLineHeight() + 12;
+        for (std::size_t i = 0; i < tabs.size(); ++i)
+        {
+            const std::string &label = tabs[i];
+            const int width = m_bodyFont.measureText(label) + padding * 2;
+            SDL_Rect rect{x, startY, width, height};
+            m_tabRects[i] = rect;
+            const bool selected = static_cast<int>(i) == tabIndex(m_tab);
+            const bool hovered = static_cast<int>(i) == m_hoverTab;
+            if (selected)
+            {
+                SDL_SetRenderDrawColor(renderer, 60, 40, 100, 220);
+            }
+            else if (hovered)
+            {
+                SDL_SetRenderDrawColor(renderer, 50, 50, 90, 200);
+            }
+            else
+            {
+                SDL_SetRenderDrawColor(renderer, 30, 30, 60, 160);
+            }
+            SDL_RenderFillRect(renderer, &rect);
+            SDL_SetRenderDrawColor(renderer, 90, 80, 140, 255);
+            SDL_RenderDrawRect(renderer, &rect);
+            m_bodyFont.drawText(renderer,
+                                label,
+                                x + padding,
+                                startY + (height - m_bodyFont.getLineHeight()) / 2,
+                                nullptr,
+                                SDL_Color{255, 255, 255, 255});
+            x += width + 8;
+        }
+    }
+
+    void renderContent(SDL_Renderer *renderer, const AppConfig &config, int screenW, int screenH)
+    {
+        if (!m_bodyFont.isLoaded())
+        {
+            return;
+        }
+        const int panelX = 32;
+        const int panelY = 200;
+        const int panelWidth = screenW - panelX * 2;
+        SDL_Rect panel{panelX, panelY, panelWidth, screenH - panelY - 80};
+        SDL_SetRenderDrawColor(renderer, 15, 12, 28, 200);
+        SDL_RenderFillRect(renderer, &panel);
+
+        std::vector<RowDisplay> rows;
+        rows.reserve(8);
+        const int wallet = m_campaign ? m_campaign->availableMana() : 0;
+        const int selection = currentSelection();
+
+        switch (m_tab)
+        {
+        case Tab::Upgrades:
+            for (std::size_t i = 0; i < config.campUpgrades.size(); ++i)
+            {
+                const CampUpgradeEntry &entry = config.campUpgrades[i];
+                RowDisplay row;
+                row.index = static_cast<int>(i);
+                const int level = m_campaign ? m_campaign->campLevel(entry.id) : 0;
+                const int maxLevel = entry.maxLevel > 0 ? entry.maxLevel : static_cast<int>(entry.costs.size());
+                const bool maxed = maxLevel > 0 && level >= maxLevel;
+                const int cost = upgradeCost(entry, level);
+                row.title = entry.label + "  [" + std::to_string(level) + "/" +
+                            (maxLevel > 0 ? std::to_string(maxLevel) : std::string("-")) + "]";
+                row.subtitle = formatDelta(entry) + " per level";
+                row.cost = maxed ? "MAX" : (cost > 0 ? (std::to_string(cost) + " mana") : "Free");
+                row.selected = static_cast<int>(i) == selection;
+                row.disabled = maxed;
+                row.affordable = wallet >= cost;
+                if (!row.disabled && cost > 0 && wallet < cost)
+                {
+                    row.hint = "あと" + std::to_string(cost - wallet) + "マナ必要";
+                }
+                rows.push_back(row);
+            }
+            break;
+        case Tab::Training:
+            for (std::size_t i = 0; i < config.trainingEntries.size(); ++i)
+            {
+                const TrainingEntry &entry = config.trainingEntries[i];
+                RowDisplay row;
+                row.index = static_cast<int>(i);
+                const int level = m_campaign ? m_campaign->trainingStep(entry.id) : 0;
+                const bool maxed = trainingIsMaxed(entry, level);
+                const int displayLevel = trainingIsRepeatable(entry) ? trainingAbsoluteLevel(entry, level) : level;
+                const int maxLevel = trainingMaxDisplayLevel(entry);
+                const int cost = trainingCost(entry, level);
+                std::string maxLabel = maxLevel > 0 ? std::to_string(maxLevel) : std::string("-");
+                row.title = entry.label + "  [" + std::to_string(displayLevel) + "/" + maxLabel + "]";
+                row.subtitle = maxed ? "Complete" : formatTrainingDelta(entry, level);
+                row.cost = maxed ? "MAX" : (std::to_string(cost) + " mana");
+                row.selected = static_cast<int>(i) == selection;
+                row.disabled = maxed;
+                row.affordable = wallet >= cost;
+                if (!row.disabled && cost > 0 && wallet < cost)
+                {
+                    row.hint = "あと" + std::to_string(cost - wallet) + "マナ必要";
+                }
+                rows.push_back(row);
+            }
+            break;
+        case Tab::Strategies:
+            for (std::size_t i = 0; i < config.strategyCharacters.size(); ++i)
+            {
+                const StrategyCharacter &character = config.strategyCharacters[i];
+                const std::string current = m_campaign ? m_campaign->strategyOption(character.id, character.defaultOption)
+                                                       : character.defaultOption;
+                std::string label = character.label + ": ";
+                for (const StrategyOption &option : character.options)
+                {
+                    if (option.id == current)
+                    {
+                        label += option.label;
+                        break;
+                    }
+                }
+                RowDisplay row;
+                row.index = static_cast<int>(i);
+                row.title = label;
+                row.subtitle = "Use Left/Right to cycle";
+                row.cost.clear();
+                row.selected = static_cast<int>(i) == selection;
+                row.disabled = false;
+                row.affordable = true;
+                rows.push_back(row);
+            }
+            break;
+        case Tab::Shop:
+            for (std::size_t i = 0; i < config.metaShopItems.size(); ++i)
+            {
+                const MetaShopItem &item = config.metaShopItems[i];
+                RowDisplay row;
+                row.index = static_cast<int>(i);
+                const bool consumable = item.type == "consumable";
+                const int level = consumable ? 0 : (m_campaign ? m_campaign->metaLevel(item.id) : 0);
+                const bool maxed = !consumable && item.maxLevel > 0 && level >= item.maxLevel;
+                const int cost = metaCost(item, level);
+                row.title = item.label + (consumable ? "" : ("  [" + std::to_string(level) + "/" +
+                                                             (item.maxLevel > 0 ? std::to_string(item.maxLevel)
+                                                                                : std::string("-")) +
+                                                             "]"));
+                if (consumable)
+                {
+                    const int stock = m_campaign ? m_campaign->manaGainTokens : 0;
+                    row.subtitle = "Stocked: " + std::to_string(stock);
+                }
+                else
+                {
+                    row.subtitle.clear();
+                }
+                row.cost = maxed ? "MAX" : (std::to_string(cost) + " mana");
+                row.selected = static_cast<int>(i) == selection;
+                row.disabled = maxed;
+                row.affordable = wallet >= cost;
+                if (!row.disabled && cost > 0 && wallet < cost)
+                {
+                    row.hint = "あと" + std::to_string(cost - wallet) + "マナ必要";
+                }
+                rows.push_back(row);
+            }
+            break;
+        }
+
+        renderRows(renderer, rows, panelX + 16, panelY + 16, panelWidth - 32);
+    }
+
+    void renderButtons(SDL_Renderer *renderer, const TextRenderer &font, int screenW, int headerY)
+    {
+        if (!renderer || !font.isLoaded())
+        {
+            m_buttonPurchase = SDL_Rect{0, 0, 0, 0};
+            m_buttonDeploy = SDL_Rect{0, 0, 0, 0};
+            return;
+        }
+        const int buttonHeight = font.getLineHeight() + 12;
+        const int purchaseWidth = std::max(140, font.measureText("Purchase") + 32);
+        const int deployWidth = std::max(120, font.measureText("Deploy") + 32);
+        const int spacing = 12;
+        const int padding = 32;
+        const int totalWidth = purchaseWidth + deployWidth + spacing;
+        const int x = screenW - totalWidth - padding;
+        const int y = headerY;
+        m_buttonPurchase = SDL_Rect{x, y, purchaseWidth, buttonHeight};
+        m_buttonDeploy = SDL_Rect{x + purchaseWidth + spacing, y, deployWidth, buttonHeight};
+
+        drawButton(renderer,
+                   font,
+                   m_buttonPurchase,
+                   "Purchase",
+                   m_hoverButton == PointerTargetKind::PurchaseButton,
+                   false);
+        drawButton(renderer,
+                   font,
+                   m_buttonDeploy,
+                   "Deploy",
+                   m_hoverButton == PointerTargetKind::DeployButton,
+                   true);
+    }
+
+    void renderRows(SDL_Renderer *renderer,
+                    const std::vector<RowDisplay> &rows,
+                    int x,
+                    int y,
+                    int width)
+    {
+        if (!m_bodyFont.isLoaded())
+        {
+            return;
+        }
+        const int lineHeight = std::max(m_bodyFont.getLineHeight(), 20);
+        for (const RowDisplay &row : rows)
+        {
+            SDL_Rect rowRect{x, y, width, lineHeight + 12};
+            int advance = lineHeight + 18;
+            if (!row.hint.empty())
+            {
+                advance += 12;
+            }
+            SDL_Rect rowRectFull = rowRect;
+            rowRectFull.h = advance;
+            if (row.selected)
+            {
+                SDL_SetRenderDrawColor(renderer, 70, 50, 110, 200);
+                SDL_RenderFillRect(renderer, &rowRectFull);
+            }
+            else if (row.index >= 0 && row.index == m_hoverRow)
+            {
+                SDL_SetRenderDrawColor(renderer, row.disabled ? 40 : 50, 45, 80, row.disabled ? 120 : 170);
+                SDL_RenderFillRect(renderer, &rowRectFull);
+            }
+            SDL_Color titleColor = row.disabled ? SDL_Color{140, 140, 140, 255} : SDL_Color{255, 255, 255, 255};
+            SDL_Color subColor = row.disabled ? SDL_Color{120, 120, 120, 255} : SDL_Color{190, 200, 230, 255};
+            m_bodyFont.drawText(renderer, row.title, x + 12, y + 4, nullptr, titleColor);
+            if (!row.subtitle.empty())
+            {
+                m_bodyFont.drawText(renderer, row.subtitle, x + 12, y + lineHeight - 4, nullptr, subColor);
+            }
+            if (!row.cost.empty())
+            {
+                SDL_Color costColor =
+                    row.disabled ? SDL_Color{120, 120, 120, 255}
+                                 : (row.affordable ? SDL_Color{180, 255, 200, 255} : SDL_Color{255, 180, 150, 255});
+                const int costWidth = m_bodyFont.measureText(row.cost);
+                m_bodyFont.drawText(renderer,
+                                    row.cost,
+                                    x + width - costWidth - 16,
+                                    y + 4,
+                                    nullptr,
+                                    costColor);
+            }
+            if (!row.hint.empty())
+            {
+                SDL_Color hintColor = SDL_Color{255, 130, 130, 255};
+                m_bodyFont.drawText(renderer, row.hint, x + 12, y + lineHeight + 6, nullptr, hintColor);
+            }
+            if (row.index >= 0)
+            {
+                RowHitbox hit;
+                hit.rect = rowRectFull;
+                hit.index = row.index;
+                hit.disabled = row.disabled;
+                hit.affordable = row.affordable;
+                m_rowHits.push_back(hit);
+            }
+            y += advance;
+        }
+    }
+
+    void drawButton(SDL_Renderer *renderer,
+                    const TextRenderer &font,
+                    const SDL_Rect &rect,
+                    const std::string &label,
+                    bool hovered,
+                    bool accent)
+    {
+        if (!renderer || !font.isLoaded())
+        {
+            return;
+        }
+        const SDL_Color baseColor = accent ? SDL_Color{40, 90, 95, 210} : SDL_Color{40, 35, 80, 210};
+        const SDL_Color hoverColor = accent ? SDL_Color{70, 130, 140, 235} : SDL_Color{80, 65, 140, 230};
+        const SDL_Color fill = hovered ? hoverColor : baseColor;
+        SDL_SetRenderDrawColor(renderer, fill.r, fill.g, fill.b, fill.a);
+        SDL_RenderFillRect(renderer, &rect);
+        SDL_SetRenderDrawColor(renderer, 120, 110, 170, 255);
+        SDL_RenderDrawRect(renderer, &rect);
+        const int textWidth = font.measureText(label);
+        const int textX = rect.x + (rect.w - textWidth) / 2;
+        const int textY = rect.y + (rect.h - font.getLineHeight()) / 2;
+        font.drawText(renderer, label, textX, textY, nullptr, SDL_Color{255, 255, 255, 255});
+    }
+
+    void renderUndoPrompt(SDL_Renderer *renderer, const TextRenderer &font, int screenW, int screenH) const
+    {
+        if (!renderer || !font.isLoaded() || !hasUndo())
+        {
+            return;
+        }
+        std::ostringstream oss;
+        oss << "[Z] 取り消し (残り" << std::fixed << std::setprecision(1) << std::max(m_undo.timer, 0.0) << "s)";
+        const std::string text = oss.str();
+        const int textWidth = font.measureText(text);
+        const int x = screenW - textWidth - 32;
+        const int y = screenH - font.getLineHeight() - 24;
+        font.drawText(renderer, text, x, y, nullptr, SDL_Color{255, 230, 180, 255});
+    }
+
+    void beginUndo(const UndoRecord &record)
+    {
+        m_undo = record;
+        m_undo.timer = UndoWindowSeconds;
+    }
+
+    void cancelUndo()
+    {
+        m_undo = {};
+    }
+
+    void updateUndo(double deltaSeconds)
+    {
+        if (!hasUndo())
+        {
+            return;
+        }
+        m_undo.timer = std::max(0.0, m_undo.timer - deltaSeconds);
+        if (m_undo.timer <= 0.0)
+        {
+            cancelUndo();
+        }
+    }
+
+    void performUndo(const AppConfig &config)
+    {
+        if (!hasUndo() || !m_campaign)
+        {
+            return;
+        }
+        switch (m_undo.kind)
+        {
+        case UndoRecord::Kind::CampUpgrade:
+            setMappedLevel(m_campaign->campUpgradeLevels, m_undo.id, m_undo.previousLevel);
+            break;
+        case UndoRecord::Kind::Training:
+            setMappedLevel(m_campaign->trainingProgress, m_undo.id, m_undo.previousLevel);
+            break;
+        case UndoRecord::Kind::Meta:
+            setMappedLevel(m_campaign->metaLevels, m_undo.id, m_undo.previousLevel);
+            break;
+        case UndoRecord::Kind::Token:
+            m_campaign->manaGainTokens = std::max(0, m_undo.previousTokens);
+            break;
+        case UndoRecord::Kind::None:
+            break;
+        }
+        if (m_undo.cost > 0)
+        {
+            m_campaign->depositMana(m_undo.cost);
+        }
+        cancelUndo();
+        pushFeedback("購入を取り消しました");
+        autoFocusTab(m_tab, config);
+        if (m_campaign)
+        {
+            m_campaign->saveToDisk();
+        }
+    }
+
+    void setMappedLevel(std::unordered_map<std::string, int> &map, const std::string &id, int level)
+    {
+        if (level <= 0)
+        {
+            map.erase(id);
+        }
+        else
+        {
+            map[id] = level;
+        }
+    }
+
+    int tabIndexAt(int x, int y) const
+    {
+        for (std::size_t i = 0; i < m_tabRects.size(); ++i)
+        {
+            if (rectValid(m_tabRects[i]) && pointInRect(m_tabRects[i], x, y))
+            {
+                return static_cast<int>(i);
+            }
+        }
+        return -1;
+    }
+
+    int rowIndexAt(int x, int y) const
+    {
+        for (const RowHitbox &hit : m_rowHits)
+        {
+            if (pointInRect(hit.rect, x, y))
+            {
+                return hit.index;
+            }
+        }
+        return -1;
+    }
+
+    PointerTargetKind buttonAt(int x, int y) const
+    {
+        if (rectValid(m_buttonPurchase) && pointInRect(m_buttonPurchase, x, y))
+        {
+            return PointerTargetKind::PurchaseButton;
+        }
+        if (rectValid(m_buttonDeploy) && pointInRect(m_buttonDeploy, x, y))
+        {
+            return PointerTargetKind::DeployButton;
+        }
+        return PointerTargetKind::None;
+    }
+
+    const RowHitbox *rowHitboxForIndex(int index) const
+    {
+        for (const RowHitbox &hit : m_rowHits)
+        {
+            if (hit.index == index)
+            {
+                return &hit;
+            }
+        }
+        return nullptr;
+    }
+
+    static bool rectValid(const SDL_Rect &rect)
+    {
+        return rect.w > 0 && rect.h > 0;
+    }
+
+    static bool pointInRect(const SDL_Rect &rect, int x, int y)
+    {
+        return x >= rect.x && x < rect.x + rect.w && y >= rect.y && y < rect.y + rect.h;
+    }
+};
+
 class BattleScene : public Scene
 {
   public:
-    BattleScene();
+    explicit BattleScene(std::shared_ptr<CampaignState> campaign);
 
     void onEnter(GameApplication &app, SceneStack &stack) override;
     void onExit(GameApplication &app, SceneStack &stack) override;
@@ -1746,6 +3232,7 @@ class BattleScene : public Scene
     void update(double deltaSeconds, GameApplication &app, SceneStack &stack) override;
     void render(SDL_Renderer *renderer, GameApplication &app) override;
     void onConfigReloaded(GameApplication &app, SceneStack &stack) override;
+    void startRunFromCamp(GameApplication &app);
 
   private:
     void handleActionFrame(const ActionBuffer::Frame &frame, GameApplication &app);
@@ -1769,6 +3256,7 @@ class BattleScene : public Scene
     };
 
     bool m_initialized = false;
+    std::shared_ptr<CampaignState> m_campaign;
     world::WorldState m_world;
     TileMap m_tileMap;
     Atlas m_atlas;
@@ -1820,17 +3308,34 @@ class BattleScene : public Scene
     telemetry::PerformanceBudgetMonitor m_budgetMonitor{};
     Uint64 m_lastBudgetWarningTick = 0;
     static constexpr Uint64 BudgetWarningCooldownMs = 1000;
-    void initializeDebugBindings(GameApplication &app);
-    void updateDebugToggles();
     debug::DebugController m_debugController;
     debug::DebugOverlayView m_debugOverlay;
     debug::DisplayState m_debugDisplayState;
     DebugSimulationAccessor m_debugAccessor;
     bool m_showTelemetryOverlay = false;
     int m_cursorRestoreState = SDL_QUERY;
+    bool m_pausedForCamp = false;
+    bool m_resultOverlayActive = false;
+    bool m_resultRecorded = false;
+    std::string m_resultSummary;
+    std::vector<float> m_speedSteps{1.0f};
+    int m_speedIndex = 0;
+    float m_userTimeScale = 1.0f;
+
+    void initializeDebugBindings(GameApplication &app);
+    void updateDebugToggles();
+    void applyCampaignModifiers(GameApplication &app);
+    void initializeRun(GameApplication &app);
+    void renderResultOverlay(SDL_Renderer *renderer, GameApplication &app);
+    void handleResultOverlayKey(SDL_Keycode key, GameApplication &app, SceneStack &stack);
+    void cycleGameSpeed(int direction = 1);
+    void resetResultState();
 };
 
-BattleScene::BattleScene() : m_debugAccessor(*this) {}
+BattleScene::BattleScene(std::shared_ptr<CampaignState> campaign)
+    : m_campaign(std::move(campaign)), m_debugAccessor(*this)
+{
+}
 
 void BattleScene::onEnter(GameApplication &app, SceneStack &stack)
 {
@@ -1917,14 +3422,33 @@ void BattleScene::onExit(GameApplication &app, SceneStack &stack)
 
 void BattleScene::handleEvent(const SDL_Event &event, GameApplication &app, SceneStack &stack)
 {
-    (void)event;
     (void)app;
     (void)stack;
+    if (!m_initialized)
+    {
+        return;
+    }
+    if (m_resultOverlayActive)
+    {
+        if (event.type == SDL_KEYDOWN)
+        {
+            handleResultOverlayKey(event.key.keysym.sym, app, stack);
+        }
+        return;
+    }
+    if (m_pausedForCamp)
+    {
+        return;
+    }
     m_debugController.handleEvent(event);
 }
 
 void BattleScene::handleActionFrame(const ActionBuffer::Frame &frame, GameApplication &app)
 {
+    if (m_pausedForCamp || m_resultOverlayActive)
+    {
+        return;
+    }
     if (m_haveProcessedSequence && frame.sequence == m_lastProcessedSequence)
     {
         return;
@@ -2086,6 +3610,9 @@ void BattleScene::handleActionFrame(const ActionBuffer::Frame &frame, GameApplic
                 m_world.activateSelectedSkill(worldPos);
             }
             break;
+        case ActionId::ToggleGameSpeed:
+            cycleGameSpeed();
+            break;
         case ActionId::QuitGame:
             app.requestQuit();
             break;
@@ -2097,10 +3624,15 @@ void BattleScene::handleActionFrame(const ActionBuffer::Frame &frame, GameApplic
 
 void BattleScene::update(double deltaSeconds, GameApplication &app, SceneStack &stack)
 {
-    (void)app;
     (void)stack;
     if (!m_initialized)
     {
+        return;
+    }
+
+    if (m_pausedForCamp)
+    {
+        m_debugController.update(deltaSeconds);
         return;
     }
 
@@ -2114,8 +3646,26 @@ void BattleScene::update(double deltaSeconds, GameApplication &app, SceneStack &
     }
 
     LegacySimulation &sim = m_world.legacy();
+    if (!m_resultOverlayActive && sim.result != GameResult::Playing)
+    {
+        if (!m_resultRecorded && m_campaign)
+        {
+            m_campaign->recordRunOutcome(sim);
+            m_campaign->saveToDisk();
+            m_resultRecorded = true;
+        }
+        m_resultOverlayActive = true;
+        m_resultSummary = sim.hud.resultText.empty() ? "RESULT" : sim.hud.resultText;
+    }
 
-    const float timeScale = std::clamp(m_debugController.timeScale(), 0.25f, 4.0f);
+    if (m_resultOverlayActive)
+    {
+        return;
+    }
+
+    const float debugScale = std::clamp(m_debugController.timeScale(), 0.25f, 4.0f);
+    const float userScale = std::clamp(m_userTimeScale, 0.25f, 4.0f);
+    const float timeScale = debugScale * userScale;
     m_lastFrameSeconds = deltaSeconds;
     m_accumulator += deltaSeconds * timeScale;
     m_fpsTimer += deltaSeconds;
@@ -2365,6 +3915,8 @@ void BattleScene::render(SDL_Renderer *renderer, GameApplication &app)
     hudContext.performanceFrequency = m_frequency;
     hudContext.hudTimeMs = &hudMs;
     hudContext.inputDiagnostics = &inputDiagnostics;
+    hudContext.timeScale = m_userTimeScale;
+    hudContext.showSpeedIndicator = m_speedSteps.size() > 1;
     m_uiView.render(hudContext);
 
     if (renderer && m_debugController.active())
@@ -2379,6 +3931,11 @@ void BattleScene::render(SDL_Renderer *renderer, GameApplication &app)
                               renderStats,
                               m_screenWidth,
                               m_screenHeight);
+    }
+
+    if (m_resultOverlayActive)
+    {
+        renderResultOverlay(renderer, app);
     }
 
     if (hudSectionStart != 0)
@@ -2430,6 +3987,87 @@ void BattleScene::render(SDL_Renderer *renderer, GameApplication &app)
         m_entityAccum = 0.0;
         m_perfLogFrames = 0;
     }
+}
+
+void BattleScene::renderResultOverlay(SDL_Renderer *renderer, GameApplication &app)
+{
+    (void)app;
+    if (!m_resultOverlayActive || !renderer || !m_hudFont.isLoaded())
+    {
+        return;
+    }
+    SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+    SDL_SetRenderDrawColor(renderer, 0, 0, 0, 170);
+    SDL_Rect overlay{0, 0, m_screenWidth, m_screenHeight};
+    SDL_RenderFillRect(renderer, &overlay);
+    SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
+
+    std::vector<std::string> lines{
+        m_resultSummary.empty() ? std::string("RESULT") : m_resultSummary,
+        std::string("[Enter] キャンプへ戻る"),
+        std::string("[R] もう一度挑戦"),
+        std::string("[Esc] タイトルへ戻る"),
+    };
+    const TextRenderer &font = m_hudFont;
+    const int lineAdvance = font.getLineHeight() + 8;
+    int totalHeight = static_cast<int>(lines.size()) * lineAdvance;
+    int y = m_screenHeight / 2 - totalHeight / 2;
+    for (std::size_t i = 0; i < lines.size(); ++i)
+    {
+        const std::string &line = lines[i];
+        const int textWidth = font.measureText(line);
+        const int x = std::max(32, (m_screenWidth - textWidth) / 2);
+        SDL_Color color = i == 0 ? SDL_Color{255, 240, 180, 255} : SDL_Color{230, 230, 255, 255};
+        font.drawText(renderer, line, x, y, nullptr, color);
+        y += lineAdvance;
+    }
+}
+
+void BattleScene::handleResultOverlayKey(SDL_Keycode key, GameApplication &app, SceneStack &stack)
+{
+    switch (key)
+    {
+    case SDLK_RETURN:
+    case SDLK_KP_ENTER:
+        if (!m_pausedForCamp)
+        {
+            m_pausedForCamp = true;
+            m_resultOverlayActive = false;
+            stack.push(std::make_unique<CampScene>(m_campaign, this));
+        }
+        break;
+    case SDLK_r:
+        m_resultOverlayActive = false;
+        startRunFromCamp(app);
+        break;
+    case SDLK_ESCAPE:
+        app.requestQuit();
+        break;
+    default:
+        break;
+    }
+}
+
+void BattleScene::cycleGameSpeed(int direction)
+{
+    if (m_speedSteps.empty())
+    {
+        return;
+    }
+    const int count = static_cast<int>(m_speedSteps.size());
+    direction = direction >= 0 ? 1 : -1;
+    m_speedIndex = (m_speedIndex + count + direction) % count;
+    m_userTimeScale = std::clamp(m_speedSteps[m_speedIndex], 0.25f, 4.0f);
+    std::ostringstream oss;
+    oss << "Speed x" << std::fixed << std::setprecision(m_userTimeScale >= 2.0f ? 0 : 1) << m_userTimeScale;
+    showTelemetryMessage(oss.str());
+}
+
+void BattleScene::resetResultState()
+{
+    m_resultOverlayActive = false;
+    m_resultRecorded = false;
+    m_resultSummary.clear();
 }
 
 void BattleScene::evaluatePerformanceBudgets(GameApplication &app)
@@ -2523,7 +4161,12 @@ int main(int argc, char **argv)
     {
         app.setTelemetryOutputDirectory(*telemetryDir);
     }
-    app.sceneStack().push(std::make_unique<BattleScene>());
+    auto campaign = std::make_shared<CampaignState>();
+    std::filesystem::path saveDir = std::filesystem::path("save");
+    std::filesystem::path savePath = std::filesystem::absolute(saveDir / "campaign_state.json");
+    campaign->setSavePath(savePath);
+    campaign->loadFromDisk();
+    app.sceneStack().push(std::make_unique<BattleScene>(std::move(campaign)));
     return app.run();
 }
 #endif
@@ -2574,15 +4217,37 @@ void BattleScene::applyAppConfig(GameApplication &app)
     sim = {};
     sim.config = appConfig.game;
     sim.temperamentConfig = appConfig.temperament;
+    sim.chibiPersonalityConfig = appConfig.chibiPersonality;
+    sim.chibiAiParams = appConfig.chibiAiParams;
     sim.yunaStats = appConfig.entityCatalog.yuna;
     sim.slimeStats = appConfig.entityCatalog.slime;
+    sim.goblinStats = appConfig.entityCatalog.goblin;
+    sim.magicianStats = appConfig.entityCatalog.magician;
+    sim.batStats = appConfig.entityCatalog.bat;
+    sim.toritoriStats = appConfig.entityCatalog.toritori;
     sim.wallbreakerStats = appConfig.entityCatalog.wallbreaker;
     sim.commanderStats = appConfig.entityCatalog.commander;
     sim.mapDefs = appConfig.mapDefs;
     sim.spawnScript = appConfig.spawnScript;
+    sim.economyConfig = appConfig.economy;
     sim.formationDefaults = appConfig.game.formationDefaults;
     sim.formationAlignTimer = 0.0f;
     sim.formationDefenseMul = 1.0f;
+    if (appConfig.stageConfig)
+    {
+        sim.configureStage(*appConfig.stageConfig);
+    }
+    else
+    {
+        sim.clearStageConfiguration();
+    }
+    m_speedSteps = sim.stage.speed.steps;
+    if (m_speedSteps.empty())
+    {
+        m_speedSteps = {1.0f};
+    }
+    m_speedIndex = 0;
+    m_userTimeScale = std::clamp(m_speedSteps[m_speedIndex], 0.25f, 4.0f);
     if (appConfig.mission && appConfig.mission->mode != MissionMode::None)
     {
         sim.hasMission = true;
@@ -2611,13 +4276,9 @@ void BattleScene::applyAppConfig(GameApplication &app)
 
     std::vector<SkillDef> skillDefs = appConfig.skills.empty() ? buildDefaultSkills() : appConfig.skills;
     m_world.configureSkills(skillDefs);
-    m_world.reset();
-
-    m_actionBuffer.clear();
-    m_actionBuffer.setCapacity(static_cast<std::size_t>(std::max(1, appConfig.input.bufferFrames)));
-    m_inputSequence = 0;
-    m_haveProcessedSequence = false;
-    m_lastProcessedSequence = 0;
+    applyCampaignModifiers(app);
+    initializeRun(app);
+    resetResultState();
 
     if (!m_hudFont.load(assets, "assets/ui/NotoSansJP-Regular.ttf", 22))
     {
@@ -2637,6 +4298,34 @@ void BattleScene::applyAppConfig(GameApplication &app)
     uiDeps.screenWidth = m_screenWidth;
     uiDeps.screenHeight = m_screenHeight;
     m_uiView.setDependencies(uiDeps);
+
+    initializeDebugBindings(app);
+}
+
+void BattleScene::applyCampaignModifiers(GameApplication &app)
+{
+    if (!m_campaign)
+    {
+        return;
+    }
+    m_campaign->applyPersistentUpgrades(app.appConfig(), m_world.legacy());
+}
+
+void BattleScene::initializeRun(GameApplication &app)
+{
+    const AppConfig &appConfig = app.appConfig();
+    LegacySimulation &sim = m_world.legacy();
+    m_world.reset();
+    if (m_campaign)
+    {
+        m_campaign->applyRunStart(appConfig, sim);
+    }
+
+    m_actionBuffer.clear();
+    m_actionBuffer.setCapacity(static_cast<std::size_t>(std::max(1, appConfig.input.bufferFrames)));
+    m_inputSequence = 0;
+    m_haveProcessedSequence = false;
+    m_lastProcessedSequence = 0;
 
     m_camera = {};
     m_baseCameraTarget = {sim.basePos.x - m_screenWidth * 0.5f, sim.basePos.y - m_screenHeight * 0.5f};
@@ -2669,7 +4358,27 @@ void BattleScene::applyAppConfig(GameApplication &app)
     m_frequency = static_cast<double>(SDL_GetPerformanceFrequency());
     m_lastFrameSeconds = 0.0;
     m_lastUpdateMs = 0.0;
-    initializeDebugBindings(app);
+}
+
+void BattleScene::startRunFromCamp(GameApplication &app)
+{
+    applyCampaignModifiers(app);
+    initializeRun(app);
+    if (m_campaign)
+    {
+        m_campaign->saveToDisk();
+    }
+    m_pausedForCamp = false;
+    resetResultState();
+}
+
+void CampScene::deploy(SceneStack &stack, GameApplication &app)
+{
+    if (m_battle)
+    {
+        m_battle->startRunFromCamp(app);
+    }
+    stack.pop();
 }
 
 void BattleScene::onConfigReloaded(GameApplication &app, SceneStack &stack)
