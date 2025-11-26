@@ -1,0 +1,16 @@
+{
+  "meta": { "image": "atlas.png", "size": [128, 128], "pad": 2 },
+  "frames": {
+    "yuna_front_0":  { "xywh": [0,   0, 32, 32] },
+    "yuna_front_1":  { "xywh": [32,  0, 32, 32] },
+    "yuna_front_2":  { "xywh": [64,  0, 32, 32] },
+    "yuna_front_3":  { "xywh": [96,  0, 32, 32] },
+    "yuna_right_0":  { "xywh": [0,  32, 32, 32] },
+    "yuna_back_0":   { "xywh": [32, 32, 32, 32] },
+    "slime_walk_0":  { "xywh": [0,  64, 24, 32] },
+    "slime_walk_1":  { "xywh": [32, 64, 24, 32] },
+    "base_box":      { "xywh": [64, 64, 32, 32] },
+    "ring_friend":   { "xywh": [0,  96, 20,  8] },
+    "ring_enemy":    { "xywh": [32, 96, 20,  8] }
+  }
+}

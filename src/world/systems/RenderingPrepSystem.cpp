@@ -177,6 +177,8 @@ void RenderingPrepSystem::update(float, SystemContext &context)
             allySprite.panicBranchTimer = std::max(yuna.temperament.panicTimer, 0.0f);
         }
         allySprite.action = yuna.temperament.microAction;
+        allySprite.facingX = yuna.facingX;
+        allySprite.moving = lengthSq(yuna.lastVelocity) > 0.001f;
         queue.allies.push_back(allySprite);
 
         LegacySimulation::RenderQueue::MoraleIcon icon;
@@ -213,6 +215,13 @@ void RenderingPrepSystem::update(float, SystemContext &context)
         }
         return lhs.position.y < rhs.position.y;
     });
+
+    queue.deathFx.clear();
+    queue.deathFx.reserve(sim.deathFx.size());
+    for (const auto &fx : sim.deathFx)
+    {
+        queue.deathFx.push_back({fx.position, fx.timer, fx.duration});
+    }
 
     queue.walls.clear();
     queue.walls.reserve(sim.walls.size());

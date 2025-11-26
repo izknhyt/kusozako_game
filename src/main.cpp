@@ -1697,7 +1697,6 @@ void renderWorld(SDL_Renderer *renderer, const LegacySimulation &sim, const Form
     }
 
     const SDL_Rect *commanderFrame = nullptr;
-    const SDL_Rect *yunaFrame = nullptr;
     const SDL_Rect *slimeFrame = nullptr;
     const SDL_Rect *goblinFrame = nullptr;
     const SDL_Rect *magicianFrame = nullptr;
@@ -1712,7 +1711,6 @@ void renderWorld(SDL_Renderer *renderer, const LegacySimulation &sim, const Form
         return atlas.getFrame(prefix + "_0");
     };
     commanderFrame = fetchFrame(sim.commanderStats.spritePrefix);
-    yunaFrame = fetchFrame(sim.yunaStats.spritePrefix);
     slimeFrame = fetchFrame(sim.slimeStats.spritePrefix);
     goblinFrame = fetchFrame(sim.goblinStats.spritePrefix);
     magicianFrame = fetchFrame(sim.magicianStats.spritePrefix);
@@ -1735,6 +1733,21 @@ void renderWorld(SDL_Renderer *renderer, const LegacySimulation &sim, const Form
     };
     const SDL_Rect *friendRing = atlas.getFrame("ring_friend");
     const SDL_Rect *enemyRing = atlas.getFrame("ring_enemy");
+
+    auto chibiFrameForAlly = [&](const LegacySimulation::RenderQueue::AllySprite &ally)
+        -> std::pair<const SDL_Rect *, SDL_RendererFlip> {
+        const bool moving = ally.moving;
+        const char *base = moving ? "chibi_walk" : "chibi_idle";
+        const int frames = 6;
+        // animate by real time to avoid reliance on simulation frameCounter
+        const std::uint64_t ticks = SDL_GetTicks64();
+        const std::uint64_t divisorMs = moving ? 100 : 200; // ~10fps walk, ~5fps idle
+        const std::uint64_t idx = ((ticks / divisorMs) % frames);
+        const std::string key = std::string(base) + "_" + std::to_string(idx);
+        const SDL_Rect *rect = atlas.getFrame(key);
+        const SDL_RendererFlip flip = ally.facingX < 0.0f ? SDL_FLIP_HORIZONTAL : SDL_FLIP_NONE;
+        return {rect, flip};
+    };
 
     if (atlas.texture.get())
     {
@@ -1775,15 +1788,16 @@ void renderWorld(SDL_Renderer *renderer, const LegacySimulation &sim, const Form
                 continue;
             }
 
-            if (yunaFrame)
+            const auto [chibiFrame, flip] = chibiFrameForAlly(ally);
+            if (chibiFrame)
             {
                 SDL_SetTextureAlphaMod(atlas.texture.getRaw(), ally.alpha);
                 SDL_Rect dest{
-                    static_cast<int>(screenPos.x - yunaFrame->w * 0.5f),
-                    static_cast<int>(screenPos.y - yunaFrame->h * 0.5f),
-                    yunaFrame->w,
-                    yunaFrame->h};
-                countedRenderCopy(renderer, atlas.texture.getRaw(), yunaFrame, &dest, stats);
+                    static_cast<int>(screenPos.x - chibiFrame->w * 0.5f),
+                    static_cast<int>(screenPos.y - chibiFrame->h * 0.5f),
+                    chibiFrame->w,
+                    chibiFrame->h};
+                countedRenderCopyFlip(renderer, atlas.texture.getRaw(), chibiFrame, &dest, flip, stats);
                 SDL_SetTextureAlphaMod(atlas.texture.getRaw(), 255);
                 if (friendRing)
                 {
@@ -1812,6 +1826,31 @@ void renderWorld(SDL_Renderer *renderer, const LegacySimulation &sim, const Form
             MoraleState state = (ally.hasUnitIndex && ally.unitIndex < moraleStates.size()) ? moraleStates[ally.unitIndex]
                                                                                             : ally.morale;
             drawMoraleIcon(ally.position, ally.radius, state);
+        }
+        if (!queue.deathFx.empty())
+        {
+            for (const auto &fx : queue.deathFx)
+            {
+                const float duration = std::max(fx.duration, 0.0001f);
+                const float progress = std::clamp(1.0f - (fx.timer / duration), 0.0f, 1.0f);
+                const int frameIdx = std::min(3, static_cast<int>(progress * 4.0f));
+                const std::string key = "chibi_death_" + std::to_string(frameIdx);
+                const SDL_Rect *frame = atlas.getFrame(key);
+                if (!frame)
+                {
+                    continue;
+                }
+                const std::uint8_t alpha = static_cast<std::uint8_t>(std::clamp(fx.timer / duration, 0.0f, 1.0f) * 255);
+                SDL_SetTextureAlphaMod(atlas.texture.getRaw(), alpha);
+                Vec2 screenPos = worldToScreen(fx.position, camera);
+                SDL_Rect dest{
+                    static_cast<int>(screenPos.x - frame->w * 0.5f),
+                    static_cast<int>(screenPos.y - frame->h * 0.5f),
+                    frame->w,
+                    frame->h};
+                countedRenderCopy(renderer, atlas.texture.getRaw(), frame, &dest, stats);
+                SDL_SetTextureAlphaMod(atlas.texture.getRaw(), 255);
+            }
         }
         SDL_SetTextureAlphaMod(atlas.texture.getRaw(), 255);
     }

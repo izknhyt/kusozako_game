@@ -179,11 +179,16 @@ struct CampaignState
 
         sim.baseAuraRegenPerSecond = std::max(0.0f, resolveCampBonus("aura_regen"));
 
-        const MetaShopItem *capItem = findMetaItem(config, "mana_cap_up");
+        const MetaShopItem *capItem = findMetaItem(config, "mana_cap_up_s");
+        if (!capItem)
+        {
+            // Backward compatibility with older save IDs.
+            capItem = findMetaItem(config, "mana_cap_up");
+        }
         int capBonus = 0;
         if (capItem)
         {
-            const int level = clampedLevel(metaLevel("mana_cap_up"), capItem->maxLevel);
+            const int level = clampedLevel(metaLevel(capItem->id), capItem->maxLevel);
             if (level > 0 && capItem->delta != 0.0f)
             {
                 capBonus = static_cast<int>(std::round(capItem->delta * static_cast<float>(level)));

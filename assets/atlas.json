@@ -1,16 +1,276 @@
 {
-  "meta": { "image": "atlas.png", "size": [128, 128], "pad": 2 },
+  "meta": {
+    "image": "atlas.png",
+    "size": [
+      512,
+      148
+    ],
+    "pad": 2
+  },
   "frames": {
-    "yuna_front_0":  { "xywh": [0,   0, 32, 32] },
-    "yuna_front_1":  { "xywh": [32,  0, 32, 32] },
-    "yuna_front_2":  { "xywh": [64,  0, 32, 32] },
-    "yuna_front_3":  { "xywh": [96,  0, 32, 32] },
-    "yuna_right_0":  { "xywh": [0,  32, 32, 32] },
-    "yuna_back_0":   { "xywh": [32, 32, 32, 32] },
-    "slime_walk_0":  { "xywh": [0,  64, 24, 32] },
-    "slime_walk_1":  { "xywh": [32, 64, 24, 32] },
-    "base_box":      { "xywh": [64, 64, 32, 32] },
-    "ring_friend":   { "xywh": [0,  96, 20,  8] },
-    "ring_enemy":    { "xywh": [32, 96, 20,  8] }
+    "yuna_front_0": {
+      "xywh": [
+        0,
+        0,
+        32,
+        32
+      ]
+    },
+    "yuna_front_1": {
+      "xywh": [
+        34,
+        0,
+        32,
+        32
+      ]
+    },
+    "yuna_front_2": {
+      "xywh": [
+        68,
+        0,
+        32,
+        32
+      ]
+    },
+    "yuna_front_3": {
+      "xywh": [
+        102,
+        0,
+        32,
+        32
+      ]
+    },
+    "yuna_right_0": {
+      "xywh": [
+        136,
+        0,
+        32,
+        32
+      ]
+    },
+    "yuna_back_0": {
+      "xywh": [
+        170,
+        0,
+        32,
+        32
+      ]
+    },
+    "slime_walk_0": {
+      "xywh": [
+        204,
+        0,
+        24,
+        32
+      ]
+    },
+    "slime_walk_1": {
+      "xywh": [
+        230,
+        0,
+        24,
+        32
+      ]
+    },
+    "base_box": {
+      "xywh": [
+        256,
+        0,
+        32,
+        32
+      ]
+    },
+    "ring_friend": {
+      "xywh": [
+        290,
+        0,
+        20,
+        8
+      ]
+    },
+    "ring_enemy": {
+      "xywh": [
+        312,
+        0,
+        20,
+        8
+      ]
+    },
+    "chibi_idle_0": {
+      "xywh": [
+        334,
+        0,
+        48,
+        48
+      ]
+    },
+    "chibi_idle_1": {
+      "xywh": [
+        384,
+        0,
+        48,
+        48
+      ]
+    },
+    "chibi_idle_2": {
+      "xywh": [
+        434,
+        0,
+        48,
+        48
+      ]
+    },
+    "chibi_idle_3": {
+      "xywh": [
+        0,
+        50,
+        48,
+        48
+      ]
+    },
+    "chibi_idle_4": {
+      "xywh": [
+        50,
+        50,
+        48,
+        48
+      ]
+    },
+    "chibi_idle_5": {
+      "xywh": [
+        100,
+        50,
+        48,
+        48
+      ]
+    },
+    "chibi_walk_0": {
+      "xywh": [
+        150,
+        50,
+        48,
+        48
+      ]
+    },
+    "chibi_walk_1": {
+      "xywh": [
+        200,
+        50,
+        48,
+        48
+      ]
+    },
+    "chibi_walk_2": {
+      "xywh": [
+        250,
+        50,
+        48,
+        48
+      ]
+    },
+    "chibi_walk_3": {
+      "xywh": [
+        300,
+        50,
+        48,
+        48
+      ]
+    },
+    "chibi_walk_4": {
+      "xywh": [
+        350,
+        50,
+        48,
+        48
+      ]
+    },
+    "chibi_walk_5": {
+      "xywh": [
+        400,
+        50,
+        48,
+        48
+      ]
+    },
+    "chibi_attack_0": {
+      "xywh": [
+        450,
+        50,
+        48,
+        48
+      ]
+    },
+    "chibi_attack_1": {
+      "xywh": [
+        0,
+        100,
+        48,
+        48
+      ]
+    },
+    "chibi_attack_2": {
+      "xywh": [
+        50,
+        100,
+        48,
+        48
+      ]
+    },
+    "chibi_attack_3": {
+      "xywh": [
+        100,
+        100,
+        48,
+        48
+      ]
+    },
+    "chibi_attack_4": {
+      "xywh": [
+        150,
+        100,
+        48,
+        48
+      ]
+    },
+    "chibi_attack_5": {
+      "xywh": [
+        200,
+        100,
+        48,
+        48
+      ]
+    },
+    "chibi_death_0": {
+      "xywh": [
+        250,
+        100,
+        48,
+        48
+      ]
+    },
+    "chibi_death_1": {
+      "xywh": [
+        300,
+        100,
+        48,
+        48
+      ]
+    },
+    "chibi_death_2": {
+      "xywh": [
+        350,
+        100,
+        48,
+        48
+      ]
+    },
+    "chibi_death_3": {
+      "xywh": [
+        400,
+        100,
+        48,
+        48
+      ]
+    }
   }
 }

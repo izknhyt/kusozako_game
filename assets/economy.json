@@ -4,8 +4,11 @@
   "token_bonus": 0.10,
   "enemy_rewards": {
     "slime": 1,
+    "goblin": 1,
+    "magician": 2,
+    "bat": 1,
+    "toritori": 1,
     "wallbreaker": 5,
     "boss": 60
   }
 }
-

@@ -3,6 +3,8 @@
 #include "core/Vec2.h"
 #include "world/LegacySimulation.h"
 
+#include <cmath>
+
 namespace world::systems
 {
 
@@ -29,8 +31,17 @@ void MovementSystem::update(float dt, SystemContext &context)
         if (yuna.hasDesiredVelocity)
         {
             yuna.pos += yuna.desiredVelocity * dt;
+            yuna.lastVelocity = yuna.desiredVelocity;
+            if (std::abs(yuna.desiredVelocity.x) > 0.01f)
+            {
+                yuna.facingX = yuna.desiredVelocity.x > 0.0f ? 1.0f : -1.0f;
+            }
             sim.clampToWorld(yuna.pos, yuna.radius);
             anyMovement = true;
+        }
+        else
+        {
+            yuna.lastVelocity = {0.0f, 0.0f};
         }
         yuna.desiredVelocity = {0.0f, 0.0f};
         yuna.hasDesiredVelocity = false;
@@ -43,4 +54,3 @@ void MovementSystem::update(float dt, SystemContext &context)
 }
 
 } // namespace world::systems
-

@@ -213,6 +213,8 @@ struct Unit
     Vec2 panicRunDirection{0.0f, 0.0f};
     Vec2 panicRunJitterDirection{0.0f, 0.0f};
     bool hpRetreatActive = false;
+    Vec2 lastVelocity{0.0f, 0.0f};
+    float facingX = 1.0f;
     JobRuntimeState job{};
 };
 
@@ -374,6 +376,13 @@ struct LegacySimulation
     std::vector<WallSegment> walls;
     std::vector<GateRuntime> gates;
     std::vector<RuntimeSkill> skills;
+    struct DeathFx
+    {
+        Vec2 position{0.0f, 0.0f};
+        float timer = 0.0f;
+        float duration = 0.0f;
+    };
+    std::vector<DeathFx> deathFx;
     struct DynamicHazard
     {
         Vec2 pos;
@@ -464,6 +473,8 @@ struct LegacySimulation
             bool panicRunAround = false;
             float panicBranchTimer = 0.0f;
             ChibiAction action = ChibiAction::Wander;
+            float facingX = 1.0f;
+            bool moving = false;
         };
 
         struct EnemySprite
@@ -497,6 +508,13 @@ struct LegacySimulation
             std::size_t unitIndex = 0;
         };
 
+        struct DeathFx
+        {
+            Vec2 position{0.0f, 0.0f};
+            float timer = 0.0f;
+            float duration = 0.0f;
+        };
+
         bool lodActive = false;
         bool skipActors = false;
         int lodFrameCounter = 0;
@@ -504,6 +522,7 @@ struct LegacySimulation
         std::vector<EnemySprite> enemies;
         std::vector<WallSprite> walls;
         std::vector<MoraleIcon> moraleIcons;
+        std::vector<DeathFx> deathFx;
         std::string telemetryText;
         float telemetryTimer = 0.0f;
         std::string performanceWarningText;
@@ -517,6 +536,7 @@ struct LegacySimulation
             enemies.clear();
             walls.clear();
             moraleIcons.clear();
+            deathFx.clear();
         }
     } renderQueue;
 
@@ -991,6 +1011,10 @@ struct LegacySimulation
         };
         switch (type)
         {
+        case EnemyArchetype::Goblin: return lookup("goblin");
+        case EnemyArchetype::Magician: return lookup("magician");
+        case EnemyArchetype::Bat: return lookup("bat");
+        case EnemyArchetype::Toritori: return lookup("toritori");
         case EnemyArchetype::Wallbreaker: return lookup("wallbreaker");
         case EnemyArchetype::Boss: return lookup("boss");
         case EnemyArchetype::Slime:

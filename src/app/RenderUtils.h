@@ -22,6 +22,13 @@ inline void countedRenderCopy(SDL_Renderer *renderer, SDL_Texture *texture, cons
     SDL_RenderCopy(renderer, texture, src, dst);
 }
 
+inline void countedRenderCopyFlip(SDL_Renderer *renderer, SDL_Texture *texture, const SDL_Rect *src,
+                                  const SDL_Rect *dst, SDL_RendererFlip flip, RenderStats &stats)
+{
+    ++stats.drawCalls;
+    SDL_RenderCopyEx(renderer, texture, src, dst, 0.0, nullptr, flip);
+}
+
 inline void countedRenderFillRect(SDL_Renderer *renderer, const SDL_Rect *rect, RenderStats &stats)
 {
     ++stats.drawCalls;
@@ -57,4 +64,3 @@ inline void drawFilledCircle(SDL_Renderer *renderer, const Vec2 &pos, float radi
         }
     }
 }
-

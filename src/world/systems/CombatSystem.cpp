@@ -806,6 +806,7 @@ void CombatSystem::update(float dt, SystemContext &context)
             Unit &yuna = yunas[i];
             if (yuna.hp <= 0.0f)
             {
+                sim.deathFx.push_back({yuna.pos, 1.0f, 1.0f});
                 sim.enqueueYunaRespawn(0.0f);
                 continue;
             }
@@ -823,6 +824,7 @@ void CombatSystem::update(float dt, SystemContext &context)
                     const float overkill = std::max(0.0f, yunaDamage[i] - std::max(hpBefore, 0.0f));
                     const float ratio = sim.clampOverkillRatio(overkill, sim.yunaStats.hp);
                     sim.enqueueYunaRespawn(ratio);
+                    sim.deathFx.push_back({yuna.pos, 1.0f, 1.0f});
                     continue;
                 }
                 if (yuna.temperament.definition && yuna.temperament.definition->panicOnHit > 0.0f)
@@ -921,6 +923,21 @@ void CombatSystem::update(float dt, SystemContext &context)
     walls.erase(std::remove_if(walls.begin(), walls.end(), [](const WallSegment &wall) {
         return wall.hp <= 0.0f;
     }), walls.end());
+
+    if (!sim.deathFx.empty())
+    {
+        std::vector<LegacySimulation::DeathFx> next;
+        next.reserve(sim.deathFx.size());
+        for (auto fx : sim.deathFx)
+        {
+            fx.timer -= dt;
+            if (fx.timer > 0.0f)
+            {
+                next.push_back(fx);
+            }
+        }
+        sim.deathFx.swap(next);
+    }
 
     context.requestComponentSync();
 }
