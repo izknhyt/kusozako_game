@@ -741,6 +741,7 @@ std::optional<EntityCatalog> parseEntityCatalog(ParseContext &ctx, const std::st
     catalog.magician.spritePrefix = "slime_walk";
     catalog.bat.spritePrefix = "slime_walk";
     catalog.toritori.spritePrefix = "slime_walk";
+    catalog.golem.spritePrefix = "slime_walk";
     catalog.wallbreaker.spritePrefix = "elite_wallbreaker";
 
     const json::JsonValue &root = *jsonDoc.get();
@@ -788,6 +789,7 @@ std::optional<EntityCatalog> parseEntityCatalog(ParseContext &ctx, const std::st
     catalog.magician = catalog.slime;
     catalog.bat = catalog.slime;
     catalog.toritori = catalog.slime;
+    catalog.golem = catalog.slime;
 
     if (const json::JsonValue *goblin = json::getObjectField(root, "goblin"))
     {
@@ -804,6 +806,10 @@ std::optional<EntityCatalog> parseEntityCatalog(ParseContext &ctx, const std::st
     if (const json::JsonValue *toritori = json::getObjectField(root, "toritori"))
     {
         parseEnemyStats(catalog.toritori, *toritori);
+    }
+    if (const json::JsonValue *golem = json::getObjectField(root, "golem"))
+    {
+        parseEnemyStats(catalog.golem, *golem);
     }
 
     if (const json::JsonValue *elite = json::getObjectField(root, "elite_wallbreaker"))

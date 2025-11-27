@@ -220,7 +220,7 @@ void RenderingPrepSystem::update(float, SystemContext &context)
     queue.deathFx.reserve(sim.deathFx.size());
     for (const auto &fx : sim.deathFx)
     {
-        queue.deathFx.push_back({fx.position, fx.timer, fx.duration});
+        queue.deathFx.push_back({fx.position, fx.timer, fx.duration, fx.facingX});
     }
 
     queue.walls.clear();

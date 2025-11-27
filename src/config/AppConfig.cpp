@@ -25,6 +25,10 @@ EnemyArchetype enemyTypeFromString(const std::string &typeId)
     {
         return EnemyArchetype::Toritori;
     }
+    if (typeId == "golem")
+    {
+        return EnemyArchetype::Golem;
+    }
     if (typeId == "boss")
     {
         return EnemyArchetype::Boss;

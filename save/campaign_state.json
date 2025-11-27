@@ -1,6 +1,6 @@
 {
-  "wallet": 177,
-  "mana_gain_tokens": 5,
+  "wallet": 20,
+  "mana_gain_tokens": 1,
   "camp_upgrades": {
     "aura_regen": 2,
     "base_def": 3,
@@ -8,13 +8,15 @@
     "spawn_rate": 3
   },
   "training": {
+    "chibi_level_mean_bonus": 3,
     "elite_rate": 3,
     "mean_level": 3,
     "yuna_level": 8
   },
   "meta_levels": {
     "good_title_rate": 4,
-    "mana_cap_up": 2
+    "mana_cap_up": 2,
+    "mana_gain_up_s": 5
   },
   "strategies": {
     "coco": "focus_fire",

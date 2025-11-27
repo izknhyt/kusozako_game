@@ -57,5 +57,12 @@
     "hp": 90,
     "dps": 8,
     "sprite_prefix": "slime_walk"
+  },
+  "golem": {
+    "r_px": 16,
+    "speed_u_s": 0.6,
+    "hp": 600,
+    "dps": 15,
+    "sprite_prefix": "slime_walk"
   }
 }

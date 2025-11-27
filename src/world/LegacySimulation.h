@@ -346,6 +346,7 @@ struct LegacySimulation
     EntityStats magicianStats;
     EntityStats batStats;
     EntityStats toritoriStats;
+    EntityStats golemStats;
     WallbreakerStats wallbreakerStats;
     CommanderStats commanderStats;
     CommanderUnit commander;
@@ -381,6 +382,7 @@ struct LegacySimulation
         Vec2 position{0.0f, 0.0f};
         float timer = 0.0f;
         float duration = 0.0f;
+        float facingX = 1.0f;
     };
     std::vector<DeathFx> deathFx;
     struct DynamicHazard
@@ -413,6 +415,8 @@ struct LegacySimulation
     MissionFailConditions missionFail;
     float missionTimer = 0.0f;
     float missionVictoryCountdown = -1.0f;
+    bool dragonSpawned = false;
+    bool golemSpawned = false;
 
     struct BossRuntime
     {
@@ -513,6 +517,7 @@ struct LegacySimulation
             Vec2 position{0.0f, 0.0f};
             float timer = 0.0f;
             float duration = 0.0f;
+            float facingX = 1.0f;
         };
 
         bool lodActive = false;
@@ -679,6 +684,8 @@ struct LegacySimulation
     {
         stage = {};
         dynamicHazards.clear();
+        dragonSpawned = false;
+        golemSpawned = false;
     }
 
     void configureStage(const StageConfig &cfg)
@@ -688,11 +695,15 @@ struct LegacySimulation
         stage.sealBehavior = cfg.sealBehavior;
         stage.globalCaps = cfg.globalCaps;
         stage.victory = cfg.victory;
+        stage.victory.requireDragon = true;
+        stage.victory.requireAllEnemyBases = true;
         stage.speed = cfg.speed;
         stage.allyBases.clear();
         stage.enemyBases.clear();
         dynamicHazards.clear();
         stage.hazards.clear();
+        dragonSpawned = false;
+        golemSpawned = false;
 
         const int tileSize = mapDefs.tile_size > 0 ? mapDefs.tile_size : config.pixels_per_unit;
 
@@ -1015,6 +1026,7 @@ struct LegacySimulation
         case EnemyArchetype::Magician: return lookup("magician");
         case EnemyArchetype::Bat: return lookup("bat");
         case EnemyArchetype::Toritori: return lookup("toritori");
+        case EnemyArchetype::Golem: return lookup("golem");
         case EnemyArchetype::Wallbreaker: return lookup("wallbreaker");
         case EnemyArchetype::Boss: return lookup("boss");
         case EnemyArchetype::Slime:
@@ -1111,11 +1123,84 @@ struct LegacySimulation
         {
             return false;
         }
+        // Safety: clear any legacy boss that may exist before the new spawn trigger fires.
+        if (!dragonSpawned)
+        {
+            const auto before = enemies.size();
+            enemies.erase(std::remove_if(enemies.begin(), enemies.end(), [](const EnemyUnit &enemy) {
+                              return enemy.type == EnemyArchetype::Boss;
+                          }),
+                          enemies.end());
+            if (enemies.size() != before)
+            {
+                boss = {};
+            }
+        }
+        bool spawned = false;
+
+        const std::size_t sealedBases = sealedEnemyBases();
+        if (!golemSpawned && (simTime >= 150.0f || sealedBases >= 1))
+        {
+            Vec2 spawnPos = basePos;
+            if (!stage.enemyBases.empty())
+            {
+                const StageEnemyBaseState *chosen = nullptr;
+                for (const StageEnemyBaseState &base : stage.enemyBases)
+                {
+                    if (!base.sealed)
+                    {
+                        chosen = &base;
+                        break;
+                    }
+                }
+                if (!chosen)
+                {
+                    chosen = &stage.enemyBases.front();
+                }
+                spawnPos = chosen->pos;
+            }
+            spawnOneEnemy(spawnPos, EnemyArchetype::Golem);
+            golemSpawned = true;
+            spawned = true;
+            pushTelemetry("Golem has appeared!");
+        }
+        if (!dragonSpawned && (simTime >= 300.0f || sealedBases >= 2))
+        {
+            Vec2 dragonSpawnPos = tileToWorld(missionConfig.boss.tile, mapDefs.tile_size);
+            if (stage.enabled && !stage.enemyBases.empty())
+            {
+                const StageEnemyBaseState *chosen = nullptr;
+                for (const StageEnemyBaseState &base : stage.enemyBases)
+                {
+                    if (!base.sealed)
+                    {
+                        chosen = &base;
+                        break;
+                    }
+                }
+                if (!chosen)
+                {
+                    chosen = &stage.enemyBases.front();
+                }
+                dragonSpawnPos = chosen->pos;
+            }
+            if (spawnMissionBossAt(dragonSpawnPos))
+            {
+                dragonSpawned = true;
+                spawned = true;
+                pushTelemetry("Dragon has appeared!");
+            }
+            else
+            {
+                pushTelemetry("Dragon spawn failed (missing mission config)");
+            }
+        }
+
         const int enemyCap = stage.globalCaps.enemies > 0 ? stage.globalCaps.enemies : std::numeric_limits<int>::max();
         int currentEnemies = static_cast<int>(enemies.size());
         if (currentEnemies >= enemyCap)
         {
-            return false;
+            return spawned;
         }
 
         auto pickType = [this](const StageEnemyBaseState &base) {
@@ -1146,7 +1231,6 @@ struct LegacySimulation
             return EnemyArchetype::Slime;
         };
 
-        bool spawned = false;
         for (StageEnemyBaseState &base : stage.enemyBases)
         {
             if (base.sealed)
@@ -1254,6 +1338,8 @@ struct LegacySimulation
         spawnTelemetryTotals.fill(0);
         spawnTelemetryTotal = 0;
         spawnBudgetState = {};
+        dragonSpawned = false;
+        golemSpawned = false;
         enemies.clear();
         walls.clear();
         for (StageAllyBaseState &base : stage.allyBases)
@@ -1939,58 +2025,28 @@ struct LegacySimulation
         missionTimer = 0.0f;
         missionVictoryCountdown = -1.0f;
         boss = {};
+        hasMission = false;
         captureZones.clear();
         capturedZones = 0;
         captureGoal = 0;
         survival = {};
         disabledGates.clear();
 
-        if (!hasMission)
-        {
-            missionMode = MissionMode::None;
-            missionUI = {};
-            missionFail = {};
-            return;
-        }
-
-        missionMode = missionConfig.mode;
-        missionUI = missionConfig.ui;
-        missionFail = missionConfig.fail;
-
-        if (missionMode == MissionMode::Boss)
-        {
-            spawnMissionBoss();
-        }
-        if (missionMode == MissionMode::Capture)
-        {
-            for (const MissionCaptureZone &zone : missionConfig.captureZones)
-            {
-                CaptureRuntime runtime;
-                runtime.config = zone;
-                runtime.worldPos = tileToWorld(zone.tile, mapDefs.tile_size);
-                captureZones.push_back(runtime);
-            }
-            captureGoal = missionConfig.win.requireCaptured > 0
-                              ? missionConfig.win.requireCaptured
-                              : static_cast<int>(captureZones.size());
-        }
-        if (missionMode == MissionMode::Survival)
-        {
-            survival.duration = missionConfig.survival.duration > 0.0f ? missionConfig.survival.duration : missionConfig.win.surviveTime;
-            survival.spawnMultiplier = 1.0f;
-            survival.pacingTimer = missionConfig.survival.pacingStep;
-            survival.elites = missionConfig.survival.elites;
-            survival.nextElite = 0;
-        }
+        // Legacy mission flowは無効化（ドラゴン出現はステージロジックで管理）
+        missionMode = MissionMode::None;
+        missionUI = {};
+        missionFail = {};
+        captureZones.clear();
+        captureGoal = 0;
+        survival = {};
     }
 
-    void spawnMissionBoss()
+    bool spawnMissionBossAt(const Vec2 &world)
     {
         if (missionConfig.boss.hp <= 0.0f)
         {
-            return;
+            return false;
         }
-        Vec2 world = tileToWorld(missionConfig.boss.tile, mapDefs.tile_size);
         EnemyUnit bossUnit;
         bossUnit.type = EnemyArchetype::Boss;
         bossUnit.pos = world;
@@ -2002,16 +2058,13 @@ struct LegacySimulation
         bossUnit.dpsWall = slimeStats.dps;
         bossUnit.noOverlap = missionConfig.boss.noOverlap;
         enemies.push_back(bossUnit);
-        boss.active = true;
-        boss.hp = bossUnit.hp;
-        boss.maxHp = bossUnit.hp;
-        boss.speedPx = bossUnit.speedPx;
-        boss.radius = bossUnit.radius;
-        boss.mechanic = missionConfig.boss.slam;
-        boss.cycleTimer = boss.mechanic.period;
-        boss.windupTimer = 0.0f;
-        boss.inWindup = false;
         timeSinceLastEnemySpawn = 0.0f;
+        return true;
+    }
+
+    bool spawnMissionBoss()
+    {
+        return spawnMissionBossAt(tileToWorld(missionConfig.boss.tile, mapDefs.tile_size));
     }
 
     void performBossSlam(const EnemyUnit &bossEnemy)
@@ -2107,62 +2160,8 @@ struct LegacySimulation
 
     void updateBossMechanics(float dt)
     {
-        if (!boss.active)
-        {
-            return;
-        }
-        EnemyUnit *bossEnemy = nullptr;
-        for (EnemyUnit &enemy : enemies)
-        {
-            if (enemy.type == EnemyArchetype::Boss)
-            {
-                bossEnemy = &enemy;
-                break;
-            }
-        }
-        if (!bossEnemy)
-        {
-            boss.active = false;
-            if (missionVictoryCountdown < 0.0f)
-            {
-                if (!stage.enabled || !stage.victory.requireAllEnemyBases)
-                {
-                    missionVictoryCountdown = std::max(config.victory_grace, 5.0f);
-                }
-                pushTelemetry("Boss defeated!");
-            }
-            return;
-        }
-        boss.hp = bossEnemy->hp;
-        bossEnemy->speedPx = boss.speedPx;
-        if (boss.mechanic.period > 0.0f)
-        {
-            boss.cycleTimer -= dt;
-            if (!boss.inWindup && boss.mechanic.windup > 0.0f && boss.cycleTimer <= boss.mechanic.windup)
-            {
-                boss.inWindup = true;
-                boss.windupTimer = boss.mechanic.windup;
-            }
-            if (boss.inWindup)
-            {
-                boss.windupTimer -= dt;
-                if (boss.windupTimer <= 0.0f)
-                {
-                    performBossSlam(*bossEnemy);
-                    boss.inWindup = false;
-                    boss.cycleTimer = boss.mechanic.period;
-                }
-            }
-            else if (boss.mechanic.windup <= 0.0f && boss.cycleTimer <= 0.0f)
-            {
-                performBossSlam(*bossEnemy);
-                boss.cycleTimer = boss.mechanic.period;
-            }
-            else if (boss.cycleTimer <= 0.0f)
-            {
-                boss.cycleTimer = boss.mechanic.period;
-            }
-        }
+        // Legacy boss mechanics are disabled; dragon behavior is handled elsewhere.
+        (void)dt;
     }
 
     void updateCaptureMission(float dt)
@@ -2256,33 +2255,8 @@ struct LegacySimulation
 
     void updateMission(float dt)
     {
-        if (missionMode == MissionMode::None)
-        {
-            return;
-        }
-        missionTimer += dt;
-        switch (missionMode)
-        {
-        case MissionMode::Boss:
-            updateBossMechanics(dt);
-            break;
-        case MissionMode::Capture:
-            updateCaptureMission(dt);
-            break;
-        case MissionMode::Survival:
-            updateSurvivalMission(dt);
-            break;
-        case MissionMode::None:
-            break;
-        }
-        if (missionVictoryCountdown >= 0.0f)
-        {
-            missionVictoryCountdown = std::max(0.0f, missionVictoryCountdown - dt);
-            if (missionVictoryCountdown <= 0.0f)
-            {
-                setResult(GameResult::Victory, "Victory");
-            }
-        }
+        // Mission flow is disabled; boss mechanics are driven by stage spawns.
+        (void)dt;
     }
 
     void scheduleCommanderRespawn(float penaltyMultiplier, float bonusSeconds, float overkillRatio)
@@ -2685,6 +2659,19 @@ struct LegacySimulation
             enemy.noOverlap = missionConfig.boss.noOverlap;
             enemy.attackRangePx = enemy.radius;
         }
+        else if (type == EnemyArchetype::Golem)
+        {
+            auto applyEntityStats = [&](const EntityStats &stats) {
+                enemy.hp = stats.hp;
+                enemy.radius = stats.radius;
+                enemy.speedPx = stats.speed_u_s * config.pixels_per_unit;
+                enemy.dpsUnit = stats.dps;
+                enemy.dpsBase = stats.dps;
+                enemy.dpsWall = stats.dps;
+                enemy.attackRangePx = stats.attackRangePx > 0.0f ? stats.attackRangePx : stats.radius;
+            };
+            applyEntityStats(golemStats);
+        }
         else
         {
             auto applyEntityStats = [&](const EntityStats &stats) {
@@ -2702,6 +2689,7 @@ struct LegacySimulation
             case EnemyArchetype::Magician: applyEntityStats(magicianStats); break;
             case EnemyArchetype::Bat: applyEntityStats(batStats); break;
             case EnemyArchetype::Toritori: applyEntityStats(toritoriStats); break;
+            case EnemyArchetype::Golem: applyEntityStats(golemStats); break;
             case EnemyArchetype::Slime:
             default: applyEntityStats(slimeStats); break;
             }

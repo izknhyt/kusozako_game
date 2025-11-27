@@ -1269,6 +1269,35 @@ void renderWorld(SDL_Renderer *renderer, const LegacySimulation &sim, const Form
     const int lineHeight = std::max(font.getLineHeight(), 18);
     const int debugLineHeight = std::max(debugFont.isLoaded() ? debugFont.getLineHeight() : lineHeight, 14);
 
+    auto enemyColor = [](EnemyArchetype type) -> SDL_Color {
+        switch (type)
+        {
+        case EnemyArchetype::Boss: return SDL_Color{230, 40, 40, 255};
+        case EnemyArchetype::Golem: return SDL_Color{245, 210, 50, 255};
+        case EnemyArchetype::Wallbreaker: return SDL_Color{200, 140, 90, 255};
+        case EnemyArchetype::Goblin: return SDL_Color{90, 210, 90, 255};
+        case EnemyArchetype::Magician: return SDL_Color{170, 130, 230, 255};
+        case EnemyArchetype::Bat: return SDL_Color{90, 190, 210, 255};
+        case EnemyArchetype::Toritori: return SDL_Color{230, 150, 80, 255};
+        case EnemyArchetype::Slime:
+        default: return SDL_Color{90, 130, 230, 255};
+        }
+    };
+    auto enemyLabel = [](EnemyArchetype type) -> const char * {
+        switch (type)
+        {
+        case EnemyArchetype::Boss: return "DRG";
+        case EnemyArchetype::Golem: return "GLM";
+        case EnemyArchetype::Wallbreaker: return "WB";
+        case EnemyArchetype::Goblin: return "GB";
+        case EnemyArchetype::Magician: return "MG";
+        case EnemyArchetype::Bat: return "BT";
+        case EnemyArchetype::Toritori: return "TT";
+        case EnemyArchetype::Slime:
+        default: return "SL";
+        }
+    };
+
     auto measureWorldText = [](const TextRenderer &renderer, const std::string &text, int approxHeight) {
         const int measured = renderer.measureText(text);
         if (measured > 0)
@@ -1702,6 +1731,7 @@ void renderWorld(SDL_Renderer *renderer, const LegacySimulation &sim, const Form
     const SDL_Rect *magicianFrame = nullptr;
     const SDL_Rect *batFrame = nullptr;
     const SDL_Rect *toritoriFrame = nullptr;
+    const SDL_Rect *golemFrame = nullptr;
     const SDL_Rect *wallbreakerFrame = nullptr;
     auto fetchFrame = [&](const std::string &prefix) -> const SDL_Rect * {
         if (prefix.empty())
@@ -1716,6 +1746,7 @@ void renderWorld(SDL_Renderer *renderer, const LegacySimulation &sim, const Form
     magicianFrame = fetchFrame(sim.magicianStats.spritePrefix);
     batFrame = fetchFrame(sim.batStats.spritePrefix);
     toritoriFrame = fetchFrame(sim.toritoriStats.spritePrefix);
+    golemFrame = fetchFrame(sim.golemStats.spritePrefix);
     wallbreakerFrame = fetchFrame(sim.wallbreakerStats.spritePrefix);
     auto frameForEnemy = [&](EnemyArchetype type) -> const SDL_Rect * {
         switch (type)
@@ -1724,6 +1755,7 @@ void renderWorld(SDL_Renderer *renderer, const LegacySimulation &sim, const Form
         case EnemyArchetype::Magician: return magicianFrame ? magicianFrame : slimeFrame;
         case EnemyArchetype::Bat: return batFrame ? batFrame : slimeFrame;
         case EnemyArchetype::Toritori: return toritoriFrame ? toritoriFrame : slimeFrame;
+        case EnemyArchetype::Golem: return golemFrame ? golemFrame : slimeFrame;
         case EnemyArchetype::Wallbreaker: return wallbreakerFrame ? wallbreakerFrame : slimeFrame;
         case EnemyArchetype::Boss:
             return nullptr;
@@ -1848,7 +1880,8 @@ void renderWorld(SDL_Renderer *renderer, const LegacySimulation &sim, const Form
                     static_cast<int>(screenPos.y - frame->h * 0.5f),
                     frame->w,
                     frame->h};
-                countedRenderCopy(renderer, atlas.texture.getRaw(), frame, &dest, stats);
+                const SDL_RendererFlip flip = fx.facingX < 0.0f ? SDL_FLIP_HORIZONTAL : SDL_FLIP_NONE;
+                countedRenderCopyFlip(renderer, atlas.texture.getRaw(), frame, &dest, flip, stats);
                 SDL_SetTextureAlphaMod(atlas.texture.getRaw(), 255);
             }
         }
@@ -1904,13 +1937,16 @@ void renderWorld(SDL_Renderer *renderer, const LegacySimulation &sim, const Form
             }
             const SDL_Rect *frame = frameForEnemy(enemy.type);
             Vec2 screenPos = worldToScreen(enemy.position, camera);
-            if (enemy.type == EnemyArchetype::Boss)
-            {
-                SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
-                SDL_SetRenderDrawColor(renderer, 255, 80, 160, 110);
-                drawFilledCircle(renderer, screenPos, enemy.radius + 26.0f, stats);
-                SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
-            }
+            // Colored halo to distinguish archetypes
+            const SDL_Color halo = enemyColor(enemy.type);
+            const float haloRadius = enemy.type == EnemyArchetype::Boss ? enemy.radius + 32.0f
+                                   : enemy.type == EnemyArchetype::Golem ? enemy.radius + 22.0f
+                                   : enemy.type == EnemyArchetype::Wallbreaker ? enemy.radius + 16.0f
+                                   : enemy.radius + 14.0f;
+            SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+            SDL_SetRenderDrawColor(renderer, halo.r, halo.g, halo.b, halo.a);
+            drawFilledCircle(renderer, screenPos, haloRadius, stats);
+            SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
 
             SDL_Rect spriteRect{};
             bool hasSpriteRect = false;
@@ -1936,9 +1972,8 @@ void renderWorld(SDL_Renderer *renderer, const LegacySimulation &sim, const Form
             }
             else
             {
-                SDL_SetRenderDrawColor(renderer, enemy.type == EnemyArchetype::Wallbreaker ? 200 : 80,
-                                       enemy.type == EnemyArchetype::Wallbreaker ? 80 : 160,
-                                       enemy.type == EnemyArchetype::Wallbreaker ? 80 : 220, 255);
+                SDL_Color color = enemyColor(enemy.type);
+                SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, 255);
                 drawFilledCircle(renderer, screenPos, enemy.radius, stats);
             }
 
@@ -1966,6 +2001,26 @@ void renderWorld(SDL_Renderer *renderer, const LegacySimulation &sim, const Form
                 debugFont.drawText(renderer, bossText, labelBg.x + padX, labelBg.y + padY, &stats,
                                    SDL_Color{255, 180, 255, 255});
             }
+            // Archetype abbreviation label (non-bossも表示)
+            const TextRenderer &labelFont = debugFont.isLoaded() ? debugFont : font;
+            const std::string abbrev = enemyLabel(enemy.type);
+            const int abbrevWidth = labelFont.measureText(abbrev);
+            const int padX = 4;
+            const int padY = 2;
+            SDL_Rect tagBg{
+                static_cast<int>(std::round(screenPos.x)) - abbrevWidth / 2 - padX,
+                static_cast<int>(std::round(screenPos.y - haloRadius)) - (labelFont.getLineHeight() + padY * 2) - 2,
+                abbrevWidth + padX * 2,
+                labelFont.getLineHeight() + padY * 2};
+            SDL_Color labelBgColor{static_cast<Uint8>(std::min(halo.r + 30, 255)),
+                                   static_cast<Uint8>(std::min(halo.g + 30, 255)),
+                                   static_cast<Uint8>(std::min(halo.b + 30, 255)),
+                                   200};
+            SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+            SDL_SetRenderDrawColor(renderer, labelBgColor.r, labelBgColor.g, labelBgColor.b, labelBgColor.a);
+            countedRenderFillRect(renderer, &tagBg, stats);
+            SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
+            labelFont.drawText(renderer, abbrev, tagBg.x + padX, tagBg.y + padY, &stats, SDL_Color{0, 0, 0, 255});
         }
     }
     else
@@ -1977,17 +2032,36 @@ void renderWorld(SDL_Renderer *renderer, const LegacySimulation &sim, const Form
                 continue;
             }
             Vec2 screenPos = worldToScreen(enemy.position, camera);
-            if (enemy.type == EnemyArchetype::Boss)
-            {
-                SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
-                SDL_SetRenderDrawColor(renderer, 255, 80, 160, 110);
-                drawFilledCircle(renderer, screenPos, enemy.radius + 26.0f, stats);
-                SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
-            }
-            SDL_SetRenderDrawColor(renderer, enemy.type == EnemyArchetype::Wallbreaker ? 200 : 80,
-                                   enemy.type == EnemyArchetype::Wallbreaker ? 80 : 160,
-                                   enemy.type == EnemyArchetype::Wallbreaker ? 80 : 220, 255);
+            const SDL_Color halo = enemyColor(enemy.type);
+            const float haloRadius = enemy.type == EnemyArchetype::Boss ? enemy.radius + 32.0f
+                                   : enemy.type == EnemyArchetype::Golem ? enemy.radius + 22.0f
+                                   : enemy.type == EnemyArchetype::Wallbreaker ? enemy.radius + 16.0f
+                                   : enemy.radius + 14.0f;
+            SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+            SDL_SetRenderDrawColor(renderer, halo.r, halo.g, halo.b, halo.a);
+            drawFilledCircle(renderer, screenPos, haloRadius, stats);
+            SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
+            SDL_SetRenderDrawColor(renderer, halo.r, halo.g, halo.b, 255);
             drawFilledCircle(renderer, screenPos, enemy.radius, stats);
+            const TextRenderer &labelFont = debugFont.isLoaded() ? debugFont : font;
+            const std::string abbrev = enemyLabel(enemy.type);
+            const int abbrevWidth = labelFont.measureText(abbrev);
+            const int padX = 4;
+            const int padY = 2;
+            SDL_Rect tagBg{
+                static_cast<int>(std::round(screenPos.x)) - abbrevWidth / 2 - padX,
+                static_cast<int>(std::round(screenPos.y - haloRadius)) - (labelFont.getLineHeight() + padY * 2) - 2,
+                abbrevWidth + padX * 2,
+                labelFont.getLineHeight() + padY * 2};
+            SDL_Color labelBgColor{static_cast<Uint8>(std::min(halo.r + 30, 255)),
+                                   static_cast<Uint8>(std::min(halo.g + 30, 255)),
+                                   static_cast<Uint8>(std::min(halo.b + 30, 255)),
+                                   200};
+            SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+            SDL_SetRenderDrawColor(renderer, labelBgColor.r, labelBgColor.g, labelBgColor.b, labelBgColor.a);
+            countedRenderFillRect(renderer, &tagBg, stats);
+            SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
+            labelFont.drawText(renderer, abbrev, tagBg.x + padX, tagBg.y + padY, &stats, SDL_Color{0, 0, 0, 255});
             if (enemy.type == EnemyArchetype::Boss && debugFont.isLoaded())
             {
                 const std::string bossText = "BOSS";
@@ -2019,6 +2093,45 @@ void renderWorld(SDL_Renderer *renderer, const LegacySimulation &sim, const Form
     SDL_Rect overlay{0, 0, screenW, screenH};
     countedRenderFillRect(renderer, &overlay, stats);
     SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
+
+    // Enemy legend (always on)
+    {
+        struct LegendEntry
+        {
+            const char *label;
+            SDL_Color color;
+        };
+        const LegendEntry entries[] = {
+            {"DRG (Boss)", SDL_Color{230, 40, 40, 255}},
+            {"GLM (Golem)", SDL_Color{245, 210, 50, 255}},
+            {"WB (Wallbreaker)", SDL_Color{200, 140, 90, 255}},
+            {"GB (Goblin)", SDL_Color{90, 210, 90, 255}},
+            {"MG (Magician)", SDL_Color{170, 130, 230, 255}},
+            {"BT (Bat)", SDL_Color{90, 190, 210, 255}},
+            {"TT (Toritori)", SDL_Color{230, 150, 80, 255}},
+            {"SL (Slime)", SDL_Color{90, 130, 230, 255}},
+        };
+        const int padX = 8;
+        const int padY = 6;
+        const int boxSize = 14;
+        const TextRenderer &legendFont = font.isLoaded() ? font : debugFont;
+        const int lineH = legendFont.isLoaded() ? legendFont.getLineHeight() : 18;
+        int y = screenH - static_cast<int>(std::size(entries)) * (lineH + padY) - 12;
+        const int x = screenW - 240;
+        SDL_Rect panel{x - padX, y - padY, 220 + padX * 2, static_cast<int>(std::size(entries)) * (lineH + padY) + padY};
+        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+        SDL_SetRenderDrawColor(renderer, 12, 12, 24, 200);
+        countedRenderFillRect(renderer, &panel, stats);
+        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
+        for (const auto &entry : entries)
+        {
+            SDL_Rect swatch{x, y + (lineH - boxSize) / 2, boxSize, boxSize};
+            SDL_SetRenderDrawColor(renderer, entry.color.r, entry.color.g, entry.color.b, 255);
+            countedRenderFillRect(renderer, &swatch, stats);
+            legendFont.drawText(renderer, entry.label, x + boxSize + 8, y, nullptr, SDL_Color{230, 230, 240, 255});
+            y += lineH + padY;
+        }
+    }
 }
 
 
@@ -4368,6 +4481,7 @@ void BattleScene::applyAppConfig(GameApplication &app)
     sim.magicianStats = appConfig.entityCatalog.magician;
     sim.batStats = appConfig.entityCatalog.bat;
     sim.toritoriStats = appConfig.entityCatalog.toritori;
+    sim.golemStats = appConfig.entityCatalog.golem;
     sim.wallbreakerStats = appConfig.entityCatalog.wallbreaker;
     sim.commanderStats = appConfig.entityCatalog.commander;
     sim.mapDefs = appConfig.mapDefs;

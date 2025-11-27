@@ -21,6 +21,7 @@ std::string_view enemyTypeLabel(EnemyArchetype type)
 {
     switch (type)
     {
+    case EnemyArchetype::Golem: return "golem";
     case EnemyArchetype::Wallbreaker: return "wallbreaker";
     case EnemyArchetype::Goblin: return "goblin";
     case EnemyArchetype::Magician: return "magician";

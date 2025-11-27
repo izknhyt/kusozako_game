@@ -246,6 +246,29 @@ void CombatSystem::update(float dt, SystemContext &context)
         }
         return best;
     };
+    auto pickNearestAllyPos = [&](const Vec2 &origin) -> std::optional<Vec2> {
+        const Unit *bestUnit = pickNearestUnit(origin);
+        float bestDist = bestUnit ? lengthSq(bestUnit->pos - origin) : std::numeric_limits<float>::max();
+        Vec2 bestPos{};
+        if (bestUnit)
+        {
+            bestPos = bestUnit->pos;
+        }
+        if (commander.alive)
+        {
+            const float distSq = lengthSq(commander.pos - origin);
+            if (distSq < bestDist)
+            {
+                bestPos = commander.pos;
+                bestDist = distSq;
+            }
+        }
+        if (bestDist == std::numeric_limits<float>::max())
+        {
+            return std::nullopt;
+        }
+        return bestPos;
+    };
     auto focusedUnit = [&](const EnemyUnit &enemy) -> const Unit * {
         if (enemy.focusUnitIndex < 0 || enemy.focusUnitIndex >= static_cast<int>(yunas.size()))
         {
@@ -265,7 +288,8 @@ void CombatSystem::update(float dt, SystemContext &context)
         case EnemyArchetype::Goblin: return sim.config.pixels_per_unit * 35.0f;
         case EnemyArchetype::Magician: return sim.config.pixels_per_unit * 25.0f;
         case EnemyArchetype::Bat: return sim.config.pixels_per_unit * 20.0f;
-        default: return 0.0f;
+        case EnemyArchetype::Golem: return sim.config.pixels_per_unit * 28.0f;
+        default: return sim.config.pixels_per_unit * 30.0f;
         }
     };
 
@@ -320,6 +344,16 @@ void CombatSystem::update(float dt, SystemContext &context)
         {
             switch (enemy.type)
             {
+            case EnemyArchetype::Slime:
+            {
+                // シンプルに一番近い味方を追う
+                if (auto nearest = pickNearestAllyPos(enemy.pos))
+                {
+                    target = *nearest;
+                    enemy.focusUnitIndex = -1;
+                }
+                break;
+            }
             case EnemyArchetype::Goblin:
             {
                 const float chaseRadius = panicRadiusForType(enemy.type);
@@ -346,6 +380,41 @@ void CombatSystem::update(float dt, SystemContext &context)
                 {
                     target = nearest->pos;
                     enemy.focusUnitIndex = -1;
+                }
+                break;
+            }
+            case EnemyArchetype::Golem:
+            {
+                // 拠点防衛型: 拠点中心へ向かい、近くに味方がいればそれを殴る
+                Vec2 basePos = sim.basePos;
+                Vec2 preferred;
+                if (nearestActiveAllyBase(enemy.pos, preferred))
+                {
+                    basePos = preferred;
+                }
+                target = basePos;
+                const float engageRadius = sim.config.pixels_per_unit * 18.0f;
+                if (auto nearest = pickNearestAllyPos(enemy.pos))
+                {
+                    const float distSq = lengthSq(*nearest - enemy.pos);
+                    if (distSq <= engageRadius * engageRadius)
+                    {
+                        target = *nearest;
+                    }
+                }
+                break;
+            }
+            case EnemyArchetype::Boss:
+            {
+                // 拠点へ前進しつつ、近くの味方を優先して蹴散らす
+                target = sim.basePos;
+                if (auto nearest = pickNearestAllyPos(enemy.pos))
+                {
+                    const float engageRadius = sim.config.pixels_per_unit * 40.0f;
+                    if (lengthSq(*nearest - enemy.pos) <= engageRadius * engageRadius)
+                    {
+                        target = *nearest;
+                    }
                 }
                 break;
             }
@@ -806,7 +875,7 @@ void CombatSystem::update(float dt, SystemContext &context)
             Unit &yuna = yunas[i];
             if (yuna.hp <= 0.0f)
             {
-                sim.deathFx.push_back({yuna.pos, 1.0f, 1.0f});
+                sim.deathFx.push_back({yuna.pos, 1.0f, 1.0f, yuna.facingX});
                 sim.enqueueYunaRespawn(0.0f);
                 continue;
             }
@@ -824,7 +893,7 @@ void CombatSystem::update(float dt, SystemContext &context)
                     const float overkill = std::max(0.0f, yunaDamage[i] - std::max(hpBefore, 0.0f));
                     const float ratio = sim.clampOverkillRatio(overkill, sim.yunaStats.hp);
                     sim.enqueueYunaRespawn(ratio);
-                    sim.deathFx.push_back({yuna.pos, 1.0f, 1.0f});
+                    sim.deathFx.push_back({yuna.pos, 1.0f, 1.0f, yuna.facingX});
                     continue;
                 }
                 if (yuna.temperament.definition && yuna.temperament.definition->panicOnHit > 0.0f)

@@ -267,6 +267,7 @@ struct EntityCatalog
     EntityStats magician;
     EntityStats bat;
     EntityStats toritori;
+    EntityStats golem;
     WallbreakerStats wallbreaker;
 };
 
@@ -277,6 +278,7 @@ enum class EnemyArchetype
     Magician,
     Bat,
     Toritori,
+    Golem,
     Wallbreaker,
     Boss
 };
