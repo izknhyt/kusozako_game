@@ -24,6 +24,27 @@ void CommanderInputSystem::update(float, SystemContext &context)
     const float lenSq = input.x * input.x + input.y * input.y;
     if (lenSq <= 0.0001f)
     {
+        // Auto-pursue target if set
+        const int targetIndex = commander.attackTargetIndex;
+        if (targetIndex >= 0 && targetIndex < static_cast<int>(context.enemyUnits.size()))
+        {
+            const EnemyUnit &enemy = context.enemyUnits[targetIndex];
+            if (enemy.hp > 0.0f)
+            {
+                Vec2 to = enemy.pos - commander.pos;
+                const float distSq = lengthSq(to);
+                if (distSq > 1.0f)
+                {
+                    const float invLen = 1.0f / std::sqrt(distSq);
+                    commander.moveIntent = to * invLen;
+                    commander.hasMoveIntent = true;
+                }
+            }
+        }
+        else
+        {
+            commander.attackTargetIndex = -1;
+        }
         return;
     }
 
@@ -33,4 +54,3 @@ void CommanderInputSystem::update(float, SystemContext &context)
 }
 
 } // namespace world::systems
-

@@ -133,6 +133,11 @@ Vec2 normalize(const Vec2 &v)
 using namespace json;
 
 class BattleScene;
+class CampScene;
+namespace
+{
+bool g_showChibiLabels = true;
+}
 
 std::optional<JsonValue> loadJsonDocument(AssetManager &assets, const std::string &path,
                                           AssetManager::AssetLoadStatus *outStatus = nullptr)
@@ -815,6 +820,8 @@ void WorldState::advanceLegacyState(float dt)
     m_sim->updateCommanderRespawn(dt);
     m_sim->updateWalls(dt);
     m_sim->updateMission(dt);
+    m_sim->updateProjectiles(dt);
+    m_sim->updateCommanderResources(dt);
 }
 
 void WorldState::runSpawnStage(float dt, systems::SystemContext &context)
@@ -943,6 +950,26 @@ void WorldState::step(float dt, const ActionBuffer &actions)
             context.componentsDirty = false;
         }
     }
+
+    // Highlight commander target (ring effect)
+    if (m_sim && m_sim->commander.attackTargetIndex >= 0 &&
+        m_sim->commander.attackTargetIndex < static_cast<int>(m_sim->enemies.size()))
+    {
+        const EnemyUnit &enemy = m_sim->enemies[m_sim->commander.attackTargetIndex];
+        if (enemy.hp > 0.0f)
+        {
+            LegacySimulation::Effect fx;
+            fx.pos = enemy.pos;
+            fx.radius = enemy.radius + 8.0f;
+            fx.r = 255.0f;
+            fx.g = 120.0f;
+            fx.b = 120.0f;
+            fx.a = 180.0f;
+            fx.ttl = 0.12f;
+            fx.cone = false;
+            m_sim->effects.push_back(fx);
+        }
+    }
 }
 
 std::size_t WorldState::frameAllocatorCapacity() const
@@ -994,6 +1021,130 @@ void WorldState::activateSelectedSkill(const Vec2 &worldPos)
     {
         markComponentsDirty();
     }
+}
+
+void WorldState::castFireBall(float rangePx, float damage)
+{
+    if (!m_sim)
+    {
+        return;
+    }
+    if (m_sim->castFireBall(rangePx, damage))
+    {
+        markComponentsDirty();
+    }
+}
+
+void WorldState::commanderAttack(const std::optional<Vec2> &targetWorld)
+{
+    if (!m_sim)
+    {
+        return;
+    }
+    LegacySimulation &sim = *m_sim;
+    CommanderUnit &commander = sim.commander;
+    if (!commander.alive)
+    {
+        return;
+    }
+
+    EnemyUnit *clicked = nullptr;
+    float clickedDistSq = std::numeric_limits<float>::max();
+    const float clickPad = 6.0f;
+    if (targetWorld)
+    {
+        for (EnemyUnit &enemy : sim.enemies)
+        {
+            if (enemy.hp <= 0.0f)
+            {
+                continue;
+            }
+            const float pad = enemy.radius + clickPad;
+            const float distSq = lengthSq(enemy.pos - *targetWorld);
+            if (distSq <= pad * pad && distSq < clickedDistSq)
+            {
+                clicked = &enemy;
+                clickedDistSq = distSq;
+            }
+        }
+    }
+
+    const float baseRangePx = sim.config.pixels_per_unit * 6.0f; // ~96px melee reach
+    EnemyUnit *nearest = nullptr;
+    float nearestDistSq = std::numeric_limits<float>::max();
+    for (EnemyUnit &enemy : sim.enemies)
+    {
+        if (enemy.hp <= 0.0f)
+        {
+            continue;
+        }
+        const float reach = baseRangePx + commander.radius + enemy.radius;
+        const float distSq = lengthSq(enemy.pos - commander.pos);
+        if (distSq <= reach * reach && distSq < nearestDistSq)
+        {
+            nearest = &enemy;
+            nearestDistSq = distSq;
+        }
+    }
+
+    EnemyUnit *target = clicked ? clicked : nearest;
+    if (!target)
+    {
+        commander.attackTargetIndex = -1;
+        return;
+    }
+    // Set target index for pursuit/indicator
+    const int index = static_cast<int>(&(*target) - sim.enemies.data());
+    commander.attackTargetIndex = index;
+    // If already in reach, apply immediate swing damage
+    const float reach = baseRangePx + commander.radius + target->radius;
+    if (lengthSq(target->pos - commander.pos) <= reach * reach)
+    {
+        const float swingSeconds = commander.attackSwingDuration > 0.0f ? commander.attackSwingDuration : 1.10f;
+        const float attackDamage = sim.commanderStats.dps * swingSeconds;
+        target->hp -= attackDamage;
+        commander.attackLockTimer = std::max(commander.attackLockTimer, swingSeconds);
+        commander.attackSwingDuration = swingSeconds;
+        commander.attackSwingTimer = 0.0f;
+    }
+    markComponentsDirty();
+}
+
+void WorldState::commanderCancelTarget()
+{
+    if (!m_sim)
+    {
+        return;
+    }
+    m_sim->commander.attackTargetIndex = -1;
+    m_sim->commander.focusTargetIndex = -1;
+    markComponentsDirty();
+}
+
+void WorldState::commanderFocusTarget()
+{
+    if (!m_sim)
+    {
+        return;
+    }
+    CommanderUnit &commander = m_sim->commander;
+    if (commander.attackTargetIndex >= 0 &&
+        commander.attackTargetIndex < static_cast<int>(m_sim->enemies.size()) &&
+        m_sim->enemies[commander.attackTargetIndex].hp > 0.0f)
+    {
+        commander.focusTargetIndex = commander.attackTargetIndex;
+        markComponentsDirty();
+    }
+}
+
+void WorldState::setCommanderGuard(bool active)
+{
+    if (!m_sim)
+    {
+        return;
+    }
+    m_sim->setCommanderGuard(active);
+    markComponentsDirty();
 }
 
 void WorldState::setEventBus(std::shared_ptr<EventBus> bus)
@@ -1330,6 +1481,26 @@ void renderWorld(SDL_Renderer *renderer, const LegacySimulation &sim, const Form
         }
         return SDL_Color{200, 200, 200, 255};
     };
+    auto drawNameLabel = [&](const LegacySimulation::RenderQueue::AllySprite &ally, const Vec2 &screenPos) {
+        if (!ally.named || ally.name.empty())
+        {
+            return;
+        }
+        const TextRenderer &nameFont = debugFont.isLoaded() ? debugFont : font;
+        const int textW = nameFont.measureText(ally.name);
+        const int padX = 4;
+        const int padY = 2;
+        SDL_Rect bg{
+            static_cast<int>(std::round(screenPos.x)) - textW / 2 - padX,
+            static_cast<int>(std::round(screenPos.y - ally.radius)) - (nameFont.getLineHeight() + padY * 2) - 4,
+            textW + padX * 2,
+            nameFont.getLineHeight() + padY * 2};
+        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+        SDL_SetRenderDrawColor(renderer, 20, 20, 32, 200);
+        countedRenderFillRect(renderer, &bg, stats);
+        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
+        nameFont.drawText(renderer, ally.name, bg.x + padX, bg.y + padY, &stats, SDL_Color{255, 255, 255, 255});
+    };
 
     auto drawMoraleIcon = [&](const Vec2 &worldPos, float radius, MoraleState state) {
         if (state == MoraleState::Stable)
@@ -1422,6 +1593,10 @@ void renderWorld(SDL_Renderer *renderer, const LegacySimulation &sim, const Form
     };
 
     auto drawTemperamentLabel = [&](const LegacySimulation::RenderQueue::AllySprite &ally, float spriteTopY, float centerX) {
+        if (ally.named)
+        {
+            return;
+        }
         if (!debugFont.isLoaded())
         {
             return;
@@ -1616,52 +1791,7 @@ void renderWorld(SDL_Renderer *renderer, const LegacySimulation &sim, const Form
         SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
     }
 
-    if (!sim.gates.empty())
-    {
-        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
-        for (const GateRuntime &gate : sim.gates)
-        {
-            Vec2 screenPos = worldToScreen(gate.pos, camera);
-            const SDL_Color baseColor = gate.destroyed ? SDL_Color{80, 90, 110, 110} : SDL_Color{70, 140, 255, 140};
-            SDL_SetRenderDrawColor(renderer, baseColor.r, baseColor.g, baseColor.b, baseColor.a);
-            drawFilledCircle(renderer, screenPos, gate.radius, stats);
-            if (!gate.destroyed && gate.maxHp > 0.0f)
-            {
-                const float ratio = std::clamp(gate.hp / gate.maxHp, 0.0f, 1.0f);
-                if (ratio > 0.0f)
-                {
-                    const float innerRadius = std::max(2.0f, gate.radius * ratio);
-                    SDL_SetRenderDrawColor(renderer, 160, 210, 255, 180);
-                    drawFilledCircle(renderer, screenPos, innerRadius, stats);
-                }
-            }
-            else if (gate.destroyed)
-            {
-                SDL_SetRenderDrawColor(renderer, 40, 45, 60, 180);
-                drawFilledCircle(renderer, screenPos, std::max(2.0f, gate.radius * 0.4f), stats);
-            }
-
-            if (debugFont.isLoaded())
-            {
-                const std::string label = "Gate " + gate.id;
-                const int labelWidth = measureWorldText(debugFont, label, debugLineHeight);
-                const int labelPad = 4;
-                SDL_Rect labelBg{
-                    static_cast<int>(std::round(screenPos.x)) - labelWidth / 2 - labelPad,
-                    static_cast<int>(std::round(screenPos.y - gate.radius)) - (debugLineHeight + labelPad * 2) - 4,
-                    labelWidth + labelPad * 2,
-                    debugLineHeight + labelPad * 2};
-                if (labelBg.x < 4) labelBg.x = 4;
-                if (labelBg.x + labelBg.w > screenW - 4) labelBg.x = screenW - labelBg.w - 4;
-                if (labelBg.y < 4) labelBg.y = 4;
-                SDL_SetRenderDrawColor(renderer, 10, 20, 40, 150);
-                countedRenderFillRect(renderer, &labelBg, stats);
-                SDL_Color textColor = gate.destroyed ? SDL_Color{170, 170, 190, 255} : SDL_Color{210, 230, 255, 255};
-                debugFont.drawText(renderer, label, labelBg.x + labelPad, labelBg.y + labelPad, &stats, textColor);
-            }
-        }
-        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
-    }
+    // Gate rendering removed (legacy)
 
     if (stageState.enabled && !stageState.enemyBases.empty())
     {
@@ -1821,7 +1951,27 @@ void renderWorld(SDL_Renderer *renderer, const LegacySimulation &sim, const Form
             }
 
             const auto [chibiFrame, flip] = chibiFrameForAlly(ally);
-            if (chibiFrame)
+            const bool drawAsSquare = ally.named;
+            if (drawAsSquare)
+            {
+                const int size = static_cast<int>(std::round(ally.radius * 2.2f));
+                SDL_Rect dest{
+                    static_cast<int>(screenPos.x - size * 0.5f),
+                    static_cast<int>(screenPos.y - size * 0.5f),
+                    size,
+                    size};
+                SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+                SDL_Color unitColor = unitRingColor(ally.job);
+                SDL_SetRenderDrawColor(renderer, unitColor.r, unitColor.g, unitColor.b, ally.alpha);
+                countedRenderFillRect(renderer, &dest, stats);
+                SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
+        if (g_showChibiLabels)
+        {
+            drawTemperamentLabel(ally, static_cast<float>(dest.y), static_cast<float>(dest.x + dest.w * 0.5f));
+        }
+                drawNameLabel(ally, screenPos);
+            }
+            else if (chibiFrame)
             {
                 SDL_SetTextureAlphaMod(atlas.texture.getRaw(), ally.alpha);
                 SDL_Rect dest{
@@ -1843,7 +1993,15 @@ void renderWorld(SDL_Renderer *renderer, const LegacySimulation &sim, const Form
                     countedRenderCopy(renderer, atlas.texture.getRaw(), friendRing, &ringDest, stats);
                     SDL_SetTextureColorMod(atlas.texture.getRaw(), 255, 255, 255);
                 }
-                drawTemperamentLabel(ally, static_cast<float>(dest.y), static_cast<float>(dest.x + dest.w * 0.5f));
+                if (!ally.named)
+                {
+                    if (g_showChibiLabels)
+                    {
+                        drawTemperamentLabel(
+                            ally, static_cast<float>(dest.y), static_cast<float>(dest.x + dest.w * 0.5f));
+                    }
+                }
+                drawNameLabel(ally, screenPos);
             }
             else
             {
@@ -1852,11 +2010,18 @@ void renderWorld(SDL_Renderer *renderer, const LegacySimulation &sim, const Form
                 SDL_SetRenderDrawColor(renderer, unitColor.r, unitColor.g, unitColor.b, ally.alpha);
                 drawFilledCircle(renderer, screenPos, ally.radius, stats);
                 SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
-                drawTemperamentLabel(ally, screenPos.y - ally.radius, screenPos.x);
+                if (!ally.named)
+                {
+                    if (g_showChibiLabels)
+                    {
+                        drawTemperamentLabel(ally, screenPos.y - ally.radius, screenPos.x);
+                    }
+                }
+                drawNameLabel(ally, screenPos);
             }
 
             MoraleState state = (ally.hasUnitIndex && ally.unitIndex < moraleStates.size()) ? moraleStates[ally.unitIndex]
-                                                                                            : ally.morale;
+                                                                                           : ally.morale;
             drawMoraleIcon(ally.position, ally.radius, state);
         }
         if (!queue.deathFx.empty())
@@ -1908,7 +2073,10 @@ void renderWorld(SDL_Renderer *renderer, const LegacySimulation &sim, const Form
             SDL_Color unitColor = unitRingColor(ally.job);
             SDL_SetRenderDrawColor(renderer, unitColor.r, unitColor.g, unitColor.b, ally.alpha);
             drawFilledCircle(renderer, screenPos, ally.radius, stats);
-            drawTemperamentLabel(ally, screenPos.y - ally.radius, screenPos.x);
+            if (g_showChibiLabels)
+            {
+                drawTemperamentLabel(ally, screenPos.y - ally.radius, screenPos.x);
+            }
             MoraleState state = (ally.hasUnitIndex && ally.unitIndex < moraleStates.size()) ? moraleStates[ally.unitIndex]
                                                                                             : ally.morale;
             drawMoraleIcon(ally.position, ally.radius, state);
@@ -1929,6 +2097,65 @@ void renderWorld(SDL_Renderer *renderer, const LegacySimulation &sim, const Form
 
     if (atlas.texture.get())
     {
+        // Ephemeral effects (rings / cones)
+        for (const auto &fx : queue.effects)
+        {
+            Vec2 screenPos = worldToScreen(fx.position, camera);
+            SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+            SDL_SetRenderDrawColor(renderer, fx.r, fx.g, fx.b, fx.a);
+            if (fx.cone && fx.length > 0.0f)
+            {
+                Vec2 dir = fx.dir;
+                const float dirLen = std::sqrt(lengthSq(dir));
+                if (dirLen > 0.0001f)
+                {
+                    dir = dir / dirLen;
+                }
+                else
+                {
+                    dir = {1.0f, 0.0f};
+                }
+                Vec2 perp{-dir.y, dir.x};
+                const float nearHalf = fx.nearWidth * 0.5f;
+                const float farHalf = fx.farWidth * 0.5f;
+                Vec2 p0 = screenPos + perp * nearHalf;
+                Vec2 p1 = screenPos - perp * nearHalf;
+                Vec2 tip = screenPos + dir * fx.length;
+                Vec2 p2 = tip + perp * farHalf;
+                Vec2 p3 = tip - perp * farHalf;
+                SDL_Vertex verts[4];
+                verts[0].position = {p0.x, p0.y};
+                verts[1].position = {p1.x, p1.y};
+                verts[2].position = {p2.x, p2.y};
+                verts[3].position = {p3.x, p3.y};
+                for (auto &v : verts)
+                {
+                    v.color = SDL_Color{fx.r, fx.g, fx.b, fx.a};
+                }
+                int indices[6] = {0, 1, 2, 1, 3, 2};
+                SDL_RenderGeometry(renderer, nullptr, verts, 4, indices, 6);
+            }
+            else
+            {
+                drawFilledCircle(renderer, screenPos, fx.radius, stats);
+            }
+            SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
+        }
+
+        // Projectiles (simple circles)
+        for (const auto &proj : queue.projectiles)
+        {
+            if (skipActors)
+            {
+                continue;
+            }
+            Vec2 screenPos = worldToScreen(proj.position, camera);
+            SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+            SDL_SetRenderDrawColor(renderer, 240, 120, 60, 220);
+            drawFilledCircle(renderer, screenPos, proj.radius, stats);
+            SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
+        }
+
         for (const LegacySimulation::RenderQueue::EnemySprite &enemy : queue.enemies)
         {
             if (skipActors && enemy.type != EnemyArchetype::Boss)
@@ -2025,6 +2252,19 @@ void renderWorld(SDL_Renderer *renderer, const LegacySimulation &sim, const Form
     }
     else
     {
+        for (const auto &proj : queue.projectiles)
+        {
+            if (skipActors)
+            {
+                continue;
+            }
+            Vec2 screenPos = worldToScreen(proj.position, camera);
+            SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+            SDL_SetRenderDrawColor(renderer, 240, 120, 60, 220);
+            drawFilledCircle(renderer, screenPos, proj.radius, stats);
+            SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
+        }
+
         for (const LegacySimulation::RenderQueue::EnemySprite &enemy : queue.enemies)
         {
             if (skipActors && enemy.type != EnemyArchetype::Boss)
@@ -2094,6 +2334,15 @@ void renderWorld(SDL_Renderer *renderer, const LegacySimulation &sim, const Form
     countedRenderFillRect(renderer, &overlay, stats);
     SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
 
+    // Commander HP/MP HUD
+    if (sim.commander.alive)
+    {
+        std::ostringstream hpmp;
+        hpmp << "HP " << static_cast<int>(std::round(sim.commander.hp)) << "/" << static_cast<int>(std::round(sim.commanderStats.hp))
+             << "  MP " << static_cast<int>(std::round(sim.commander.mp)) << "/" << static_cast<int>(std::round(sim.commander.mpMax));
+        font.drawText(renderer, hpmp.str(), 16, 16, nullptr, SDL_Color{240, 240, 255, 255});
+    }
+
     // Enemy legend (always on)
     {
         struct LegendEntry
@@ -2134,6 +2383,7 @@ void renderWorld(SDL_Renderer *renderer, const LegacySimulation &sim, const Form
     }
 }
 
+class BattleScene;
 
 class CampScene : public Scene
 {
@@ -3128,9 +3378,9 @@ class CampScene : public Scene
                 std::string maxLabel = maxLevel > 0 ? std::to_string(maxLevel) : std::string("-");
                 row.title = entry.label + "  [" + std::to_string(displayLevel) + "/" + maxLabel + "]";
                 row.subtitle = maxed ? "Complete" : formatTrainingDelta(entry, level);
-                row.cost = maxed ? "MAX" : (std::to_string(cost) + " mana");
+                row.cost = std::to_string(cost) + " mana";
                 row.selected = static_cast<int>(i) == selection;
-                row.disabled = maxed;
+                row.disabled = false;
                 row.affordable = wallet >= cost;
                 if (!row.disabled && cost > 0 && wallet < cost)
                 {
@@ -3173,12 +3423,9 @@ class CampScene : public Scene
                 row.index = static_cast<int>(i);
                 const bool consumable = item.type == "consumable";
                 const int level = consumable ? 0 : (m_campaign ? m_campaign->metaLevel(item.id) : 0);
-                const bool maxed = !consumable && item.maxLevel > 0 && level >= item.maxLevel;
+                const bool maxed = false; // 上限撤廃
                 const int cost = metaCost(item, level);
-                row.title = item.label + (consumable ? "" : ("  [" + std::to_string(level) + "/" +
-                                                             (item.maxLevel > 0 ? std::to_string(item.maxLevel)
-                                                                                : std::string("-")) +
-                                                             "]"));
+                row.title = item.label + (consumable ? "" : ("  [" + std::to_string(level) + "/-]"));
                 if (consumable)
                 {
                     const int stock = m_campaign ? m_campaign->manaGainTokens : 0;
@@ -3480,7 +3727,7 @@ class CampScene : public Scene
 class BattleScene : public Scene
 {
   public:
-    explicit BattleScene(std::shared_ptr<CampaignState> campaign);
+    explicit BattleScene(std::shared_ptr<CampaignState> campaign, bool startPausedForCamp = false);
 
     void onEnter(GameApplication &app, SceneStack &stack) override;
     void onExit(GameApplication &app, SceneStack &stack) override;
@@ -3570,7 +3817,10 @@ class BattleScene : public Scene
     DebugSimulationAccessor m_debugAccessor;
     bool m_showTelemetryOverlay = false;
     int m_cursorRestoreState = SDL_QUERY;
+    bool m_startPausedForCamp = false;
     bool m_pausedForCamp = false;
+    bool m_showChibiLabels = true;
+    bool m_cursorCrosshairActive = false;
     bool m_resultOverlayActive = false;
     bool m_resultRecorded = false;
     std::string m_resultSummary;
@@ -3588,9 +3838,150 @@ class BattleScene : public Scene
     void resetResultState();
 };
 
-BattleScene::BattleScene(std::shared_ptr<CampaignState> campaign)
-    : m_campaign(std::move(campaign)), m_debugAccessor(*this)
+class TitleScene : public Scene
 {
+  public:
+    explicit TitleScene(std::shared_ptr<CampaignState> campaign) : m_campaign(std::move(campaign)) {}
+
+    void onEnter(GameApplication &app, SceneStack &) override
+    {
+        AssetManager &assets = app.assetManager();
+        constexpr const char *kFontPath = "assets/ui/NotoSansJP-Regular.ttf";
+        if (!m_titleFont.isLoaded())
+        {
+            m_titleFont.load(assets, kFontPath, 48);
+        }
+        if (!m_bodyFont.isLoaded())
+        {
+            m_bodyFont.load(assets, kFontPath, 24);
+        }
+        if (m_campaign && !m_loadedOnce)
+        {
+            m_campaign->loadFromDisk();
+            m_loadedOnce = true;
+        }
+    }
+
+    void onExit(GameApplication &, SceneStack &) override {}
+
+    void handleEvent(const SDL_Event &event, GameApplication &app, SceneStack &stack) override
+    {
+        if (m_started)
+        {
+            return;
+        }
+        if (event.type == SDL_KEYDOWN)
+        {
+            const SDL_Keycode key = event.key.keysym.sym;
+            if (key == SDLK_ESCAPE)
+            {
+                app.requestQuit();
+                return;
+            }
+            if (key == SDLK_RETURN || key == SDLK_KP_ENTER || key == SDLK_SPACE)
+            {
+                start(stack);
+            }
+        }
+        else if (event.type == SDL_MOUSEBUTTONDOWN)
+        {
+            // 左クリック=YES、右クリック=NO的な操作。現状はどちらも開始に寄せる。
+            if (event.button.button == SDL_BUTTON_LEFT || event.button.button == SDL_BUTTON_RIGHT)
+            {
+                start(stack);
+            }
+        }
+    }
+
+    void update(double, GameApplication &, SceneStack &) override {}
+
+    void render(SDL_Renderer *renderer, GameApplication &app) override
+    {
+        if (m_started)
+        {
+            return;
+        }
+        if (!renderer)
+        {
+            return;
+        }
+        SDL_SetRenderDrawColor(renderer, 12, 16, 24, 255);
+        SDL_RenderClear(renderer);
+
+        const int screenW = app.windowWidth();
+        const int screenH = app.windowHeight();
+        const char *title = "Kusozako Trial";
+        const char *prompt = "Press Enter/Space to start";
+        const char *subtitle = "Save will load into Camp, then battle";
+        const int titleSize = 48;
+        const int bodySize = 24;
+        const int titleW = m_titleFont.isLoaded() ? measureText(m_titleFont, title, titleSize) : 0;
+        const int promptW = m_bodyFont.isLoaded() ? measureText(m_bodyFont, prompt, bodySize) : 0;
+        const int subtitleW = m_bodyFont.isLoaded() ? measureText(m_bodyFont, subtitle, bodySize - 2) : 0;
+        const int centerX = screenW / 2;
+        const int centerY = screenH / 2;
+        if (m_titleFont.isLoaded())
+        {
+            m_titleFont.drawText(renderer,
+                                 title,
+                                 centerX - titleW / 2,
+                                 centerY - titleSize - 20,
+                                 nullptr,
+                                 SDL_Color{255, 230, 200, 255});
+        }
+        if (m_bodyFont.isLoaded())
+        {
+            m_bodyFont.drawText(renderer,
+                                prompt,
+                                centerX - promptW / 2,
+                                centerY + 6,
+                                nullptr,
+                                SDL_Color{200, 220, 255, 255});
+            m_bodyFont.drawText(renderer,
+                                subtitle,
+                                centerX - subtitleW / 2,
+                                centerY + bodySize + 14,
+                                nullptr,
+                                SDL_Color{180, 200, 230, 220});
+        }
+    }
+
+  private:
+    int measureText(const TextRenderer &renderer, const std::string &text, int approxHeight) const
+    {
+        const int measured = renderer.measureText(text);
+        if (measured > 0)
+        {
+            return measured;
+        }
+        const int approxWidth = std::max(approxHeight / 2, 8);
+        return static_cast<int>(text.size()) * approxWidth;
+    }
+
+    void start(SceneStack &stack)
+    {
+        if (m_started)
+        {
+            return;
+        }
+        m_started = true;
+        auto battle = std::make_unique<BattleScene>(m_campaign, true);
+        BattleScene *battlePtr = battle.get();
+        stack.push(std::move(battle));
+        stack.push(std::make_unique<CampScene>(m_campaign, battlePtr));
+    }
+
+    std::shared_ptr<CampaignState> m_campaign;
+    TextRenderer m_titleFont;
+    TextRenderer m_bodyFont;
+    bool m_loadedOnce = false;
+    bool m_started = false;
+};
+
+BattleScene::BattleScene(std::shared_ptr<CampaignState> campaign, bool startPausedForCamp)
+    : m_campaign(std::move(campaign)), m_debugAccessor(*this), m_startPausedForCamp(startPausedForCamp)
+{
+    m_showChibiLabels = g_showChibiLabels;
 }
 
 void BattleScene::onEnter(GameApplication &app, SceneStack &stack)
@@ -3626,6 +4017,11 @@ void BattleScene::onEnter(GameApplication &app, SceneStack &stack)
     }
 
     applyAppConfig(app);
+
+    if (m_startPausedForCamp)
+    {
+        m_pausedForCamp = true;
+    }
 
     m_initialized = true;
 
@@ -3695,6 +4091,15 @@ void BattleScene::handleEvent(const SDL_Event &event, GameApplication &app, Scen
     if (m_pausedForCamp)
     {
         return;
+    }
+    if (event.type == SDL_KEYDOWN)
+    {
+        if (event.key.keysym.sym == SDLK_l)
+        {
+            m_showChibiLabels = !m_showChibiLabels;
+            g_showChibiLabels = m_showChibiLabels;
+            return;
+        }
     }
     m_debugController.handleEvent(event);
 }
@@ -3859,6 +4264,37 @@ void BattleScene::handleActionFrame(const ActionBuffer::Frame &frame, GameApplic
             m_introActive = false;
             m_introTimer = 0.0f;
             break;
+        case ActionId::CommanderCastFireBall:
+            if (evt.pressed)
+            {
+                m_world.castFireBall(120.0f, 4.0f);
+            }
+            break;
+        case ActionId::CommanderGuardHold:
+            m_world.setCommanderGuard(evt.pressed);
+            break;
+        case ActionId::CommanderCancelTarget:
+            if (evt.pressed)
+            {
+                m_world.commanderCancelTarget();
+            }
+            break;
+        case ActionId::CommanderFocusTarget:
+            if (evt.pressed)
+            {
+                m_world.commanderFocusTarget();
+            }
+            break;
+        case ActionId::CommanderAttack:
+        {
+            std::optional<Vec2> targetPos;
+            if (evt.pointer && evt.pointer->pressed)
+            {
+                targetPos = screenToWorld(evt.pointer->x, evt.pointer->y, m_camera);
+            }
+            m_world.commanderAttack(targetPos);
+            break;
+        }
         case ActionId::ActivateSkill:
             if (evt.pointer && evt.pointer->pressed)
             {
@@ -3875,6 +4311,40 @@ void BattleScene::handleActionFrame(const ActionBuffer::Frame &frame, GameApplic
         default:
             break;
         }
+    }
+
+    // Cursor feedback: crosshair when hovering an enemy during battle
+    bool hoverEnemy = false;
+    if (frame.pointer.hasPosition)
+    {
+        Vec2 worldPos = screenToWorld(frame.pointer.x, frame.pointer.y, m_camera);
+        const LegacySimulation &sim = m_world.legacy();
+        const float pad = 8.0f;
+        for (const EnemyUnit &enemy : sim.enemies)
+        {
+            if (enemy.hp <= 0.0f)
+            {
+                continue;
+            }
+            const float reach = enemy.radius + pad;
+            if (lengthSq(enemy.pos - worldPos) <= reach * reach)
+            {
+                hoverEnemy = true;
+                break;
+            }
+        }
+    }
+    static SDL_Cursor *crosshair = SDL_CreateSystemCursor(SDL_SYSTEM_CURSOR_CROSSHAIR);
+    static SDL_Cursor *arrow = SDL_GetDefaultCursor();
+    if (hoverEnemy && !m_cursorCrosshairActive)
+    {
+        SDL_SetCursor(crosshair);
+        m_cursorCrosshairActive = true;
+    }
+    else if (!hoverEnemy && m_cursorCrosshairActive)
+    {
+        SDL_SetCursor(arrow);
+        m_cursorCrosshairActive = false;
     }
 }
 
@@ -4422,7 +4892,7 @@ int main(int argc, char **argv)
     std::filesystem::path savePath = std::filesystem::absolute(saveDir / "campaign_state.json");
     campaign->setSavePath(savePath);
     campaign->loadFromDisk();
-    app.sceneStack().push(std::make_unique<BattleScene>(std::move(campaign)));
+    app.sceneStack().push(std::make_unique<TitleScene>(std::move(campaign)));
     return app.run();
 }
 #endif

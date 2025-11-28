@@ -136,6 +136,12 @@ const char *UiView::actionDisplayName(ActionId id)
         return "FocusBase";
     case ActionId::ActivateSkill:
         return "ActivateSkill";
+    case ActionId::CommanderAttack:
+        return "CommanderAttack";
+    case ActionId::CommanderCancelTarget:
+        return "CommanderCancelTarget";
+    case ActionId::CommanderFocusTarget:
+        return "CommanderFocusTarget";
     case ActionId::ToggleGameSpeed:
         return "ToggleGameSpeed";
     case ActionId::QuitGame:

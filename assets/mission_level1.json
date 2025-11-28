@@ -3,12 +3,12 @@
   "boss": {
     "id": "dragon",
     "tile": [60, 22],
-    "hp": 1500,
+    "hp": 2250,
     "speed_u_s": 0.8,
     "radius_px": 40,
     "traits": { "no_overlap": true },
     "mechanics": {
-      "slam": { "period_s": 10, "windup_s": 1.2, "radius_px": 140, "damage": 60 }
+      "slam": { "period_s": 10, "windup_s": 1.2, "radius_px": 140, "damage": 90 }
     }
   },
   "ui": { "show_goal_text": "ドラゴンを倒せ！", "show_timer": true, "boss_hp_bar": true },

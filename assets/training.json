@@ -2,22 +2,29 @@
   "schema_version": 2,
   "entries": [
     {
+      "id": "yuna_level",
+      "label": "ユウナ レベル",
+      "repeatable": { "enabled": true, "delta": 1.0, "max_level": 0, "base_cost": 50, "cost_growth": 1.2 }
+    },
+    {
+      "id": "milly_level",
+      "label": "Milly レベル",
+      "repeatable": { "enabled": true, "delta": 1.0, "max_level": 0, "base_cost": 40, "cost_growth": 1.18 }
+    },
+    {
+      "id": "mary_level",
+      "label": "Mary レベル",
+      "repeatable": { "enabled": true, "delta": 1.0, "max_level": 0, "base_cost": 40, "cost_growth": 1.18 }
+    },
+    {
+      "id": "coco_level",
+      "label": "Coco レベル",
+      "repeatable": { "enabled": true, "delta": 1.0, "max_level": 0, "base_cost": 40, "cost_growth": 1.18 }
+    },
+    {
       "id": "chibi_level_mean_bonus",
       "label": "ちび平均レベルμ",
-      "steps": [
-        {
-          "delta": 0.5,
-          "cost": 30
-        },
-        {
-          "delta": 1.0,
-          "cost": 60
-        },
-        {
-          "delta": 2.0,
-          "cost": 120
-        }
-      ]
+      "repeatable": { "enabled": true, "delta": 0.5, "max_level": 0, "base_cost": 30, "cost_growth": 1.2 }
     }
   ]
 }

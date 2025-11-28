@@ -16,12 +16,7 @@ CampShop::PurchaseOutcome CampShop::buyUpgrade(const CampUpgradeEntry &entry)
         return result;
     }
     const int currentLevel = m_state.campLevel(entry.id);
-    const int maxLevel = entry.maxLevel > 0 ? entry.maxLevel : static_cast<int>(entry.costs.size());
-    if (maxLevel > 0 && currentLevel >= maxLevel)
-    {
-        result.status = Status::MaxLevel;
-        return result;
-    }
+    // 無制限に購入可能（コストは配列の末尾を維持）
     const int cost = upgradeCost(entry, currentLevel);
     if (!m_state.spendMana(cost))
     {
@@ -64,11 +59,7 @@ CampShop::PurchaseOutcome CampShop::buyMeta(const MetaShopItem &item)
     result.id = item.id;
     const bool consumable = item.type == "consumable";
     const int currentLevel = consumable ? 0 : m_state.metaLevel(item.id);
-    if (!consumable && item.maxLevel > 0 && currentLevel >= item.maxLevel)
-    {
-        result.status = Status::MaxLevel;
-        return result;
-    }
+    // メタ強化も上限なし
     const int cost = metaCost(item, currentLevel);
     if (!m_state.spendMana(cost))
     {

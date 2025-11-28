@@ -1,35 +1,61 @@
 {
   "gates": {
-    "A": { "tile": [2, 10] },
-    "B": { "tile": [2, 22] },
-    "C": { "tile": [2, 34] }
+    "A": {
+      "tile": [
+        2,
+        10
+      ]
+    }
   },
   "y_jitter_px": 8,
   "waves": [
-    { "t": 0,   "sets": [ { "gate": "A", "count": 3, "interval_s": 0.3 }, { "gate": "B", "count": 3, "interval_s": 0.3 } ], "telemetry": "左から敵！" },
-    { "t": 15,  "sets": [ { "gate": "A", "count": 4, "interval_s": 0.3 }, { "gate": "C", "count": 2, "interval_s": 0.3 } ] },
     {
-      "t": 30,
-      "sets": [ { "gate": "B", "count": 6, "interval_s": 0.3 } ],
-      "telemetry": "増援が接近！(北側毒床が起動)",
-      "activate_hazards": ["poison_north"]
+      "t": 40,
+      "sets": [],
+      "telemetry": "敵増援がもうすぐ来る…(20s後)"
     },
-    { "t": 60,  "sets": [
-        { "gate": "A", "count": 6, "interval_s": 0.25 },
-        { "gate": "C", "count": 6, "interval_s": 0.25 },
-        { "gate": "B", "type": "elite_wallbreaker", "count": 1, "interval_s": 0.0 }
-      ], "telemetry": "左右から敵！ 壁を壊す敵接近！" },
     {
-      "t": 90,
-      "sets": [ { "gate": "B", "count": 8, "interval_s": 0.25 } ],
-      "telemetry": "南側毒床が起動",
-      "activate_hazards": ["poison_south"]
+      "t": 60,
+      "sets": [
+        {
+          "gate": "A",
+          "count": 1,
+          "interval_s": 0.0
+        }
+      ],
+      "telemetry": "増援到着！"
     },
-    { "t": 120, "sets": [
-        { "gate": "A", "count": 6, "interval_s": 0.2 },
-        { "gate": "B", "count": 6, "interval_s": 0.2 },
-        { "gate": "C", "count": 6, "interval_s": 0.2 },
-        { "gate": "B", "type": "elite_wallbreaker", "count": 1, "interval_s": 0.0 }
-      ], "telemetry": "総攻撃！" }
+    {
+      "t": 100,
+      "sets": [],
+      "telemetry": "次の増援がもうすぐ来る…(20s後)"
+    },
+    {
+      "t": 120,
+      "sets": [
+        {
+          "gate": "A",
+          "count": 1,
+          "interval_s": 0.0
+        }
+      ],
+      "telemetry": "増援到着！"
+    },
+    {
+      "t": 160,
+      "sets": [],
+      "telemetry": "次の増援がもうすぐ来る…(20s後)"
+    },
+    {
+      "t": 180,
+      "sets": [
+        {
+          "gate": "A",
+          "count": 1,
+          "interval_s": 0.0
+        }
+      ],
+      "telemetry": "増援到着！"
+    }
   ]
 }

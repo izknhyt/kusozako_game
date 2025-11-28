@@ -121,8 +121,7 @@ struct CampaignState
 
         CommanderStats commander = config.entityCatalog.commander;
         const AllyLevelingParams commanderLeveling = kCommanderLevelingParams;
-        const int commanderLevel =
-            std::clamp(trainingStep("yuna_level") + 1, 1, commanderLeveling.maxLevel);
+        const int commanderLevel = std::max(trainingStep("yuna_level") + 1, 1);
         const float commanderLevelDelta = static_cast<float>(commanderLevel - 1);
         commander.hp = commander.hp + commanderLeveling.hpPerLevel * commanderLevelDelta;
         commander.dps = commander.dps * (1.0f + commanderLeveling.dpsPerLevel * commanderLevelDelta);
@@ -130,21 +129,13 @@ struct CampaignState
             commander.speed_u_s * (1.0f + commanderLeveling.speedPerLevel * commanderLevelDelta);
         sim.commanderStats = commander;
 
-        auto clampedLevel = [](int level, int maxLevel) {
-            if (maxLevel > 0)
-            {
-                level = std::min(level, maxLevel);
-            }
-            return std::max(level, 0);
-        };
-
         auto resolveCampBonus = [&](const std::string &id) -> float {
             const CampUpgradeEntry *entry = findCampUpgrade(config, id);
             if (!entry)
             {
                 return 0.0f;
             }
-            const int level = clampedLevel(campLevel(id), entry->maxLevel);
+            const int level = std::max(campLevel(id), 0);
             if (level <= 0 || entry->delta == 0.0f)
             {
                 return 0.0f;
@@ -188,7 +179,7 @@ struct CampaignState
         int capBonus = 0;
         if (capItem)
         {
-            const int level = clampedLevel(metaLevel(capItem->id), capItem->maxLevel);
+            const int level = std::max(metaLevel(capItem->id), 0);
             if (level > 0 && capItem->delta != 0.0f)
             {
                 capBonus = static_cast<int>(std::round(capItem->delta * static_cast<float>(level)));
@@ -196,6 +187,15 @@ struct CampaignState
         }
         sim.economyConfig.baseCap = config.economy.baseCap + capBonus;
         sim.economyConfig.tokenBonus = config.economy.tokenBonus;
+
+        // Namedユニットのレベル（上限なし）
+        auto buildNamedLevel = [&](const std::string &id) -> int {
+            return std::max(trainingStep(id) + 1, 1);
+        };
+        sim.namedLevels.clear();
+        sim.namedLevels["Milly"] = buildNamedLevel("milly_level");
+        sim.namedLevels["Mary"] = buildNamedLevel("mary_level");
+        sim.namedLevels["Coco"] = buildNamedLevel("coco_level");
     }
 
     void applyRunStart(const AppConfig &, world::LegacySimulation &sim)

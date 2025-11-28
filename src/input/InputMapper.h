@@ -69,6 +69,8 @@ class InputMapper
     std::array<ActionId, 8> m_skillBindings{};
 
     PointerBinding m_pointerActivate;
+    PointerBinding m_pointerAttack;
+    PointerBinding m_pointerCancel;
 
     std::vector<ActionEvent> m_pendingEvents;
     PointerState m_pointerState;
@@ -86,4 +88,3 @@ class InputMapper
     void bindSkillHotkeys(const std::vector<std::string> &names);
     void enqueuePointerEvent(ActionId action, bool pressed, bool released, int x, int y);
 };
-

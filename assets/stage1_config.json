@@ -1,46 +1,119 @@
 {
   "schema_version": 1,
-  "ally_factory": { "rate_per_s": 1.0, "cap": 200 },
+  "ally_factory": {
+    "rate_per_s": 1.0,
+    "cap": 200
+  },
   "ally_bases": [
-    { "id": "camp_alpha", "pos": [68, 20], "hp": 240, "aura_radius_px": 128 },
-    { "id": "camp_bravo", "pos": [70, 22], "hp": 240, "aura_radius_px": 128 },
-    { "id": "camp_charlie", "pos": [72, 24], "hp": 240, "aura_radius_px": 128 }
+    {
+      "id": "camp_main",
+      "pos": [
+        70,
+        22
+      ],
+      "hp": 240,
+      "aura_radius_px": 128
+    }
   ],
   "enemy_bases": [
     {
       "id": "enemy_north",
-      "pos": [2, 10],
+      "pos": [
+        2,
+        10
+      ],
       "hp": 400,
       "radius_px": 60,
-      "rate_per_s": 0.1,
-      "rate_max": 0.18,
-      "weights": { "slime": 4, "goblin": 2, "bat": 2, "magician": 1, "toritori": 1 }
+      "rate_per_s": 0.025,
+      "rate_max": 0.045,
+      "weights": {
+        "slime": 40,
+        "goblin": 30,
+        "bat": 15,
+        "magician": 10,
+        "toritori": 5
+      }
     },
     {
       "id": "enemy_center",
-      "pos": [2, 22],
+      "pos": [
+        2,
+        22
+      ],
       "hp": 450,
       "radius_px": 60,
-      "rate_per_s": 0.1,
-      "rate_max": 0.18,
-      "weights": { "slime": 4, "goblin": 2, "bat": 2, "magician": 1, "toritori": 1 }
+      "rate_per_s": 0.025,
+      "rate_max": 0.045,
+      "weights": {
+        "slime": 40,
+        "goblin": 30,
+        "bat": 15,
+        "magician": 10,
+        "toritori": 5
+      }
     },
     {
       "id": "enemy_south",
-      "pos": [2, 34],
+      "pos": [
+        2,
+        34
+      ],
       "hp": 450,
       "radius_px": 60,
-      "rate_per_s": 0.1,
-      "rate_max": 0.18,
-      "weights": { "slime": 4, "goblin": 2, "bat": 2, "magician": 1, "toritori": 1 }
+      "rate_per_s": 0.025,
+      "rate_max": 0.045,
+      "weights": {
+        "slime": 40,
+        "goblin": 30,
+        "bat": 15,
+        "magician": 10,
+        "toritori": 5
+      }
     }
   ],
-  "global_caps": { "enemies": 40, "chibi": 200 },
-  "victory": { "require_dragon": true, "require_all_bases": true },
-  "speed": { "steps": [1.0, 2.0, 3.0], "hp_bar_fast_interval": 0.15 },
-  "on_base_sealed": { "stop_spawn": true, "visual_only": true, "no_collision": true },
+  "global_caps": {
+    "enemies": 40,
+    "chibi": 200
+  },
+  "victory": {
+    "require_dragon": true,
+    "require_all_bases": true
+  },
+  "speed": {
+    "steps": [
+      1.0,
+      2.0,
+      3.0
+    ],
+    "hp_bar_fast_interval": 0.15
+  },
+  "on_base_sealed": {
+    "stop_spawn": true,
+    "visual_only": true,
+    "no_collision": true
+  },
   "hazards": [
-    { "id": "poison_north", "pos": [38, 12], "radius_px": 80, "weight": 1.1, "enabled": false, "trigger_enemy_base": "enemy_north" },
-    { "id": "poison_south", "pos": [44, 32], "radius_px": 96, "weight": 1.2, "enabled": false, "trigger_enemy_base": "enemy_south" }
+    {
+      "id": "poison_north",
+      "pos": [
+        38,
+        12
+      ],
+      "radius_px": 80,
+      "weight": 1.1,
+      "enabled": false,
+      "trigger_enemy_base": "enemy_north"
+    },
+    {
+      "id": "poison_south",
+      "pos": [
+        44,
+        32
+      ],
+      "radius_px": 96,
+      "weight": 1.2,
+      "enabled": false,
+      "trigger_enemy_base": "enemy_south"
+    }
   ]
 }

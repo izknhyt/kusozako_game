@@ -114,6 +114,8 @@ void InputMapper::configure(const InputBindings &bindings)
     m_pendingEvents.clear();
     m_skillBindings.fill(ActionId::Count);
     m_pointerActivate = {};
+    m_pointerAttack = {};
+    m_pointerCancel = {};
 
     m_movePositiveX = {};
     m_moveNegativeX = {};
@@ -179,6 +181,46 @@ void InputMapper::configure(const InputBindings &bindings)
     if (!bindings.quit.empty())
     {
         bindKey(bindings.quit, ActionId::QuitGame);
+    }
+    if (!bindings.guard.empty())
+    {
+        bindKey(bindings.guard, ActionId::CommanderGuardHold);
+    }
+    if (!bindings.fireBall.empty())
+    {
+        bindKey(bindings.fireBall, ActionId::CommanderCastFireBall);
+    }
+    if (!bindings.targetCancel.empty())
+    {
+        if (Uint8 button = pointerButtonFromString(bindings.targetCancel); button != 0)
+        {
+            m_pointerCancel.action = ActionId::CommanderCancelTarget;
+            m_pointerCancel.button = button;
+        }
+        bindKey(bindings.targetCancel, ActionId::CommanderCancelTarget);
+    }
+    if (!bindings.targetFocus.empty())
+    {
+        bindKey(bindings.targetFocus, ActionId::CommanderFocusTarget);
+    }
+    bool attackPointerBound = false;
+    for (const std::string &name : bindings.attack)
+    {
+        if (name.empty())
+        {
+            continue;
+        }
+        if (Uint8 button = pointerButtonFromString(name); button != 0)
+        {
+            if (!attackPointerBound)
+            {
+                m_pointerAttack.action = ActionId::CommanderAttack;
+                m_pointerAttack.button = button;
+                attackPointerBound = true;
+            }
+            continue;
+        }
+        bindKey(name, ActionId::CommanderAttack);
     }
     if (!bindings.toggleSpeed.empty())
     {
@@ -287,6 +329,14 @@ void InputMapper::handleEvent(const SDL_Event &event)
         if (m_pointerActivate.valid() && button == m_pointerActivate.button)
         {
             enqueuePointerEvent(m_pointerActivate.action, pressed, !pressed, event.button.x, event.button.y);
+        }
+        if (m_pointerAttack.valid() && button == m_pointerAttack.button)
+        {
+            enqueuePointerEvent(m_pointerAttack.action, pressed, !pressed, event.button.x, event.button.y);
+        }
+        if (m_pointerCancel.valid() && button == m_pointerCancel.button)
+        {
+            enqueuePointerEvent(m_pointerCancel.action, pressed, !pressed, event.button.x, event.button.y);
         }
         break;
     }

@@ -20,12 +20,14 @@ class CombatSystem : public ISystem
     SpatialGrid m_grid;
     std::vector<std::uint32_t> m_enemyVisit;
     std::vector<std::uint32_t> m_wallVisit;
+    std::vector<std::uint32_t> m_unitVisit;
     std::uint32_t m_enemyStamp = 1;
     std::uint32_t m_wallStamp = 1;
+    std::uint32_t m_unitStamp = 1;
     std::vector<std::size_t> m_cellScratch;
     std::vector<std::size_t> m_enemyScratch;
     std::vector<std::size_t> m_wallScratch;
+    std::vector<std::size_t> m_unitScratch;
 };
 
 } // namespace world::systems
-

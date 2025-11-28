@@ -3,6 +3,7 @@
 #include "config/AppConfig.h"
 #include "core/Vec2.h"
 #include "telemetry/TelemetrySink.h"
+#include "game/AllyLevelingConfig.h"
 #include "world/LegacyTypes.h"
 #include "world/MoraleTypes.h"
 #include "world/SkillRuntime.h"
@@ -167,6 +168,9 @@ struct Unit
     Vec2 formationOffset{0.0f, 0.0f};
     Vec2 desiredVelocity{0.0f, 0.0f};
     bool hasDesiredVelocity = false;
+    float attackLockTimer = 0.0f;
+    float attackSwingTimer = 0.0f;
+    float attackSwingDuration = 0.0f;
     TemperamentState temperament;
     MoraleState moraleState = MoraleState::Stable;
     float moraleTimer = 0.0f;
@@ -216,6 +220,10 @@ struct Unit
     Vec2 lastVelocity{0.0f, 0.0f};
     float facingX = 1.0f;
     JobRuntimeState job{};
+    bool respawnAllowed = true;
+    std::string name;
+    bool isNamed = false;
+    float namedSkillCooldown = 0.0f;
 };
 
 struct CommanderUnit
@@ -223,14 +231,26 @@ struct CommanderUnit
     Vec2 pos;
     float hp = 0.0f;
     float radius = 12.0f;
+    float mp = 0.0f;
+    float mpMax = 0.0f;
+    float mpRegen = 0.0f;
     bool alive = true;
     Vec2 moveIntent{0.0f, 0.0f};
     bool hasMoveIntent = false;
+    bool guardActive = false;
+    float attackLockTimer = 0.0f;
+    float attackSwingTimer = 0.0f;
+    float attackSwingDuration = 0.0f;
+    Vec2 lastVelocity{0.0f, 0.0f};
+    Vec2 lastMoveDir{1.0f, 0.0f};
+    int attackTargetIndex = -1;
+    int focusTargetIndex = -1;
 };
 
 struct EnemyUnit
 {
     Vec2 pos;
+    Vec2 laneOffset{0.0f, 0.0f};
     float hp = 0.0f;
     float radius = 0.0f;
     float attackRangePx = 0.0f;
@@ -244,6 +264,11 @@ struct EnemyUnit
     float tauntTimer = 0.0f;
     int focusUnitIndex = -1;
     float focusTimer = 0.0f;
+    float breathCooldown = 0.0f;
+    float breathTimer = 0.0f;
+    float attackLockTimer = 0.0f;
+    float attackSwingTimer = 0.0f;
+    float attackSwingDuration = 0.0f;
 };
 
 struct WallSegment
@@ -349,6 +374,7 @@ struct LegacySimulation
     EntityStats golemStats;
     WallbreakerStats wallbreakerStats;
     CommanderStats commanderStats;
+    std::unordered_map<std::string, int> namedLevels;
     CommanderUnit commander;
     MapDefs mapDefs;
     SpawnScript spawnScript;
@@ -460,6 +486,8 @@ struct LegacySimulation
             UnitJob job = UnitJob::Warrior;
             std::uint8_t alpha = 255;
             MoraleState morale = MoraleState::Stable;
+            bool named = false;
+            std::string name;
             const TemperamentDefinition *temperamentDefinition = nullptr;
             TemperamentBehavior temperamentBehavior = TemperamentBehavior::Wander;
             bool temperamentMimicActive = false;
@@ -520,6 +548,27 @@ struct LegacySimulation
             float facingX = 1.0f;
         };
 
+        struct Projectile
+        {
+            Vec2 position{0.0f, 0.0f};
+            float radius = 4.0f;
+        };
+
+        struct EffectSprite
+        {
+            Vec2 position{0.0f, 0.0f};
+            float radius = 0.0f;
+            std::uint8_t r = 255;
+            std::uint8_t g = 255;
+            std::uint8_t b = 255;
+            std::uint8_t a = 180;
+            bool cone = false;
+            Vec2 dir{1.0f, 0.0f};
+            float length = 0.0f;
+            float nearWidth = 0.0f;
+            float farWidth = 0.0f;
+        };
+
         bool lodActive = false;
         bool skipActors = false;
         int lodFrameCounter = 0;
@@ -528,6 +577,8 @@ struct LegacySimulation
         std::vector<WallSprite> walls;
         std::vector<MoraleIcon> moraleIcons;
         std::vector<DeathFx> deathFx;
+        std::vector<Projectile> projectiles;
+        std::vector<EffectSprite> effects;
         std::string telemetryText;
         float telemetryTimer = 0.0f;
         std::string performanceWarningText;
@@ -542,8 +593,36 @@ struct LegacySimulation
             walls.clear();
             moraleIcons.clear();
             deathFx.clear();
+            projectiles.clear();
+            effects.clear();
         }
     } renderQueue;
+
+    struct Projectile
+    {
+        Vec2 pos;
+        Vec2 vel;
+        float radius = 4.0f;
+        float damage = 0.0f;
+        float life = 0.0f;
+    };
+    std::vector<Projectile> projectiles;
+    struct Effect
+    {
+        Vec2 pos{0.0f, 0.0f};
+        float radius = 0.0f;
+        float r = 255.0f;
+        float g = 255.0f;
+        float b = 255.0f;
+        float a = 200.0f;
+        float ttl = 0.0f;
+        bool cone = false;
+        Vec2 dir{1.0f, 0.0f};
+        float length = 0.0f;
+        float nearWidth = 0.0f;
+        float farWidth = 0.0f;
+    };
+    std::vector<Effect> effects;
 
     struct SpawnBudgetState
     {
@@ -601,6 +680,9 @@ struct LegacySimulation
     float moraleSpawnMultiplier = 1.0f;
     float spawnSlowMultiplier = 1.0f;
     float spawnSlowTimer = 0.0f;
+    float commanderFireballCooldown = 0.0f;
+    float commanderMp = 0.0f;
+    float commanderMpMax = 0.0f;
     struct MoraleSummary
     {
         float averageSpeedMul = 1.0f;
@@ -616,6 +698,7 @@ struct LegacySimulation
 
     bool waveScriptComplete = false;
     bool spawnerIdle = true;
+    bool yunaRespawnsEnabled = true;
 
     Vec2 basePos;
     Vec2 yunaSpawnPos;
@@ -627,6 +710,57 @@ struct LegacySimulation
 
     void captureFrameSnapshot(TelemetrySink &sink);
     std::filesystem::path telemetryDebugDirectory(const TelemetrySink &sink) const;
+
+    void updateProjectiles(float dt)
+    {
+        if (projectiles.empty())
+        {
+            return;
+        }
+        std::vector<Projectile> next;
+        next.reserve(projectiles.size());
+        for (Projectile &p : projectiles)
+        {
+            if (p.life <= 0.0f)
+            {
+                continue;
+            }
+            p.life -= dt;
+            p.pos += p.vel * dt;
+            bool hit = false;
+            for (EnemyUnit &enemy : enemies)
+            {
+                if (enemy.hp <= 0.0f)
+                {
+                    continue;
+                }
+                const float combined = p.radius + enemy.radius;
+                if (lengthSq(enemy.pos - p.pos) <= combined * combined)
+                {
+                    enemy.hp -= p.damage;
+                    hit = true;
+                    break;
+                }
+            }
+            if (!hit && p.life > 0.0f)
+            {
+                next.push_back(p);
+            }
+        }
+        projectiles.swap(next);
+    }
+
+    void updateCommanderResources(float dt)
+    {
+        if (commanderFireballCooldown > 0.0f)
+        {
+            commanderFireballCooldown = std::max(0.0f, commanderFireballCooldown - dt);
+        }
+        if (commander.alive && commander.mpRegen > 0.0f && commander.mpMax > 0.0f)
+        {
+            commander.mp = std::min(commander.mpMax, commander.mp + commander.mpRegen * dt);
+        }
+    }
 
     struct SpawnHistoryDumpResult
     {
@@ -1139,25 +1273,43 @@ struct LegacySimulation
         bool spawned = false;
 
         const std::size_t sealedBases = sealedEnemyBases();
+        auto chooseSpawnBase = [&]() -> const StageEnemyBaseState * {
+            if (stage.enemyBases.empty())
+            {
+                return nullptr;
+            }
+            // Prefer any unsealed base; if none, fall back to the first for safety.
+            std::vector<const StageEnemyBaseState *> openBases;
+            openBases.reserve(stage.enemyBases.size());
+            for (const StageEnemyBaseState &base : stage.enemyBases)
+            {
+                if (!base.sealed)
+                {
+                    openBases.push_back(&base);
+                }
+            }
+            if (!openBases.empty())
+            {
+                std::uniform_int_distribution<std::size_t> dist(0, openBases.size() - 1);
+                return openBases[dist(rng)];
+            }
+            return &stage.enemyBases.front();
+        };
+        auto spawnNearBase = [&](const StageEnemyBaseState &base) -> Vec2 {
+            // Spawn slightly offset from the base center to feel like emerging from that base.
+            const float baseRadius = base.radiusPx > 0.0f ? base.radiusPx : 96.0f;
+            std::uniform_real_distribution<float> angleDist(0.0f, 6.2831853f);
+            const float angle = angleDist(rng);
+            const float offset = baseRadius * 0.6f; // close but not overlapping the center
+            Vec2 dir{std::cos(angle), std::sin(angle)};
+            return base.pos + dir * offset;
+        };
         if (!golemSpawned && (simTime >= 150.0f || sealedBases >= 1))
         {
             Vec2 spawnPos = basePos;
-            if (!stage.enemyBases.empty())
+            if (const StageEnemyBaseState *base = chooseSpawnBase())
             {
-                const StageEnemyBaseState *chosen = nullptr;
-                for (const StageEnemyBaseState &base : stage.enemyBases)
-                {
-                    if (!base.sealed)
-                    {
-                        chosen = &base;
-                        break;
-                    }
-                }
-                if (!chosen)
-                {
-                    chosen = &stage.enemyBases.front();
-                }
-                spawnPos = chosen->pos;
+                spawnPos = spawnNearBase(*base);
             }
             spawnOneEnemy(spawnPos, EnemyArchetype::Golem);
             golemSpawned = true;
@@ -1167,22 +1319,12 @@ struct LegacySimulation
         if (!dragonSpawned && (simTime >= 300.0f || sealedBases >= 2))
         {
             Vec2 dragonSpawnPos = tileToWorld(missionConfig.boss.tile, mapDefs.tile_size);
-            if (stage.enabled && !stage.enemyBases.empty())
+            if (stage.enabled)
             {
-                const StageEnemyBaseState *chosen = nullptr;
-                for (const StageEnemyBaseState &base : stage.enemyBases)
+                if (const StageEnemyBaseState *base = chooseSpawnBase())
                 {
-                    if (!base.sealed)
-                    {
-                        chosen = &base;
-                        break;
-                    }
+                    dragonSpawnPos = spawnNearBase(*base);
                 }
-                if (!chosen)
-                {
-                    chosen = &stage.enemyBases.front();
-                }
-                dragonSpawnPos = chosen->pos;
             }
             if (spawnMissionBossAt(dragonSpawnPos))
             {
@@ -1320,6 +1462,34 @@ struct LegacySimulation
         telemetry = std::move(sink);
     }
 
+    void setCommanderGuard(bool active)
+    {
+        commander.guardActive = active;
+    }
+
+    bool spawnProjectile(const Vec2 &origin, const Vec2 &target, float damage, float speed, float radius)
+    {
+        if (damage <= 0.0f || speed <= 0.0f || radius <= 0.0f)
+        {
+            return false;
+        }
+        Vec2 dir = target - origin;
+        const float lenSq = lengthSq(dir);
+        if (lenSq <= 0.0001f)
+        {
+            return false;
+        }
+        dir = dir / std::sqrt(lenSq);
+        Projectile p;
+        p.pos = origin;
+        p.vel = dir * speed;
+        p.radius = radius;
+        p.damage = damage;
+        p.life = length(target - origin) / speed;
+        projectiles.push_back(p);
+        return true;
+    }
+
     bool canRestart() const { return restartCooldown <= 0.0f; }
 
     void reset()
@@ -1338,6 +1508,7 @@ struct LegacySimulation
         spawnTelemetryTotals.fill(0);
         spawnTelemetryTotal = 0;
         spawnBudgetState = {};
+        yunaRespawnsEnabled = true;
         dragonSpawned = false;
         golemSpawned = false;
         enemies.clear();
@@ -1386,7 +1557,14 @@ struct LegacySimulation
         yunaSpawnPos = tileToWorld(mapDefs.spawn_tile_yuna, mapDefs.tile_size) + config.yuna_offset_px;
         commander.hp = commanderStats.hp;
         commander.radius = commanderStats.radius;
+        commander.mpMax = std::max(commanderStats.mp, 0.0f);
+        commander.mp = commander.mpMax;
+        commander.mpRegen = commanderStats.mpRegen;
         commander.pos = yunaSpawnPos;
+        commander.lastVelocity = {0.0f, 0.0f};
+        commander.lastMoveDir = {1.0f, 0.0f};
+        commander.attackTargetIndex = -1;
+        commander.focusTargetIndex = -1;
         commander.alive = true;
         commanderRespawnTimer = 0.0f;
         commanderInvulnTimer = 0.0f;
@@ -1394,6 +1572,7 @@ struct LegacySimulation
         moraleSpawnMultiplier = 1.0f;
         spawnSlowMultiplier = 1.0f;
         spawnSlowTimer = 0.0f;
+        commanderFireballCooldown = 0.0f;
         rallyState = false;
         stance = defaultStance;
         formation = Formation::Swarm;
@@ -1410,6 +1589,78 @@ struct LegacySimulation
         spawnerIdle = true;
         rebuildGates();
         initializeMissionState();
+
+        // Minimal named allies (no respawn)
+        const float tileSize = mapDefs.tile_size > 0 ? static_cast<float>(mapDefs.tile_size) : 32.0f;
+        spawnNamedUnit("Milly", UnitJob::Archer, commander.pos + Vec2{tileSize * 2.0f, -tileSize * 0.5f});
+        spawnNamedUnit("Mary", UnitJob::Shield, commander.pos + Vec2{tileSize * 2.2f, tileSize * 0.5f});
+        spawnNamedUnit("Coco", UnitJob::Warrior, commander.pos + Vec2{tileSize * 2.4f, 0.0f});
+
+        // 初期敵配置: 各敵拠点にスライム/ゴブリンを5体ずつ
+        for (const StageEnemyBaseState &base : stage.enemyBases)
+        {
+            const Vec2 pos = base.pos;
+            for (int i = 0; i < 5; ++i)
+            {
+                spawnOneEnemy(pos, EnemyArchetype::Slime);
+                spawnOneEnemy(pos, EnemyArchetype::Goblin);
+            }
+        }
+    }
+
+    bool castFireBall(float rangePx, float damage)
+    {
+        if (!commander.alive || rangePx <= 0.0f || damage <= 0.0f)
+        {
+            return false;
+        }
+        if (commanderFireballCooldown > 0.0f)
+        {
+            return false;
+        }
+        const float mpCost = 1.0f;
+        if (commander.mp < mpCost)
+        {
+            return false;
+        }
+        const float rangeSq = rangePx * rangePx;
+        EnemyUnit *best = nullptr;
+        float bestDist = rangeSq;
+        for (EnemyUnit &enemy : enemies)
+        {
+            if (enemy.hp <= 0.0f)
+            {
+                continue;
+            }
+            const float distSq = lengthSq(enemy.pos - commander.pos);
+            if (distSq <= bestDist)
+            {
+                bestDist = distSq;
+                best = &enemy;
+            }
+        }
+        if (!best)
+        {
+            return false;
+        }
+        Vec2 dir = best->pos - commander.pos;
+        const float lenSq = lengthSq(dir);
+        if (lenSq <= 0.0001f)
+        {
+            return false;
+        }
+        dir = dir / std::sqrt(lenSq);
+        const float speed = 160.0f;
+        Projectile p;
+        p.pos = commander.pos;
+        p.vel = dir * speed;
+        p.radius = 5.0f;
+        p.damage = damage;
+        p.life = rangePx / speed;
+        projectiles.push_back(p);
+        commander.mp = std::max(0.0f, commander.mp - mpCost);
+        commanderFireballCooldown = 0.0f;
+        return true;
     }
 
     float clampOverkillRatio(float overkill, float maxHp) const
@@ -1439,6 +1690,10 @@ struct LegacySimulation
 
     void enqueueYunaRespawn(float overkillRatio)
     {
+        if (!yunaRespawnsEnabled)
+        {
+            return;
+        }
         PendingRespawn pending;
         pending.timer = computeChibiRespawnTime(overkillRatio);
         pending.job = chooseSpawnJob();
@@ -1492,6 +1747,9 @@ struct LegacySimulation
             {
                 commander.alive = true;
                 commander.hp = commanderStats.hp;
+                commander.mpMax = std::max(commanderStats.mp, 0.0f);
+                commander.mp = commander.mpMax;
+                commanderFireballCooldown = 0.0f;
                 commander.pos = yunaSpawnPos;
                 commanderInvulnTimer = config.commander_respawn.invuln;
                 setChibiForcePanic(false);
@@ -1582,6 +1840,19 @@ struct LegacySimulation
         else
         {
             state.currentBehavior = def->behavior;
+        }
+        // どの性格でも、ごく低確率で「うろうろ」「てきからにげる」を割り当てる
+        {
+            std::uniform_real_distribution<float> tinyRoll(0.0f, 1.0f);
+            const float roll = tinyRoll(rng);
+            if (roll < 0.005f)
+            {
+                state.currentBehavior = TemperamentBehavior::Wander;
+            }
+            else if (roll < 0.010f)
+            {
+                state.currentBehavior = TemperamentBehavior::FleeNearest;
+            }
         }
         state.lastBehavior = state.currentBehavior;
         state.wanderDirection = randomUnitVector();
@@ -1925,6 +2196,51 @@ struct LegacySimulation
                 std::max(yunas.back().temperament.panicTimer, panicMinimumDurationFor(yunas.back()));
         }
         recordSpawnTelemetry(job, origin);
+    }
+
+    void spawnNamedUnit(const std::string &displayName, UnitJob job, const Vec2 &worldPos)
+    {
+        spawnYunaUnit(job, SpawnOrigin::Reinforcement);
+        if (yunas.empty())
+        {
+            return;
+        }
+        Unit &unit = yunas.back();
+        unit.pos = worldPos;
+        unit.respawnAllowed = false;
+        unit.name = displayName;
+        unit.isNamed = true;
+        unit.namedSkillCooldown = 0.0f;
+        unit.maxHp = commanderStats.hp;
+        unit.hp = unit.maxHp;
+        unit.radius = std::max(unit.radius, commanderStats.radius * 0.6f); // 少し大きめに
+        unit.temperament = TemperamentState{};
+        unit.braveryAxis = 0;
+        unit.wisdomAxis = 0;
+        unit.forcePanic = false;
+        unit.temperament.baseRole = ChibiAction::FollowCommander;
+        unit.temperament.microAction = ChibiAction::FollowCommander;
+        unit.temperament.roleAssigned = true;
+        // レベル補正（上限なし）
+        int level = 1;
+        if (auto it = namedLevels.find(displayName); it != namedLevels.end())
+        {
+            level = std::max(it->second, 1);
+        }
+        const float delta = static_cast<float>(std::max(level - 1, 0));
+        const AllyLevelingParams params = kCommanderLevelingParams;
+        unit.maxHp = commanderStats.hp + params.hpPerLevel * delta;
+        unit.hp = unit.maxHp;
+    }
+
+    int namedLevel(const std::string &name) const
+    {
+        auto it = namedLevels.find(name);
+        if (it != namedLevels.end())
+        {
+            return std::max(it->second, 1);
+        }
+        return 1;
     }
 
     GateRuntime *findGate(const std::string &id)
@@ -2608,6 +2924,8 @@ struct LegacySimulation
         updateWalls(dt);
         updateMission(dt);
         regenAllyBases(dt);
+        updateProjectiles(dt);
+        updateCommanderResources(dt);
 
         if (frameCapturePending > 0)
         {
@@ -2635,6 +2953,11 @@ struct LegacySimulation
         EnemyUnit enemy;
         enemy.pos = gatePos;
         enemy.pos.y += gateJitter(rng);
+        {
+            // 進路を少しだけずらして行列のピッタリ重なりを防ぐ
+            std::uniform_real_distribution<float> lane(-12.0f, 12.0f);
+            enemy.laneOffset = {lane(rng), lane(rng)};
+        }
         enemy.type = type;
         enemy.attackRangePx = 0.0f;
         if (type == EnemyArchetype::Wallbreaker)
@@ -2658,6 +2981,8 @@ struct LegacySimulation
             enemy.dpsWall = slimeStats.dps;
             enemy.noOverlap = missionConfig.boss.noOverlap;
             enemy.attackRangePx = enemy.radius;
+            enemy.breathCooldown = 10.0f;
+            enemy.breathTimer = 1.5f; // 少し間を置いてから初回ブレス
         }
         else if (type == EnemyArchetype::Golem)
         {
@@ -2705,6 +3030,23 @@ struct LegacySimulation
         if (!spawnEnabled)
         {
             return;
+        }
+        // すべての味方拠点が破壊されたら湧きを止める
+        if (stage.enabled)
+        {
+            bool allyBaseAlive = false;
+            for (const StageAllyBaseState &base : stage.allyBases)
+            {
+                if (!base.destroyed)
+                {
+                    allyBaseAlive = true;
+                    break;
+                }
+            }
+            if (!allyBaseAlive)
+            {
+                return;
+            }
         }
         const float rateMultiplier = std::max(spawnRateMultiplier, 0.1f);
         const float slowMultiplier = std::max(std::max(spawnSlowMultiplier, moraleSpawnMultiplier), 0.1f);

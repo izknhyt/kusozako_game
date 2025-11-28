@@ -763,6 +763,8 @@ std::optional<EntityCatalog> parseEntityCatalog(ParseContext &ctx, const std::st
     catalog.commander.speed_u_s = json::getNumber(*commander, "speed_u_s", catalog.commander.speed_u_s);
     catalog.commander.hp = json::getNumber(*commander, "hp", catalog.commander.hp);
     catalog.commander.dps = json::getNumber(*commander, "dps", catalog.commander.dps);
+    catalog.commander.mp = json::getNumber(*commander, "mp", catalog.commander.mp);
+    catalog.commander.mpRegen = json::getNumber(*commander, "mp_regen", catalog.commander.mpRegen);
     catalog.commander.spritePrefix = json::getString(*commander, "sprite_prefix", catalog.commander.spritePrefix);
 
     catalog.yuna.radius = json::getNumber(*yuna, "r_px", catalog.yuna.radius);
@@ -1298,6 +1300,10 @@ std::optional<ChibiAiParams> parseChibiAiParams(ParseContext &ctx, const std::st
         params.orderPenalty = json::getNumber(*order, "penalty", params.orderPenalty);
     }
     params.followerBonus = json::getNumber(root, "follower_bonus", params.followerBonus);
+    params.aggressiveCohesionMultiplier =
+        json::getNumber(root, "aggressive_cohesion_multiplier", params.aggressiveCohesionMultiplier);
+    params.followCohesionMultiplier =
+        json::getNumber(root, "follow_cohesion_multiplier", params.followCohesionMultiplier);
     if (const json::JsonValue *actions = json::getObjectField(root, "actions"))
     {
         if (actions->type == json::JsonValue::Type::Object)
@@ -2394,6 +2400,28 @@ InputBindings parseInputBindings(const json::JsonValue &root, std::vector<AppCon
         }
     }
     bindings.restart = json::getString(root, "Restart", bindings.restart);
+    bindings.guard = json::getString(root, "Guard", bindings.guard);
+    bindings.fireBall = json::getString(root, "FireBall", bindings.fireBall);
+    if (const json::JsonValue *attack = json::getObjectField(root, "Attack"))
+    {
+        bindings.attack.clear();
+        if (attack->type == json::JsonValue::Type::String)
+        {
+            bindings.attack.push_back(attack->string);
+        }
+        else if (attack->type == json::JsonValue::Type::Array)
+        {
+            for (const auto &entry : attack->array)
+            {
+                if (entry.type == json::JsonValue::Type::String)
+                {
+                    bindings.attack.push_back(entry.string);
+                }
+            }
+        }
+    }
+    bindings.targetCancel = json::getString(root, "TargetCancel", bindings.targetCancel);
+    bindings.targetFocus = json::getString(root, "TargetFocus", bindings.targetFocus);
     bindings.toggleDebugHud = json::getString(root, "ToggleDebugHud", bindings.toggleDebugHud);
     bindings.toggleDebugOverlay = json::getString(root, "ToggleDebugOverlay", bindings.toggleDebugOverlay);
     bindings.reloadConfig = json::getString(root, "ReloadConfig", bindings.reloadConfig);
@@ -2478,6 +2506,8 @@ InputBindings parseInputBindings(const json::JsonValue &root, std::vector<AppCon
     validateKey(bindings.reloadConfig, "ReloadConfig");
     validateKey(bindings.dumpSpawnHistory, "DumpSpawnHistory");
     validateKey(bindings.toggleSpeed, "ToggleGameSpeed");
+    validateKey(bindings.guard, "Guard");
+    validateKey(bindings.fireBall, "FireBall");
 
     return bindings;
 }

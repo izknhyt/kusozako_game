@@ -5,7 +5,7 @@
       "id": "mana_gain_up_s",
       "label": "Mana Gain +5%",
       "type": "percent",
-      "max_level": 10,
+      "max_level": 0,
       "base_cost": 25,
       "per_level_cost": 17,
       "delta": 0.05
@@ -14,7 +14,7 @@
       "id": "mana_cap_up_s",
       "label": "Mana Cap +50",
       "type": "cap",
-      "max_level": 8,
+      "max_level": 0,
       "base_cost": 25,
       "per_level_cost": 17,
       "delta": 50
@@ -23,7 +23,7 @@
       "id": "good_title_rate",
       "label": "Good Title Chance +2%",
       "type": "percent",
-      "max_level": 10,
+      "max_level": 0,
       "base_cost": 20,
       "per_level_cost": 14,
       "delta": 0.02

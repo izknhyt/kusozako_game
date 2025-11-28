@@ -242,6 +242,8 @@ struct CommanderStats
     float speed_u_s = 1.6f;
     float hp = 60.0f;
     float dps = 15.0f;
+    float mp = 30.0f;
+    float mpRegen = 0.25f;
     std::string spritePrefix;
 };
 
@@ -554,6 +556,10 @@ struct ChibiAiParams
     float orderDefendBonus = 0.6f;
     float orderPenalty = 0.2f;
     float followerBonus = 0.8f;
+    // Multiplier for cohesion/separation when unit is on aggressive roles (AssaultEnemy/AssaultBase)
+    float aggressiveCohesionMultiplier = 0.0f;
+    // Multiplier for cohesion/separation while following commander/base (jitter抑制用)
+    float followCohesionMultiplier = 0.0f;
     std::unordered_map<std::string, ChibiAiActionConfig> actions;
 };
 
@@ -706,6 +712,11 @@ struct InputBindings
     std::unordered_map<std::string, std::string> cameraMove;
     std::vector<std::string> summonMode{"1", "2", "3", "4"};
     std::string restart;
+    std::string guard;
+    std::string fireBall;
+    std::vector<std::string> attack{"MouseLeft", "J"};
+    std::string targetCancel{"MouseRight"};
+    std::string targetFocus{"T"};
     std::vector<std::string> commanderMoveUp{"W", "Up"};
     std::vector<std::string> commanderMoveDown{"S", "Down"};
     std::vector<std::string> commanderMoveLeft{"A", "Left"};
@@ -722,7 +733,7 @@ struct InputBindings
     std::string toggleSpeed{"F8"};
     std::string formationPrevious{"Z"};
     std::string formationNext{"X"};
-    std::string skillActivate{"MouseRight"};
+    std::string skillActivate{"F"};
     int bufferFrames = 4;
     float bufferExpiryMs = 80.0f;
 };

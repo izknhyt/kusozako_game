@@ -72,7 +72,10 @@ void RenderingPrepSystem::update(float, SystemContext &context)
     queue.allies.reserve(allyCount + commanderCount);
     queue.moraleIcons.reserve(allyCount + commanderCount);
     queue.enemies.reserve(enemyCount);
-    queue.walls.reserve(sim.walls.size());
+        queue.projectiles.reserve(sim.projectiles.size());
+        queue.walls.reserve(sim.walls.size());
+        queue.effects.reserve(sim.effects.size());
+    queue.effects.reserve(sim.effects.size());
 
     if (sim.commander.alive)
     {
@@ -179,6 +182,8 @@ void RenderingPrepSystem::update(float, SystemContext &context)
         allySprite.action = yuna.temperament.microAction;
         allySprite.facingX = yuna.facingX;
         allySprite.moving = lengthSq(yuna.lastVelocity) > 0.001f;
+        allySprite.named = !yuna.name.empty();
+        allySprite.name = yuna.name;
         queue.allies.push_back(allySprite);
 
         LegacySimulation::RenderQueue::MoraleIcon icon;
@@ -188,6 +193,24 @@ void RenderingPrepSystem::update(float, SystemContext &context)
         icon.commander = false;
         icon.unitIndex = i;
         queue.moraleIcons.push_back(icon);
+    }
+
+    // Ephemeral effects
+    for (const auto &fx : sim.effects)
+    {
+        LegacySimulation::RenderQueue::EffectSprite sprite;
+        sprite.position = fx.pos;
+        sprite.radius = fx.radius;
+        sprite.r = static_cast<std::uint8_t>(std::clamp(fx.r, 0.0f, 255.0f));
+        sprite.g = static_cast<std::uint8_t>(std::clamp(fx.g, 0.0f, 255.0f));
+        sprite.b = static_cast<std::uint8_t>(std::clamp(fx.b, 0.0f, 255.0f));
+        sprite.a = static_cast<std::uint8_t>(std::clamp(fx.a, 0.0f, 255.0f));
+        sprite.cone = fx.cone;
+        sprite.dir = fx.dir;
+        sprite.length = fx.length;
+        sprite.nearWidth = fx.nearWidth;
+        sprite.farWidth = fx.farWidth;
+        queue.effects.push_back(sprite);
     }
 
     std::sort(queue.allies.begin(), queue.allies.end(), [](const auto &lhs, const auto &rhs) {
@@ -231,6 +254,15 @@ void RenderingPrepSystem::update(float, SystemContext &context)
         sprite.position = wall.pos;
         sprite.radius = wall.radius;
         queue.walls.push_back(sprite);
+    }
+
+    queue.projectiles.clear();
+    for (const LegacySimulation::Projectile &proj : sim.projectiles)
+    {
+        LegacySimulation::RenderQueue::Projectile sprite;
+        sprite.position = proj.pos;
+        sprite.radius = proj.radius;
+        queue.projectiles.push_back(sprite);
     }
 
     queue.alignment = {};

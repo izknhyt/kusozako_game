@@ -23,18 +23,6 @@ namespace
 constexpr float kMoraleIgnoreDecisionInterval = 0.6f;
 constexpr std::size_t kChibiActionCount = static_cast<std::size_t>(ChibiAction::Wander) + 1;
 
-const ChibiAiActionConfig &actionConfig(const LegacySimulation &sim, ChibiAction action)
-{
-    static ChibiAiActionConfig fallback;
-    const char *key = chibiActionKey(action);
-    const auto it = sim.chibiAiParams.actions.find(key);
-    if (it != sim.chibiAiParams.actions.end())
-    {
-        return it->second;
-    }
-    return fallback;
-}
-
 EnemyUnit *nearestEnemy(const Vec2 &pos, const std::vector<EnemyUnit> &enemies)
 {
     EnemyUnit *best = nullptr;
@@ -84,30 +72,6 @@ std::optional<Vec2> nearestEnemyBase(const LegacySimulation &sim, const Vec2 &po
         for (const Vec2 &target : raidTargets)
         {
             consider(target);
-        }
-    }
-    return result;
-}
-
-std::optional<Vec2> nearestAllyBase(const LegacySimulation &sim, const Vec2 &pos)
-{
-    if (!sim.stage.enabled)
-    {
-        return std::nullopt;
-    }
-    float bestDist = std::numeric_limits<float>::max();
-    std::optional<Vec2> result;
-    for (const StageAllyBaseState &base : sim.stage.allyBases)
-    {
-        if (base.destroyed)
-        {
-            continue;
-        }
-        const float dist = lengthSq(base.pos - pos);
-        if (dist < bestDist)
-        {
-            bestDist = dist;
-            result = base.pos;
         }
     }
     return result;
@@ -208,24 +172,6 @@ Vec2 computeBoidAdjustment(const Unit &self,
         adjustment += dir * separationStrength;
     }
     return adjustment;
-}
-
-float applyScoreModifiers(const LegacySimulation &sim,
-                          const TemperamentState &state,
-                          ChibiAction action,
-                          float baseScore)
-{
-    const float hysteresisBonus = sim.chibiAiParams.hysteresisMultiplier;
-    if (state.microAction == action && state.microActionStickyTimer > 0.0f)
-    {
-        return baseScore * hysteresisBonus;
-    }
-    if (state.previousMicroAction == action && state.previousMicroActionTimer > 0.0f)
-    {
-        const float carry = 1.0f + (hysteresisBonus - 1.0f) * 0.5f;
-        return baseScore * carry;
-    }
-    return baseScore;
 }
 
 std::size_t actionIndex(ChibiAction action)
@@ -349,6 +295,14 @@ void BehaviorSystem::update(float dt, SystemContext &context)
     auto &yunas = context.yunaUnits;
     auto &enemies = context.enemyUnits;
 
+    // Decay short-lived visual effects
+    auto &effects = sim.effects;
+    effects.erase(std::remove_if(effects.begin(), effects.end(), [&](LegacySimulation::Effect &fx) {
+                      fx.ttl -= dt;
+                      return fx.ttl <= 0.0f;
+                  }),
+                  effects.end());
+
     sim.decayDynamicHazards(dt);
 
     const float decisionInterval = std::max(sim.chibiAiParams.tickSeconds, 0.1f);
@@ -359,9 +313,10 @@ void BehaviorSystem::update(float dt, SystemContext &context)
     }
     m_tokkouWarningTimer = std::max(0.0f, m_tokkouWarningTimer - dt);
 
-    const float yunaSpeedPx = sim.yunaStats.speed_u_s * sim.config.pixels_per_unit;
+    const float commanderSpeedPx = sim.commanderStats.speed_u_s * sim.config.pixels_per_unit;
 
     Unit *detectionUnit = nullptr;
+    bool forceUnlimitedEnemySearch = false;
     const float baseDetectionRadius = std::max(sim.config.morale.detectionRadius, 0.0f);
 
     auto nearestEnemyLimited = [&](const Vec2 &pos) -> EnemyUnit * {
@@ -369,7 +324,7 @@ void BehaviorSystem::update(float dt, SystemContext &context)
         float bestDist = std::numeric_limits<float>::max();
         float limitSq = -1.0f;
         bool applyLimit = false;
-        if (detectionUnit && baseDetectionRadius > 0.0f)
+        if (!forceUnlimitedEnemySearch && detectionUnit && baseDetectionRadius > 0.0f)
         {
             const float mul = std::max(0.0f, detectionUnit->moraleDetectionRadiusMultiplier);
             if (mul > 0.0f)
@@ -430,6 +385,17 @@ void BehaviorSystem::update(float dt, SystemContext &context)
     kaitenUnitIds.reserve(allyCount);
     runUnitIds.reserve(allyCount);
     panicRecords.reserve(allyCount);
+    const EnemyUnit *focusTargetEnemy = nullptr;
+    Vec2 focusTargetPos{0.0f, 0.0f};
+    if (commander.focusTargetIndex >= 0 && commander.focusTargetIndex < static_cast<int>(enemies.size()))
+    {
+        const EnemyUnit &candidate = enemies[commander.focusTargetIndex];
+        if (candidate.hp > 0.0f)
+        {
+            focusTargetEnemy = &candidate;
+            focusTargetPos = candidate.pos;
+        }
+    }
     const ChibiTokkouConfig &tokkouCfg = sim.chibiPersonalityConfig.tokkou;
     const ChibiClingConfig &clingCfg = sim.chibiPersonalityConfig.cling;
     const ChibiRunAroundConfig &runCfg = sim.chibiPersonalityConfig.runAround;
@@ -630,22 +596,36 @@ void BehaviorSystem::update(float dt, SystemContext &context)
         Unit &yuna = yunas[i];
         yuna.desiredVelocity = {0.0f, 0.0f};
         yuna.hasDesiredVelocity = false;
-        const float unitSpeed = yunaSpeedPx * std::max(0.01f, yuna.moraleSpeedMultiplier);
+        const AllyLevelingParams levelParams = kCommanderLevelingParams;
+        const int namedLevel = yuna.isNamed ? sim.namedLevel(yuna.name) : 1;
+        const float levelDelta = static_cast<float>(std::max(namedLevel - 1, 0));
+        const float namedSpeedMul = yuna.isNamed ? (1.0f + levelParams.speedPerLevel * levelDelta) : 1.0f;
+        const float yunaSpeedPx = sim.yunaStats.speed_u_s * sim.config.pixels_per_unit * namedSpeedMul;
+        // Named units are tuned to match the commander’s movement speed
+        const float baseSpeed = yuna.isNamed ? commanderSpeedPx : yunaSpeedPx;
+        const float unitSpeed = baseSpeed * std::max(0.01f, yuna.moraleSpeedMultiplier);
         const bool immobilized =
             yuna.job.endlag > 0.0f || yuna.job.warrior.stumbleTimer > 0.0f || yuna.job.archer.holdTimer > 0.0f;
         float jobSpeedMultiplier = 1.0f;
-        if (yuna.job.shield.selfSlowTimer > 0.0f)
+        if (!yuna.isNamed && yuna.job.shield.selfSlowTimer > 0.0f)
         {
             jobSpeedMultiplier *= std::clamp(sim.config.shieldJob.selfSlowMultiplier, 0.0f, 1.0f);
         }
+        const bool aggressiveRoleBase = yuna.temperament.baseRole == ChibiAction::AssaultEnemy ||
+                                        yuna.temperament.baseRole == ChibiAction::AssaultBase;
         const float retreatSpeedMultiplier = yuna.moraleRetreatActive
                                                  ? std::max(yuna.moraleRetreatSpeedMultiplier, 0.0f)
                                                  : 1.0f;
         float effectiveSpeed = immobilized ? 0.0f : unitSpeed * jobSpeedMultiplier * retreatSpeedMultiplier;
         detectionUnit = &yuna;
-
+        forceUnlimitedEnemySearch = aggressiveRoleBase;
         TemperamentState &temperamentState = yuna.temperament;
-        if (temperamentState.panicTimer > 0.0f)
+        if (!yuna.name.empty())
+        {
+            temperamentState.panicTimer = 0.0f;
+            yuna.forcePanic = false;
+        }
+        else if (temperamentState.panicTimer > 0.0f)
         {
             temperamentState.panicTimer = std::max(0.0f, temperamentState.panicTimer - dt);
         }
@@ -678,6 +658,7 @@ void BehaviorSystem::update(float dt, SystemContext &context)
         const bool needsBaseRecovery = hpRetreatActive;
         const float shelterGap = needsBaseRecovery ? std::max(0.0f, recoverTarget - hpRatio) : 0.0f;
         const float shelterUrgency = needsBaseRecovery ? std::clamp(shelterGap * 3.0f, 0.0f, 2.5f) : 0.0f;
+        (void)shelterUrgency;
 
         if (yuna.forcePanic)
         {
@@ -978,12 +959,22 @@ void BehaviorSystem::update(float dt, SystemContext &context)
             axisLerp(sim.chibiAiParams.separationStrengthLow, sim.chibiAiParams.separationStrengthHigh, wisdomNorm);
         Vec2 boidAdjustment =
             computeBoidAdjustment(yuna, yunas, cohesionStrength, separationStrength, sim.chibiAiParams);
+        if (aggressiveRoleBase)
+        {
+            boidAdjustment = boidAdjustment * sim.chibiAiParams.aggressiveCohesionMultiplier;
+        }
+        const bool followBehaviorBase = temperamentState.baseRole == ChibiAction::FollowCommander ||
+                                        temperamentState.baseRole == ChibiAction::DefendBase;
+        if (followBehaviorBase)
+        {
+            boidAdjustment = boidAdjustment * sim.chibiAiParams.followCohesionMultiplier;
+        }
         const float aoeMultiplier =
             axisLerp(sim.chibiAiParams.aoeAvoidMultiplierLow, sim.chibiAiParams.aoeAvoidMultiplierHigh, wisdomNorm);
         Vec2 aoeAdjustment = computeAoeAvoidance(yuna.pos, hazards, sim.chibiAiParams, aoeMultiplier);
         const bool stanceFollower = yuna.followByStance;
         const bool skillFollower = yuna.followBySkill;
-        const bool formationFollower = stanceFollower || skillFollower;
+        bool formationFollower = stanceFollower || skillFollower;
         const bool retreatActive = yuna.moraleRetreatActive;
 
         const float effectiveIgnoreChance =
@@ -1011,212 +1002,32 @@ void BehaviorSystem::update(float dt, SystemContext &context)
         const float braveryFactor = std::clamp(static_cast<float>(yuna.braveryAxis) / 2.0f, -1.0f, 1.0f);
         const float wisdomFactor = std::clamp(static_cast<float>(yuna.wisdomAxis) / 2.0f, -1.0f, 1.0f);
 
-        auto evalActionScore = [&](ChibiAction action, float distance) -> float {
-            const ChibiAiActionConfig &config = actionConfig(sim, action);
-            float score = config.baseScore;
-            const bool bypassRange = action == ChibiAction::AssaultEnemy || action == ChibiAction::AssaultBase;
-            const bool distanceValid = distance >= 0.0f && distance < std::numeric_limits<float>::infinity();
-            if (bypassRange)
-            {
-                score += config.bonusScore;
-            }
-            else if (config.rangePixels > 0.0f && distanceValid)
-            {
-                if (config.preferFarRange)
-                {
-                    if (distance >= config.rangePixels)
-                    {
-                        const float distFactor = std::clamp(distance / config.rangePixels, 1.0f, 2.0f);
-                        score += config.bonusScore * distFactor;
-                    }
-                    else
-                    {
-                        score -= config.bonusScore * 0.5f;
-                    }
-                }
-                else
-                {
-                    if (distance <= config.rangePixels)
-                    {
-                        score += config.bonusScore;
-                    }
-                    else
-                    {
-                        score -= config.bonusScore * 0.2f;
-                    }
-                }
-            }
-            else if (config.rangePixels <= 0.0f)
-            {
-                score += config.bonusScore;
-            }
-            score += config.braveryWeight * braveryFactor;
-            score += config.wisdomWeight * wisdomFactor;
-            if (formationFollower && action == ChibiAction::FollowCommander)
-            {
-                const float followerScale = axisLerp(0.35f, 1.0f, wisdomNorm);
-                float distanceScale = 1.0f;
-                if (config.rangePixels > 0.0f && distanceValid)
-                {
-                    distanceScale = config.preferFarRange ? std::clamp(distance / config.rangePixels, 0.25f, 2.0f)
-                                                          : std::clamp(1.0f - (distance / config.rangePixels), 0.2f, 1.5f);
-                }
-                score += sim.chibiAiParams.followerBonus * followerScale * distanceScale;
-            }
-            else if (!formationFollower && action == ChibiAction::FollowCommander)
-            {
-                score -= sim.chibiAiParams.followerBonus * 0.25f;
-            }
-            if (!yuna.moraleIgnoringOrders && context.orderActive)
-            {
-                bool matchesOrder = false;
-                bool relevant = false;
-                switch (sim.stance)
-                {
-                case ArmyStance::RushNearest:
-                    if (action == ChibiAction::AssaultEnemy)
-                    {
-                        score += sim.chibiAiParams.orderRushBonus;
-                        matchesOrder = true;
-                    }
-                    relevant = true;
-                    break;
-                case ArmyStance::PushForward:
-                    if (action == ChibiAction::AssaultBase)
-                    {
-                        score += sim.chibiAiParams.orderPushBonus;
-                        matchesOrder = true;
-                    }
-                    relevant = true;
-                    break;
-                case ArmyStance::FollowLeader:
-                    if (action == ChibiAction::FollowCommander)
-                    {
-                        score += sim.chibiAiParams.orderFollowBonus;
-                        matchesOrder = true;
-                    }
-                    relevant = true;
-                    break;
-                case ArmyStance::DefendBase:
-                    if (action == ChibiAction::DefendBase)
-                    {
-                        score += sim.chibiAiParams.orderDefendBonus;
-                        matchesOrder = true;
-                    }
-                    relevant = true;
-                    break;
-                }
-                if (relevant && !matchesOrder)
-                {
-                    score -= sim.chibiAiParams.orderPenalty;
-                }
-            }
-            if (needsBaseRecovery)
-            {
-                if (action == ChibiAction::DefendBase)
-                {
-                    score += config.bonusScore * (1.0f + shelterUrgency * 1.5f);
-                }
-                else if (action == ChibiAction::AssaultEnemy || action == ChibiAction::AssaultBase)
-                {
-                    score -= config.bonusScore * (0.5f + shelterUrgency);
-                }
-            }
-            if (action == ChibiAction::Flee && commanderAlive && !isCoward)
-            {
-                const float penalty = 1.0f + shelterUrgency;
-                score -= (config.baseScore + config.bonusScore) * (1.0f + penalty);
-            }
-            score = applyScoreModifiers(sim, temperamentState, action, score);
-            return score;
-        };
-
-        auto pickAction = [&](const Vec2 &pos) -> ChibiAction {
-            EnemyUnit *enemy = nearestEnemy(pos, enemies);
-            const EnemyUnit *limitedEnemy = nearestEnemyLimited(pos);
-            const std::optional<Vec2> enemyBase = nearestEnemyBase(sim, pos);
-            const std::optional<Vec2> allyBase = nearestAllyBase(sim, pos);
-            const Unit *ally = nearestAlly(yunas, i);
-
-            ChibiAction bestAction = temperamentState.microAction;
-            float bestScore = -std::numeric_limits<float>::max();
-
-            auto consider = [&](ChibiAction action, const Vec2 &velocityDir, float distance) {
-                (void)velocityDir;
-                float score = evalActionScore(action, distance);
-                if (score > bestScore)
-                {
-                    bestScore = score;
-                    bestAction = action;
-                }
-            };
-
-            if (enemy)
-            {
-                const float dist = length(enemy->pos - pos);
-                consider(ChibiAction::AssaultEnemy, normalizedDirection(pos, enemy->pos), dist);
-            }
-            else
-            {
-                consider(ChibiAction::AssaultEnemy, {0.0f, 0.0f}, -1.0f);
-            }
-
-            if (enemyBase)
-            {
-                const float dist = length(*enemyBase - pos);
-                consider(ChibiAction::AssaultBase, normalizedDirection(pos, *enemyBase), dist);
-            }
-            else if (!raidTargets.empty())
-            {
-                Vec2 target = raidTargets.front();
-                const float dist = length(target - pos);
-                consider(ChibiAction::AssaultBase, normalizedDirection(pos, target), dist);
-            }
-
-            if (limitedEnemy)
-            {
-                const float dist = length(limitedEnemy->pos - pos);
-                consider(ChibiAction::Flee, normalizedDirection(pos, pos - (limitedEnemy->pos - pos)), dist);
-            }
-            else
-            {
-                consider(ChibiAction::Flee, normalizedDirection(pos, sim.basePos - pos), -1.0f);
-            }
-
-            if (commander.alive)
-            {
-                const float dist = length(commander.pos - pos);
-                consider(ChibiAction::FollowCommander, normalizedDirection(pos, commander.pos), dist);
-            }
-            else
-            {
-                consider(ChibiAction::FollowCommander, normalizedDirection(pos, sim.basePos), -1.0f);
-            }
-
-            if (ally)
-            {
-                const float dist = length(ally->pos - pos);
-                consider(ChibiAction::FollowAlly, normalizedDirection(pos, ally->pos), dist);
-            }
-
-            if (allyBase)
-            {
-                const float dist = length(*allyBase - pos);
-                consider(ChibiAction::DefendBase, normalizedDirection(pos, *allyBase), dist);
-            }
-            else
-            {
-                consider(ChibiAction::DefendBase, normalizedDirection(pos, sim.basePos), -1.0f);
-            }
-
-            consider(ChibiAction::Wander, normalize(temperamentState.wanderDirection), -1.0f);
-
-            return bestAction;
-        };
+        (void)braveryFactor;
+        (void)wisdomFactor;
 
         if (!temperamentState.roleAssigned)
         {
-            const ChibiAction nextAction = pickAction(yuna.pos);
+            auto mapBehaviorToAction = [](TemperamentBehavior behavior) -> ChibiAction {
+                switch (behavior)
+                {
+                case TemperamentBehavior::ChargeNearest: return ChibiAction::AssaultEnemy;
+                case TemperamentBehavior::RaidGate: return ChibiAction::AssaultBase;
+                case TemperamentBehavior::GuardBase: return ChibiAction::DefendBase;
+                case TemperamentBehavior::Homebound: return ChibiAction::DefendBase;
+                case TemperamentBehavior::FollowYuna: return ChibiAction::FollowCommander;
+                case TemperamentBehavior::FleeNearest: return ChibiAction::Flee;
+                case TemperamentBehavior::TargetTag: return ChibiAction::AssaultEnemy;
+                case TemperamentBehavior::Doze:
+                case TemperamentBehavior::Wander: return ChibiAction::AssaultEnemy;
+                case TemperamentBehavior::Mimic: return ChibiAction::AssaultEnemy;
+                default: return ChibiAction::AssaultEnemy;
+                }
+            };
+            ChibiAction nextAction = mapBehaviorToAction(temperamentState.currentBehavior);
+            if (temperamentState.currentBehavior == TemperamentBehavior::Mimic)
+            {
+                nextAction = mapBehaviorToAction(temperamentState.mimicBehavior);
+            }
             temperamentState.previousMicroAction = temperamentState.microAction;
             temperamentState.previousMicroActionTimer = sim.chibiAiParams.hysteresisDuration;
             temperamentState.microAction = nextAction;
@@ -1228,6 +1039,8 @@ void BehaviorSystem::update(float dt, SystemContext &context)
         temperamentState.microAction = temperamentState.baseRole;
 
         ChibiAction desiredAction = temperamentState.baseRole;
+        const bool aggressiveBehavior = temperamentState.baseRole == ChibiAction::AssaultEnemy ||
+                                        temperamentState.baseRole == ChibiAction::AssaultBase;
         if (panicForceFlee)
         {
             desiredAction = ChibiAction::Flee;
@@ -1235,6 +1048,167 @@ void BehaviorSystem::update(float dt, SystemContext &context)
         else if (panicShelter || needsBaseRecovery)
         {
             desiredAction = ChibiAction::DefendBase;
+        }
+        else if (aggressiveBehavior)
+        {
+            // 突撃/拠点攻撃ロールは途中でフォローに切り替えない
+            desiredAction = temperamentState.baseRole;
+        }
+        else if (!yuna.isNamed)
+        {
+            // 非ネームドは基本ロール固定（パニック/HP退避以外で変えない）
+            desiredAction = temperamentState.baseRole;
+        }
+        // 指定ターゲットがいる場合は非ネームドを突撃に振る
+        if (!yuna.isNamed && focusTargetEnemy)
+        {
+            desiredAction = ChibiAction::AssaultEnemy;
+        }
+        // Named units stay back: follow commander / base, avoid前線
+        if (yuna.isNamed)
+        {
+            const EnemyUnit *nearestNamedTarget = nearestEnemy(yuna.pos, enemies);
+            const float threatRadius = sim.config.pixels_per_unit * 6.0f; // 約96px
+            if (nearestNamedTarget &&
+                lengthSq(nearestNamedTarget->pos - yuna.pos) <= threatRadius * threatRadius)
+            {
+                desiredAction = ChibiAction::DefendBase;
+            }
+            else
+            {
+                desiredAction = ChibiAction::FollowCommander;
+            }
+            // Named skill発火（簡易）
+            if (yuna.namedSkillCooldown > 0.0f)
+            {
+                yuna.namedSkillCooldown = std::max(0.0f, yuna.namedSkillCooldown - dt);
+            }
+            if (yuna.namedSkillCooldown <= 0.0f)
+            {
+                if (yuna.name == "Milly")
+                {
+                    if (const EnemyUnit *target = nearestEnemy(yuna.pos, enemies))
+                    {
+                        const float range = sim.config.pixels_per_unit * 14.0f; // ~224px
+                        if (lengthSq(target->pos - yuna.pos) <= range * range &&
+                            sim.spawnProjectile(yuna.pos, target->pos, 6.0f, 180.0f, 5.0f))
+                        {
+                            // かすみ弾のエフェクト
+                            LegacySimulation::Effect fx;
+                            fx.pos = target->pos;
+                            fx.radius = 16.0f;
+                            fx.r = 255.0f;
+                            fx.g = 180.0f;
+                            fx.b = 255.0f;
+                            fx.a = 220.0f;
+                            fx.ttl = 0.4f;
+                            sim.effects.push_back(fx);
+                            sim.pushTelemetry("Milly arrow");
+                    yuna.namedSkillCooldown = 1.2f;
+                }
+            }
+        }
+
+        // Wanderは使わない方針: 何らかの理由でWanderになった場合も突撃へ上書き
+        if (desiredAction == ChibiAction::Wander)
+        {
+            desiredAction = ChibiAction::AssaultEnemy;
+        }
+                else if (yuna.name == "Mary")
+                {
+                    Unit *bestAlly = nullptr;
+                    float bestHpRatio = 1.1f;
+                    const float range = sim.config.pixels_per_unit * 10.0f; // 160px
+                    const float rangeSq = range * range;
+                    for (Unit &ally : yunas)
+                    {
+                        if (&ally == &yuna || ally.hp <= 0.0f || ally.maxHp <= 0.0f)
+                        {
+                            continue;
+                        }
+                        const float distSq = lengthSq(ally.pos - yuna.pos);
+                        const float ratio = ally.hp / ally.maxHp;
+                        if (distSq <= rangeSq && ratio < bestHpRatio)
+                        {
+                            bestHpRatio = ratio;
+                            bestAlly = &ally;
+                        }
+                    }
+                    CommanderUnit &commanderRef = context.commander;
+                    const float commanderRatio = commanderRef.hp / std::max(sim.commanderStats.hp, 0.0001f);
+                    if (commanderRef.alive && commanderRatio < bestHpRatio &&
+                        lengthSq(commanderRef.pos - yuna.pos) <= rangeSq)
+                    {
+                        bestHpRatio = commanderRatio;
+                        bestAlly = nullptr; // signal commander
+                    }
+                    if (bestHpRatio < 1.0f - 1e-3f)
+                    {
+                        const float heal = 10.0f;
+                        if (bestAlly)
+                        {
+                            bestAlly->hp = std::min(bestAlly->maxHp, bestAlly->hp + heal);
+                        }
+                        else
+                        {
+                            commanderRef.hp = std::min(sim.commanderStats.hp, commanderRef.hp + heal);
+                        }
+                        // ヒールエフェクト
+                        LegacySimulation::Effect fx;
+                        fx.pos = bestAlly ? bestAlly->pos : commanderRef.pos;
+                        fx.radius = 26.0f;
+                        fx.r = 110.0f;
+                        fx.g = 235.0f;
+                        fx.b = 180.0f;
+                        fx.a = 210.0f;
+                        fx.ttl = 0.6f;
+                        sim.effects.push_back(fx);
+                        sim.pushTelemetry("Mary heal");
+                        yuna.namedSkillCooldown = 1.5f;
+                    }
+                }
+                else if (yuna.name == "Coco")
+                {
+                    if (const EnemyUnit *target = nearestEnemy(yuna.pos, enemies))
+                    {
+                        const float range = sim.config.pixels_per_unit * 10.0f; // 160px
+                        if (lengthSq(target->pos - yuna.pos) <= range * range)
+                        {
+                            const float bombRadius = 60.0f;
+                            const float bombRadiusSq = bombRadius * bombRadius;
+                            for (EnemyUnit &enemy : enemies)
+                            {
+                                if (enemy.hp <= 0.0f)
+                                {
+                                    continue;
+                                }
+                                if (lengthSq(enemy.pos - target->pos) <= bombRadiusSq)
+                                {
+                                    enemy.hp -= 6.0f;
+                                    // ノックバックを少し与える
+                                    Vec2 away = normalizedDirection(target->pos, enemy.pos);
+                                    if (lengthSq(away) > 0.0f)
+                                    {
+                                        enemy.pos += away * 108.0f;
+                                    }
+                                }
+                            }
+                            // 爆風エフェクト
+                            LegacySimulation::Effect fx;
+                            fx.pos = target->pos;
+                            fx.radius = bombRadius + 10.0f;
+                            fx.r = 255.0f;
+                            fx.g = 140.0f;
+                            fx.b = 90.0f;
+                            fx.a = 200.0f;
+                            fx.ttl = 0.6f;
+                            sim.effects.push_back(fx);
+                            sim.pushTelemetry("Coco bomb");
+                            yuna.namedSkillCooldown = 4.0f;
+                        }
+                    }
+                }
+            }
         }
 
         auto makeVelocity = [&](const Vec2 &dir) -> Vec2 {
@@ -1448,9 +1422,17 @@ void BehaviorSystem::update(float dt, SystemContext &context)
             {
             case ChibiAction::AssaultEnemy:
             {
-                if (EnemyUnit *target = nearestEnemy(yuna.pos, enemies))
+                if (!yuna.isNamed && focusTargetEnemy)
+                {
+                    velocity = makeVelocity(normalizedDirection(yuna.pos, focusTargetPos));
+                }
+                else if (EnemyUnit *target = nearestEnemy(yuna.pos, enemies))
                 {
                     velocity = makeVelocity(normalizedDirection(yuna.pos, target->pos));
+                }
+                else if (auto base = nearestEnemyBase(sim, yuna.pos))
+                {
+                    velocity = makeVelocity(normalizedDirection(yuna.pos, *base));
                 }
                 break;
             }
@@ -1464,28 +1446,133 @@ void BehaviorSystem::update(float dt, SystemContext &context)
                 {
                     velocity = makeVelocity(normalizedDirection(yuna.pos, raidTargets.front()));
                 }
+                else if (EnemyUnit *target = nearestEnemy(yuna.pos, enemies))
+                {
+                    velocity = makeVelocity(normalizedDirection(yuna.pos, target->pos));
+                }
                 break;
             }
             case ChibiAction::Flee:
             {
-                if (EnemyUnit *target = nearestEnemyLimited(yuna.pos))
+                // 敵からひたすら離れる（拠点への逃げ込みはしない）
+                if (EnemyUnit *target = nearestEnemy(yuna.pos, enemies))
                 {
-                    velocity = makeVelocity(normalizedDirection(target->pos, yuna.pos));
+                    Vec2 away = normalizedDirection(target->pos, yuna.pos);
+                    // 拠点オーラ内なら拠点の反対側へ強めに押し出す
+                    if (auto info = nearestAllyBaseInfo(yuna.pos))
+                    {
+                        const float auraSq = info->second * info->second;
+                        if (lengthSq(yuna.pos - info->first) <= auraSq)
+                        {
+                            Vec2 baseAway = normalizedDirection(info->first, yuna.pos);
+                            away = normalize(away + baseAway * 0.9f);
+                        }
+                    }
+                    // 逃げ仲間との反発で団子を避ける
+                    Vec2 repel{0.0f, 0.0f};
+                    for (std::size_t j = 0; j < yunas.size(); ++j)
+                    {
+                        if (j == i)
+                        {
+                            continue;
+                        }
+                        const Unit &other = yunas[j];
+                        if (other.hp <= 0.0f || other.temperament.baseRole != ChibiAction::Flee)
+                        {
+                            continue;
+                        }
+                        const float distSq = lengthSq(other.pos - yuna.pos);
+                        const float repelRadius = 140.0f;
+                        if (distSq > 0.0001f && distSq <= repelRadius * repelRadius)
+                        {
+                            const float dist = std::sqrt(distSq);
+                            const float weight = std::clamp(1.0f - dist / repelRadius, 0.0f, 1.0f);
+                            repel += normalizedDirection(other.pos, yuna.pos) * weight;
+                        }
+                    }
+                    // 左右に大きく散らすオフセット
+                    const float angleDeg = (static_cast<int>(i % 2 == 0 ? 1 : -1)) * 45.0f;
+                    Vec2 jittered = rotateVec(away, angleDeg);
+                    Vec2 runDir = jittered + repel * 0.8f;
+                    if (lengthSq(runDir) <= 0.0001f)
+                    {
+                        runDir = jittered;
+                    }
+                    velocity = makeVelocity(normalize(runDir));
                 }
                 else
                 {
-                    velocity = makeVelocity(normalizedDirection(yuna.pos, sim.basePos));
+                    // 敵が見えないときはランダム徘徊方向で距離を稼ぐ
+                    velocity = makeVelocity(normalize(temperamentState.wanderDirection));
                 }
                 break;
             }
             case ChibiAction::FollowCommander:
             {
                 Vec2 target = commander.alive ? commander.pos : sim.basePos;
-                if (commander.alive && formationFollower)
+                if (commander.alive)
                 {
-                    target = commander.pos + yuna.formationOffset;
+                    if (yuna.isNamed)
+                    {
+                        // 後衛: 敵とコマンダーを挟んでコマンダー背後にポジション
+                        if (const EnemyUnit *threat = nearestEnemy(commander.pos, enemies))
+                        {
+                            Vec2 away = normalizedDirection(threat->pos, commander.pos);
+                            if (lengthSq(away) <= 0.0f)
+                            {
+                                away = {0.0f, -1.0f};
+                            }
+                            const float arcRadius = 100.0f;
+                            float angleDeg = 0.0f;
+                            if (yuna.name == "Milly") angleDeg = -20.0f;
+                            else if (yuna.name == "Mary") angleDeg = 0.0f;
+                            else if (yuna.name == "Coco") angleDeg = 20.0f;
+                            Vec2 offsetDir = rotateVec(away, angleDeg);
+                            target = commander.pos + offsetDir * arcRadius;
+                        }
+                    }
+                    if (formationFollower && !yuna.isNamed)
+                    {
+                        target = commander.pos + yuna.formationOffset;
+                    }
+                    if (!yuna.isNamed)
+                    {
+                        // Commander追従: 軌道をなぞるように後ろに付く / 待機時は近距離で待つ（ちび専用）
+                        const float moveLenSq = lengthSq(commander.lastVelocity);
+                        const float pixelsPerUnit =
+                            sim.config.pixels_per_unit > 0.0f ? sim.config.pixels_per_unit : 16.0f;
+                        const float trailDist = pixelsPerUnit * 3.2f;   // ~51px
+                        const float idleRadius = pixelsPerUnit * 1.5f;  // ~24px
+                        Vec2 trailDir{0.0f, 0.0f};
+                        if (moveLenSq > 1.0f)
+                        {
+                            trailDir = commander.lastVelocity / std::sqrt(moveLenSq);
+                        }
+                        else if (lengthSq(commander.lastMoveDir) > 0.0001f)
+                        {
+                            trailDir = normalize(commander.lastMoveDir);
+                        }
+                        if (lengthSq(trailDir) > 0.0f)
+                        {
+                            target = commander.pos - trailDir * trailDist;
+                        }
+
+                        const float distSq = lengthSq(yuna.pos - commander.pos);
+                        if (distSq < idleRadius * idleRadius)
+                        {
+                            // 十分近いときはその場待機
+                            velocity = {0.0f, 0.0f};
+                            break;
+                        }
+                    }
                 }
-                velocity = makeVelocity(normalizedDirection(yuna.pos, target));
+                Vec2 dir = normalizedDirection(yuna.pos, target);
+                velocity = makeVelocity(dir);
+                // 近距離フォロー時は群れ補正を弱めるため係数をゼロにする
+                if (lengthSq(target - yuna.pos) < 64.0f * 64.0f)
+                {
+                    boidAdjustment = {0.0f, 0.0f};
+                }
                 break;
             }
             case ChibiAction::FollowAlly:
@@ -1542,18 +1629,15 @@ void BehaviorSystem::update(float dt, SystemContext &context)
                     }
                     if (lengthSq(threatDir) <= 0.0f)
                     {
-                        threatDir = normalizedDirection(defendSpot, sim.basePos);
+                        // 敵不在ならその場待機
+                        velocity = {0.0f, 0.0f};
+                        break;
                     }
-                    if (lengthSq(threatDir) <= 0.0f)
-                    {
-                        threatDir = {-1.0f, 0.0f};
-                    }
-                    Vec2 rearDir = {-threatDir.x, -threatDir.y};
                     constexpr float kRingMin = 70.0f;
                     constexpr float kRingMax = 110.0f;
                     float ringRadius = auraRadius > 0.0f ? std::max(auraRadius - 24.0f, kRingMin) : kRingMin;
                     ringRadius = std::clamp(ringRadius, kRingMin, kRingMax);
-                    Vec2 guardPos = defendSpot + rearDir * ringRadius;
+                    Vec2 guardPos = defendSpot + threatDir * ringRadius; // 敵側へ前進して壁になる
                     Vec2 toGuard = guardPos - yuna.pos;
                     if (lengthSq(toGuard) > 36.0f)
                     {
@@ -1561,7 +1645,7 @@ void BehaviorSystem::update(float dt, SystemContext &context)
                     }
                     else
                     {
-                        Vec2 tangent{-rearDir.y, rearDir.x};
+                        Vec2 tangent{-threatDir.y, threatDir.x};
                         if (lengthSq(tangent) <= 0.0f)
                         {
                             tangent = {0.0f, 1.0f};

@@ -7,6 +7,7 @@
 #include "world/systems/SystemContext.h"
 
 #include <memory>
+#include <optional>
 #include <vector>
 
 struct GameConfig;
@@ -75,6 +76,11 @@ class WorldState
     void cycleFormation(int direction);
     void selectSkillByHotkey(int hotkey);
     void activateSelectedSkill(const Vec2 &worldPos);
+    void castFireBall(float rangePx, float damage);
+    void commanderAttack(const std::optional<Vec2> &targetWorld);
+    void commanderCancelTarget();
+    void commanderFocusTarget();
+    void setCommanderGuard(bool active);
 
     void setEventBus(std::shared_ptr<EventBus> bus);
     void setTelemetrySink(std::shared_ptr<TelemetrySink> sink);
