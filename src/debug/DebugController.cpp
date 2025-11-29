@@ -236,88 +236,137 @@ void DebugController::handleEvent(const SDL_Event &event)
         return;
     }
 
-    if (event.type != SDL_KEYDOWN || event.key.repeat != 0)
-    {
-        return;
-    }
-
-    const SDL_Keymod mods = static_cast<SDL_Keymod>(event.key.keysym.mod);
+    const SDL_Keymod mods = SDL_GetModState();
     const bool shift = (mods & KMOD_SHIFT) != 0;
     const bool ctrl = (mods & KMOD_CTRL) != 0;
 
-    switch (event.key.keysym.sym)
+    if (event.type == SDL_KEYDOWN && event.key.repeat == 0)
     {
-    case SDLK_F6:
-        if (ctrl)
+        switch (event.key.keysym.sym)
         {
-            m_pendingHudToggle = true;
-        }
-        else
-        {
-            selectCategory(0);
+        case SDLK_F6:
+            if (ctrl)
+            {
+                m_pendingHudToggle = true;
+            }
+            else
+            {
+                selectCategory(0);
+                nextParameter(shift);
+            }
+            break;
+        case SDLK_F7:
+            if (ctrl)
+            {
+                m_pendingTelemetryToggle = true;
+            }
+            else
+            {
+                selectCategory(1);
+                nextParameter(shift);
+            }
+            break;
+        case SDLK_F8:
+            if (ctrl)
+            {
+                selectCategory(3);
+                nextParameter(shift);
+            }
+            else
+            {
+                selectCategory(2);
+                nextParameter(shift);
+            }
+            break;
+        case SDLK_PAGEUP:
+            adjustParameter(true, ctrl);
+            break;
+        case SDLK_PAGEDOWN:
+            adjustParameter(false, ctrl);
+            break;
+        case SDLK_HOME:
+            if (ctrl)
+            {
+                m_timeScale = m_defaultTimeScale;
+                setToast("Time scale reset");
+            }
+            else
+            {
+                resetParameter();
+            }
+            break;
+        case SDLK_END:
+            if (ctrl && m_accessor && m_accessor->skipNextWave())
+            {
+                setToast("Wave skipped");
+            }
+            break;
+        case SDLK_RETURN:
+            if (ctrl)
+            {
+                resetParameter();
+            }
+            else
+            {
+                triggerCommand();
+            }
+            break;
+        case SDLK_TAB:
             nextParameter(shift);
+            break;
+        default: break;
         }
-        break;
-    case SDLK_F7:
+        return;
+    }
+
+    // Mouse support: scrollでパラメータ/カテゴリ移動、クリックで選択/実行
+    if (event.type == SDL_MOUSEWHEEL)
+    {
         if (ctrl)
         {
-            m_pendingTelemetryToggle = true;
+            // Ctrl + ホイールでカテゴリを移動
+            const int dir = event.wheel.y > 0 ? -1 : 1;
+            int nextCat = m_activeCategory + dir;
+            if (nextCat < 0)
+            {
+                nextCat = static_cast<int>(m_categories.size()) - 1;
+            }
+            else if (nextCat >= static_cast<int>(m_categories.size()))
+            {
+                nextCat = 0;
+            }
+            selectCategory(nextCat);
         }
         else
         {
-            selectCategory(1);
-            nextParameter(shift);
+            // ホイールでパラメータ選択を移動
+            const bool reverse = event.wheel.y > 0;
+            nextParameter(reverse);
         }
-        break;
-    case SDLK_F8:
-        if (ctrl)
+        return;
+    }
+
+    if (event.type == SDL_MOUSEBUTTONDOWN)
+    {
+        if (event.button.button == SDL_BUTTON_LEFT)
         {
-            selectCategory(3);
-            nextParameter(shift);
+            // コマンドなら実行、数値ならインクリメント
+            auto *param = currentParameter();
+            if (param && param->isCommand())
+            {
+                triggerCommand();
+            }
+            else
+            {
+                adjustParameter(true, ctrl);
+            }
         }
-        else
+        else if (event.button.button == SDL_BUTTON_RIGHT)
         {
-            selectCategory(2);
-            nextParameter(shift);
+            // 右クリックで数値をデクリメント
+            adjustParameter(false, ctrl);
         }
-        break;
-    case SDLK_PAGEUP:
-        adjustParameter(true, ctrl);
-        break;
-    case SDLK_PAGEDOWN:
-        adjustParameter(false, ctrl);
-        break;
-    case SDLK_HOME:
-        if (ctrl)
-        {
-            m_timeScale = m_defaultTimeScale;
-            setToast("Time scale reset");
-        }
-        else
-        {
-            resetParameter();
-        }
-        break;
-    case SDLK_END:
-        if (ctrl && m_accessor && m_accessor->skipNextWave())
-        {
-            setToast("Wave skipped");
-        }
-        break;
-    case SDLK_RETURN:
-        if (ctrl)
-        {
-            resetParameter();
-        }
-        else
-        {
-            triggerCommand();
-        }
-        break;
-    case SDLK_TAB:
-        nextParameter(shift);
-        break;
-    default: break;
+        return;
     }
 }
 
@@ -627,6 +676,43 @@ void DebugController::rebuildParameters()
             0.1f,
             0.5f,
             formatMultiplier));
+
+        category.parameters.push_back(std::make_unique<CommandParameter>(
+            "Enemy Target Base (toggle)",
+            [this]() {
+                if (!m_simulation)
+                {
+                    return;
+                }
+                m_simulation->debugForceBaseTarget = !m_simulation->debugForceBaseTarget;
+                setToast(m_simulation->debugForceBaseTarget ? "Enemy target: base" : "Enemy target: normal");
+            },
+            [this]() {
+                if (!m_simulation)
+                {
+                    return std::string();
+                }
+                return m_simulation->debugForceBaseTarget ? std::string("ON") : std::string("OFF");
+            }));
+
+        category.parameters.push_back(std::make_unique<CommandParameter>(
+            "Enemy Force Base Contact (toggle)",
+            [this]() {
+                if (!m_simulation)
+                {
+                    return;
+                }
+                m_simulation->debugForceBaseContact = !m_simulation->debugForceBaseContact;
+                setToast(m_simulation->debugForceBaseContact ? "Main base contact: forced"
+                                                             : "Main base contact: auto");
+            },
+            [this]() {
+                if (!m_simulation)
+                {
+                    return std::string();
+                }
+                return m_simulation->debugForceBaseContact ? std::string("ON") : std::string("OFF");
+            }));
 
         category.parameters.push_back(std::make_unique<CommandParameter>(
             "Heal Commander",

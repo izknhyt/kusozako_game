@@ -147,6 +147,15 @@ struct ShieldJobRuntime
     float selfSlowTimer = 0.0f;
 };
 
+struct ManualOrder
+{
+    bool active = false;
+    Vec2 target{0.0f, 0.0f};
+    int enemyIndex = -1;
+    float arrivalRadiusPx = 12.0f;
+    bool holdPosition = true;
+};
+
 struct JobRuntimeState
 {
     UnitJob job = UnitJob::Warrior;
@@ -223,7 +232,10 @@ struct Unit
     bool respawnAllowed = true;
     std::string name;
     bool isNamed = false;
+    int level = 1;
     float namedSkillCooldown = 0.0f;
+
+    ManualOrder manualOrder{};
 };
 
 struct CommanderUnit
@@ -375,6 +387,7 @@ struct LegacySimulation
     WallbreakerStats wallbreakerStats;
     CommanderStats commanderStats;
     std::unordered_map<std::string, int> namedLevels;
+    float meanChibiLevel = 1.0f;
     CommanderUnit commander;
     MapDefs mapDefs;
     SpawnScript spawnScript;
@@ -385,7 +398,8 @@ struct LegacySimulation
         int mana = 0;
         int cap = 0;
         int tokens = 0;
-        float tokenBonus = 0.0f;
+        float tokenBonus = 0.0f; // e.g., 0.05 for +5%
+        float gainMultiplier = 1.0f; // meta mana gain multiplier
     } economy;
     std::vector<Unit> yunas;
     std::deque<UnitJob> jobHistory;
@@ -426,8 +440,13 @@ struct LegacySimulation
     float simTime = 0.0f;
     float timeSinceLastEnemySpawn = 0.0f;
     float restartCooldown = 0.0f;
+    int statChibiDeaths = 0;
+    int statEnemyKills = 0;
     float baseHp = 0.0f;
     bool spawnEnabled = true;
+    bool disableYunaSpawns = false;
+    bool debugForceBaseTarget = false;
+    bool debugForceBaseContact = false;
     GameResult result = GameResult::Playing;
     HUDState hud;
     std::mt19937 rng;
@@ -507,6 +526,9 @@ struct LegacySimulation
             ChibiAction action = ChibiAction::Wander;
             float facingX = 1.0f;
             bool moving = false;
+            bool attacking = false;
+            float attackTimer = 0.0f;
+            float attackDuration = 0.0f;
         };
 
         struct EnemySprite
@@ -698,7 +720,7 @@ struct LegacySimulation
 
     bool waveScriptComplete = false;
     bool spawnerIdle = true;
-    bool yunaRespawnsEnabled = true;
+    bool yunaRespawnsEnabled = false;
 
     Vec2 basePos;
     Vec2 yunaSpawnPos;
@@ -856,6 +878,20 @@ struct LegacySimulation
                 base.hp = 0.0f;
             }
             base.pos = tileToWorld(baseCfg.position, tileSize);
+            stage.allyBases.push_back(base);
+        }
+        // 標準の単一拠点運用でも、常に allyBases に1件は入れておく
+        if (stage.allyBases.empty())
+        {
+            StageAllyBaseState base;
+            base.id = "main";
+            base.maxHp = static_cast<float>(config.base_hp);
+            base.hp = base.maxHp;
+            base.baseMaxHp = base.maxHp;
+            base.auraRadiusPx = 128.0f;
+            base.destroyed = false;
+            base.destroyedDefault = false;
+            base.pos = tileToWorld(mapDefs.base_tile, tileSize);
             stage.allyBases.push_back(base);
         }
 
@@ -1067,8 +1103,13 @@ struct LegacySimulation
         {
             return;
         }
-        const float mitigation = std::clamp(baseDamageReduction, 0.0f, 0.95f);
-        const float effectiveDamage = amount * (1.0f - mitigation);
+        const float mitigation = std::clamp(baseDamageReduction, 0.0f, 0.5f);
+        float effectiveDamage = amount * (1.0f - mitigation);
+        // 最低1ダメージは通す
+        if (effectiveDamage > 0.0f && effectiveDamage < 1.0f)
+        {
+            effectiveDamage = 1.0f;
+        }
         if (effectiveDamage <= 0.0f)
         {
             return;
@@ -1124,6 +1165,9 @@ struct LegacySimulation
         economy.mana = 0;
         economy.tokens = 0;
         economy.tokenBonus = economyConfig.tokenBonus;
+        economy.gainMultiplier = std::max(0.0f, 1.0f + economyConfig.gainBonus);
+        statChibiDeaths = 0;
+        statEnemyKills = 0;
         updateEconomyHud();
     }
 
@@ -1174,8 +1218,9 @@ struct LegacySimulation
         {
             return;
         }
-        const float bonus = 1.0f + std::max(0, economy.tokens) * std::max(economy.tokenBonus, 0.0f);
-        int delta = static_cast<int>(std::round(amount * std::max(bonus, 0.0f)));
+        const float tokenMul = 1.0f + std::max(0, economy.tokens) * std::max(economy.tokenBonus, 0.0f);
+        const float totalMul = std::max(0.0f, economy.gainMultiplier) * std::max(tokenMul, 0.0f);
+        int delta = static_cast<int>(std::round(amount * totalMul));
         if (delta <= 0)
         {
             return;
@@ -1189,6 +1234,7 @@ struct LegacySimulation
         const int reward = economyRewardForType(type);
         if (reward > 0)
         {
+            ++statEnemyKills;
             grantMana(static_cast<float>(reward));
         }
     }
@@ -1508,7 +1554,10 @@ struct LegacySimulation
         spawnTelemetryTotals.fill(0);
         spawnTelemetryTotal = 0;
         spawnBudgetState = {};
-        yunaRespawnsEnabled = true;
+        statChibiDeaths = 0;
+        statEnemyKills = 0;
+        yunaRespawnsEnabled = false;
+        disableYunaSpawns = false;
         dragonSpawned = false;
         golemSpawned = false;
         enemies.clear();
@@ -2182,6 +2231,23 @@ struct LegacySimulation
         yuna.hp = yunaStats.hp;
         yuna.maxHp = yunaStats.hp;
         yuna.radius = yunaStats.radius;
+        yuna.level = 1;
+        if (meanChibiLevel > 0.0f)
+        {
+            // 平均と1の距離を上限に加えたレンジを正規分布でサンプリングする
+            const float mean = std::max(1.0f, meanChibiLevel);
+            const float maxRange = mean + std::max(0.0f, mean - 1.0f); // = 2*mean-1
+            const int maxLevel = std::max(1, static_cast<int>(std::round(maxRange)));
+            const float stddev = std::max(1.0f, (maxRange - 1.0f) * 0.3f); // 3σ程度で上限付近
+            std::normal_distribution<float> levelDist(mean, stddev);
+            const int sampled = static_cast<int>(std::round(levelDist(rng)));
+            yuna.level = std::clamp(sampled, 1, maxLevel);
+        }
+        const AllyLevelingParams params = kCommanderLevelingParams;
+        const int levelDelta = std::max(yuna.level - 1, 0);
+        const float hpBonus = params.hpPerLevel * 0.5f * static_cast<float>(levelDelta);
+        yuna.maxHp = yunaStats.hp + hpBonus;
+        yuna.hp = yuna.maxHp;
         resetUnitMorale(yuna);
         yuna.moraleLightMesomesoPending = !commander.alive &&
                                          config.morale.spawnWhileLeaderDown.applyLightMesomeso;
@@ -2210,6 +2276,13 @@ struct LegacySimulation
         unit.respawnAllowed = false;
         unit.name = displayName;
         unit.isNamed = true;
+        // レベル補正（上限なし）
+        int level = 1;
+        if (auto it = namedLevels.find(displayName); it != namedLevels.end())
+        {
+            level = std::max(it->second, 1);
+        }
+        unit.level = level;
         unit.namedSkillCooldown = 0.0f;
         unit.maxHp = commanderStats.hp;
         unit.hp = unit.maxHp;
@@ -2221,12 +2294,6 @@ struct LegacySimulation
         unit.temperament.baseRole = ChibiAction::FollowCommander;
         unit.temperament.microAction = ChibiAction::FollowCommander;
         unit.temperament.roleAssigned = true;
-        // レベル補正（上限なし）
-        int level = 1;
-        if (auto it = namedLevels.find(displayName); it != namedLevels.end())
-        {
-            level = std::max(it->second, 1);
-        }
         const float delta = static_cast<float>(std::max(level - 1, 0));
         const AllyLevelingParams params = kCommanderLevelingParams;
         unit.maxHp = commanderStats.hp + params.hpPerLevel * delta;
@@ -2895,6 +2962,20 @@ struct LegacySimulation
         hud.resultText = text;
         hud.resultTimer = config.telemetry_duration;
         restartCooldown = config.restart_delay;
+
+        hud.resultStats.available = true;
+        hud.resultStats.result = r;
+        hud.resultStats.durationSeconds = simTime;
+        hud.resultStats.chibiDeaths = statChibiDeaths;
+        hud.resultStats.chibiSurvivors = static_cast<int>(yunas.size());
+        hud.resultStats.enemyKills = statEnemyKills;
+        hud.resultStats.manaEarned = economy.mana;
+        hud.resultStats.manaCap = economy.cap;
+        const float tokenMul = 1.0f + std::max(0, economy.tokens) * std::max(economy.tokenBonus, 0.0f);
+        const float totalMul = std::max(0.0f, economy.gainMultiplier) * std::max(tokenMul, 0.0f);
+        hud.resultStats.manaBonusPercent = static_cast<int>(std::round(std::max(totalMul - 1.0f, 0.0f) * 100.0f));
+        hud.resultStats.basesSealed = static_cast<int>(sealedEnemyBases());
+        hud.resultStats.basesTotal = static_cast<int>(stage.enemyBases.size());
     }
 
     void update(float dt)
@@ -3027,7 +3108,7 @@ struct LegacySimulation
 
     void updateYunaSpawn(float dt)
     {
-        if (!spawnEnabled)
+        if (!spawnEnabled || disableYunaSpawns)
         {
             return;
         }
@@ -3068,6 +3149,7 @@ struct LegacySimulation
             baseInterval = 1.0f / stage.allyFactory.ratePerSecond;
         }
         const float spawnInterval = std::max(minInterval, (baseInterval / rateMultiplier) * slowMultiplier);
+        const float respawnRetryInterval = spawnInterval;
         while (yunaSpawnTimer <= 0.0f)
         {
             if (static_cast<int>(yunas.size()) < allyCap)
@@ -3077,7 +3159,8 @@ struct LegacySimulation
             }
             else
             {
-                yunaSpawnTimer = 0.0f;
+                // If capped, reset to a full interval so we don't backlog and burst-spawn later.
+                yunaSpawnTimer = spawnInterval;
                 break;
             }
         }
@@ -3100,6 +3183,11 @@ struct LegacySimulation
                 if (pending.timer < 0.0f)
                 {
                     pending.timer = 0.0f;
+                }
+                if (pending.timer <= 0.0f && static_cast<int>(yunas.size()) >= allyCap)
+                {
+                    // Capに阻まれたリスポーンは再試行まで少し待つ
+                    pending.timer = respawnRetryInterval;
                 }
                 remainingRespawns.push_back(pending);
             }

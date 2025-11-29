@@ -104,6 +104,12 @@ bool GameApplication::reloadConfig()
         std::cerr << "[config] " << error.file << ": " << error.message << '\n';
     }
 
+    if (!result.success)
+    {
+        std::cerr << "[config] reload failed; keeping previous configuration\n";
+        return false;
+    }
+
     m_appConfigResult = std::move(result);
     applyTelemetrySettings();
     m_inputMapper.configure(m_appConfigResult.config.input);

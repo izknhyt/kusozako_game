@@ -193,6 +193,16 @@ struct LegacySimulation
         }
         return count;
     }
+
+    float totalAllyBaseMaxHp() const
+    {
+        float total = 0.0f;
+        for (const auto &base : stage.allyBases)
+        {
+            total += base.maxHp;
+        }
+        return total;
+    }
     void addDynamicHazard(const Vec2 &, float, float, float) {}
     void decayDynamicHazards(float) {}
     void setStageHazardActive(const std::string &, bool) {}

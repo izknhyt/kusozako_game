@@ -78,6 +78,9 @@ class WorldState
     void activateSelectedSkill(const Vec2 &worldPos);
     void castFireBall(float rangePx, float damage);
     void commanderAttack(const std::optional<Vec2> &targetWorld);
+    void commandChibiMove(const std::vector<int> &indices, const Vec2 &targetWorld);
+    void commandChibiAttack(const std::vector<int> &indices, int enemyIndex);
+    void clearChibiManualOrders(const std::vector<int> &indices);
     void commanderCancelTarget();
     void commanderFocusTarget();
     void setCommanderGuard(bool active);

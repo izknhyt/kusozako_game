@@ -350,6 +350,7 @@ struct EconomyConfig
 {
     int baseCap = 100;
     float tokenBonus = 0.10f;
+    float gainBonus = 0.0f; // flat multiplier bonus (e.g., 0.05 = +5%)
     std::unordered_map<std::string, int> enemyRewards;
 };
 

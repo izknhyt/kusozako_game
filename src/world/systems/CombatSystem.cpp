@@ -3,9 +3,11 @@
 #include <algorithm>
 #include <cmath>
 #include <limits>
+#include <optional>
 #include <random>
 #include <utility>
 #include <vector>
+#include <iostream>
 
 namespace world::systems
 {
@@ -165,6 +167,27 @@ void CombatSystem::update(float dt, SystemContext &context)
     StageRuntimeState &stageState = sim.stageState();
     const bool stageEnabled = stageState.enabled;
     const bool stageHasAllyBases = stageEnabled && !stageState.allyBases.empty();
+    // Debug: track unexpected ally base count drops at runtime
+    static std::size_t s_lastAllyBaseCount = 0;
+    if (stageEnabled && stageState.allyBases.size() != s_lastAllyBaseCount)
+    {
+        std::cerr << "[stage] allyBases size changed at runtime: " << s_lastAllyBaseCount << " -> "
+                  << stageState.allyBases.size() << '\n';
+        s_lastAllyBaseCount = stageState.allyBases.size();
+    }
+    bool stageHasAllyBasesAlive = false;
+    if (stageHasAllyBases)
+    {
+        for (const StageAllyBaseState &base : stageState.allyBases)
+        {
+            if (!base.destroyed)
+            {
+                stageHasAllyBasesAlive = true;
+                break;
+            }
+        }
+    }
+    const bool mainBaseAlive = stageHasAllyBasesAlive || context.baseHp > 0.0f;
     const bool stageHasEnemyBases = stageEnabled && !stageState.enemyBases.empty();
     auto insideAllyAura = [&](const Vec2 &pos) -> bool {
         if (!sim.stage.enabled)
@@ -284,6 +307,20 @@ void CombatSystem::update(float dt, SystemContext &context)
         {
             commander.hp = std::max(0.0f, commander.hp - breathDamage);
         }
+        // Bases (ally)
+        const float baseRadius = std::max(sim.config.base_aabb.x, sim.config.base_aabb.y) * 0.5f;
+        for (StageAllyBaseState &base : stageState.allyBases)
+        {
+            if (base.destroyed)
+            {
+                continue;
+            }
+            const float radius = base.auraRadiusPx > 0.0f ? base.auraRadiusPx : baseRadius;
+            if (inCone(base.pos, radius))
+            {
+                sim.damageAllyBase(base, breathDamage);
+            }
+        }
         // Allies
         for (Unit &yuna : yunas)
         {
@@ -327,6 +364,20 @@ void CombatSystem::update(float dt, SystemContext &context)
         applyDragonBreath(enemy);
     }
 
+    float maxEnemyReach = 0.0f;
+    for (const EnemyUnit &enemy : enemies)
+    {
+        if (enemy.hp <= 0.0f)
+        {
+            continue;
+        }
+        const float reach = std::max(enemy.radius, enemy.attackRangePx + 6.0f);
+        if (reach > maxEnemyReach)
+        {
+            maxEnemyReach = reach;
+        }
+    }
+
     const int configuredTileSize = sim.mapDefs.tile_size > 0 ? sim.mapDefs.tile_size : 16;
     const float cellSize = std::max(1.0f, static_cast<float>(configuredTileSize));
     m_grid.configure(sim.worldMin, sim.worldMax, cellSize);
@@ -363,19 +414,44 @@ void CombatSystem::update(float dt, SystemContext &context)
         return best;
     };
 
-    auto pickNearestUnit = [&](const Vec2 &origin) -> const Unit * {
-        const Unit *best = nullptr;
+    struct AllyCandidate
+    {
+        Vec2 pos{0.0f, 0.0f};
+        int unitIndex = -1; // -1 = commander
+        bool isCommander = false;
+    };
+
+    auto pickNearestAlly = [&](const Vec2 &origin) -> std::optional<AllyCandidate> {
+        AllyCandidate best{};
         float bestDist = std::numeric_limits<float>::max();
-        for (const Unit &yuna : yunas)
+        if (commander.alive)
         {
+            bestDist = lengthSq(commander.pos - origin);
+            best.pos = commander.pos;
+            best.unitIndex = -1;
+            best.isCommander = true;
+        }
+        for (std::size_t i = 0; i < yunas.size(); ++i)
+        {
+            const Unit &yuna = yunas[i];
+            if (yuna.hp <= 0.0f)
+            {
+                continue;
+            }
             const float distSq = lengthSq(yuna.pos - origin);
             if (distSq < bestDist)
             {
                 bestDist = distSq;
-                best = &yuna;
+                best.pos = yuna.pos;
+                best.unitIndex = static_cast<int>(i);
+                best.isCommander = false;
             }
         }
-        return best;
+        if (bestDist < std::numeric_limits<float>::max())
+        {
+            return best;
+        }
+        return std::nullopt;
     };
     auto unitIndex = [&](const Unit *u) -> int {
         if (!u)
@@ -388,29 +464,6 @@ void CombatSystem::update(float dt, SystemContext &context)
         }
         return -1;
     };
-    auto pickNearestAllyPos = [&](const Vec2 &origin) -> std::optional<Vec2> {
-        const Unit *bestUnit = pickNearestUnit(origin);
-        float bestDist = bestUnit ? lengthSq(bestUnit->pos - origin) : std::numeric_limits<float>::max();
-        Vec2 bestPos{};
-        if (bestUnit)
-        {
-            bestPos = bestUnit->pos;
-        }
-        if (commander.alive)
-        {
-            const float distSq = lengthSq(commander.pos - origin);
-            if (distSq < bestDist)
-            {
-                bestPos = commander.pos;
-                bestDist = distSq;
-            }
-        }
-        if (bestDist == std::numeric_limits<float>::max())
-        {
-            return std::nullopt;
-        }
-        return bestPos;
-    };
     auto panicRadiusForType = [&](EnemyArchetype type) -> float {
         switch (type)
         {
@@ -421,6 +474,89 @@ void CombatSystem::update(float dt, SystemContext &context)
         default: return sim.config.pixels_per_unit * 30.0f;
         }
     };
+
+    struct BaseThreat
+    {
+        Vec2 pos{0.0f, 0.0f};
+        int unitIndex = -1; // -1 = commander
+        bool isCommander = false;
+    };
+
+    auto pickThreatNearEnemyBase = [&](float extraRadius) -> std::optional<BaseThreat> {
+        if (!stageHasEnemyBases)
+        {
+            return std::nullopt;
+        }
+        BaseThreat best{};
+        float bestScore = std::numeric_limits<float>::max();
+        for (const StageEnemyBaseState &base : stageState.enemyBases)
+        {
+            if (base.sealed)
+            {
+                continue;
+            }
+            const float defendRadius = enemyBaseRadius(base) + extraRadius;
+            const float defendRadiusSq = defendRadius * defendRadius;
+            auto consider = [&](const Vec2 &pos, int unitIdx, bool isCmd) {
+                const float distSq = lengthSq(pos - base.pos);
+                if (distSq > defendRadiusSq)
+                {
+                    return;
+                }
+                if (distSq < bestScore)
+                {
+                    bestScore = distSq;
+                    best.pos = pos;
+                    best.unitIndex = unitIdx;
+                    best.isCommander = isCmd;
+                }
+            };
+            if (commander.alive)
+            {
+                consider(commander.pos, -1, true);
+            }
+            for (std::size_t i = 0; i < yunas.size(); ++i)
+            {
+                const Unit &yuna = yunas[i];
+                if (yuna.hp <= 0.0f)
+                {
+                    continue;
+                }
+                consider(yuna.pos, static_cast<int>(i), false);
+            }
+        }
+        if (bestScore < std::numeric_limits<float>::max())
+        {
+            return best;
+        }
+        return std::nullopt;
+    };
+
+    // 拠点接触判定の中心と半径（当たり判定ベース。Auraは攻撃優先判定のみで使用）
+    const float baseRadius = std::max(sim.config.base_aabb.x, sim.config.base_aabb.y) * 0.5f;
+    Vec2 baseContactPos = sim.basePos;
+    float mainBaseContactRadius = baseRadius + 4.0f;
+    if (stageHasAllyBasesAlive)
+    {
+        float auraRadius = baseRadius;
+        float bestDistSq = std::numeric_limits<float>::max();
+        for (const StageAllyBaseState &base : stageState.allyBases)
+        {
+            if (!base.destroyed)
+            {
+                const float distSq = commander.alive ? lengthSq(base.pos - commander.pos) : 0.0f;
+                if (!commander.alive || distSq < bestDistSq)
+                {
+                    bestDistSq = distSq;
+                    baseContactPos = base.pos;
+                }
+                const float r = base.auraRadiusPx > 0.0f ? base.auraRadiusPx : 128.0f;
+                auraRadius = std::max(auraRadius, r);
+            }
+        }
+        // 攻撃可能判定は本体サイズ＋わずかなバッファのみ
+        mainBaseContactRadius = baseRadius + 4.0f;
+    }
 
     for (EnemyUnit &enemy : enemies)
     {
@@ -445,37 +581,16 @@ void CombatSystem::update(float dt, SystemContext &context)
         {
             enemy.focusUnitIndex = -1;
         }
-        Vec2 target = taunted ? enemy.tauntTarget : sim.basePos;
-        // If ally bases are destroyed, boss goes on a rampage toward nearest ally
-        if (!taunted && enemy.type == EnemyArchetype::Boss)
+        Vec2 target = taunted ? enemy.tauntTarget : baseContactPos;
+        if (!mainBaseAlive && !taunted)
         {
-            bool anyAllyBaseDown = false;
-            for (const StageAllyBaseState &base : stageState.allyBases)
+            if (commander.alive)
             {
-                if (base.destroyed)
-                {
-                    anyAllyBaseDown = true;
-                    break;
-                }
+                target = commander.pos;
             }
-            if (anyAllyBaseDown)
+            else if (const auto nearest = pickNearestAlly(enemy.pos))
             {
-                const Unit *nearest = pickNearestUnit(enemy.pos);
-                float bestDist = nearest ? lengthSq(nearest->pos - enemy.pos) : std::numeric_limits<float>::max();
-                if (commander.alive)
-                {
-                    const float commanderDist = lengthSq(commander.pos - enemy.pos);
-                    if (commanderDist < bestDist)
-                    {
-                        nearest = nullptr;
-                        bestDist = commanderDist;
-                        target = commander.pos;
-                    }
-                }
-                if (nearest)
-                {
-                    target = nearest->pos;
-                }
+                target = nearest->pos;
             }
         }
         if (!taunted && enemy.type == EnemyArchetype::Wallbreaker)
@@ -507,341 +622,290 @@ void CombatSystem::update(float dt, SystemContext &context)
         }
         if (!taunted)
         {
-            // 共通: パニックなど明示的に弱っている対象を最優先
-            const Unit *panicAny = pickPanicTarget(enemy.pos, std::numeric_limits<float>::max());
-            const int panicIndex = unitIndex(panicAny);
+            const Unit *panicAny = pickPanicTarget(enemy.pos, panicRadiusForType(enemy.type));
+
+            struct TargetChoice
+            {
+                Vec2 pos{};
+                bool isBase = false;
+                bool isAlly = false;
+                int focusIndex = -1;
+                float focusTimer = 0.0f;
+            };
+
+            TargetChoice choice{};
+            choice.pos = target;
+            choice.isBase = stageHasAllyBasesAlive;
+
+            auto nearestAlly = pickNearestAlly(enemy.pos);
+            const float nearestDistSq = nearestAlly ? lengthSq(nearestAlly->pos - enemy.pos)
+                                                    : std::numeric_limits<float>::max();
+            const bool forceBaseTarget = sim.debugForceBaseTarget && mainBaseAlive && !taunted;
+
+            auto chooseFocus = [&](const AllyCandidate &ally, float timer) {
+                choice.pos = ally.pos;
+                choice.isBase = false;
+                choice.isAlly = true;
+                choice.focusIndex = ally.unitIndex;
+                choice.focusTimer = timer;
+            };
+            auto chooseCommander = [&](float timer) {
+                if (!commander.alive)
+                {
+                    return;
+                }
+                chooseFocus({commander.pos, -1, true}, timer);
+            };
+            auto chooseBase = [&]() {
+                Vec2 basePos = baseContactPos;
+                Vec2 preferred;
+                if (stageHasAllyBasesAlive && nearestActiveAllyBase(enemy.pos, preferred))
+                {
+                    basePos = preferred;
+                }
+                else if (!stageHasAllyBasesAlive && mainBaseAlive)
+                {
+                    basePos = sim.basePos;
+                }
+                else if (!mainBaseAlive)
+                {
+                    if (commander.alive)
+                    {
+                        basePos = commander.pos;
+                        choice.isAlly = true;
+                        choice.focusIndex = -1;
+                        choice.focusTimer = 0.0f;
+                    }
+                    else if (nearestAlly)
+                    {
+                        basePos = nearestAlly->pos;
+                        choice.isAlly = true;
+                        choice.focusIndex = nearestAlly->unitIndex;
+                        choice.focusTimer = 1.5f;
+                    }
+                }
+                choice.pos = basePos;
+                choice.isBase = mainBaseAlive || stageHasAllyBasesAlive;
+                if (choice.isBase)
+                {
+                    choice.isAlly = false;
+                    choice.focusIndex = -1;
+                    choice.focusTimer = 0.0f;
+                }
+            };
+
             switch (enemy.type)
             {
             case EnemyArchetype::Slime:
             {
-                if (panicAny)
+                const float engageRadius = 64.0f;
+                if (nearestAlly && nearestDistSq <= engageRadius * engageRadius)
                 {
-                    target = panicAny->pos;
-                    enemy.focusUnitIndex = panicIndex;
-                    enemy.focusTimer = 2.0f;
+                    chooseFocus(*nearestAlly, 1.5f);
+                }
+                else if (panicAny)
+                {
+                    chooseFocus({panicAny->pos, unitIndex(panicAny), false}, 2.0f);
                 }
                 else
                 {
-                    // 拠点に向かいつつ、近くの味方を殴る
-                    Vec2 basePos = sim.basePos;
-                    Vec2 preferred;
-                    if (nearestActiveAllyBase(enemy.pos, preferred))
-                    {
-                        basePos = preferred;
-                    }
-                    target = basePos;
-                    const float engageRadius = sim.config.pixels_per_unit * 22.0f;
-                    if (auto nearest = pickNearestAllyPos(enemy.pos))
-                    {
-                        if (lengthSq(*nearest - enemy.pos) <= engageRadius * engageRadius)
-                        {
-                            target = *nearest;
-                        }
-                    }
-                    enemy.focusUnitIndex = -1;
-                    enemy.focusTimer = 0.0f;
+                    chooseBase();
                 }
-                enemy.focusUnitIndex = -1;
                 break;
             }
             case EnemyArchetype::Goblin:
             {
-                // パニック中・HPが低い味方を優先的に蹂躙
-                const Unit *panic = panicAny;
-                // 基本ターゲットは拠点ではなく自分位置（拠点フォールバックしない）
-                target = enemy.pos;
-                const Unit *weakest = nullptr;
-                float bestRatio = 2.0f;
-                for (const Unit &ally : yunas)
+                if (panicAny)
                 {
-                    if (ally.hp <= 0.0f || ally.maxHp <= 0.0f)
-                    {
-                        continue;
-                    }
-                    const float ratio = ally.hp / ally.maxHp;
-                    if (ratio < bestRatio)
-                    {
-                        bestRatio = ratio;
-                        weakest = &ally;
-                    }
+                    chooseFocus({panicAny->pos, unitIndex(panicAny), false}, 2.0f);
                 }
-                // commanderも候補に
-                if (commander.alive)
+                else if (nearestAlly)
                 {
-                    const float commanderRatio = commander.hp / std::max(sim.commanderStats.hp, 0.0001f);
-                    if (!weakest || commanderRatio < bestRatio)
-                    {
-                        weakest = nullptr;
-                        target = commander.pos;
-                    }
-                }
-                if (panic && panic->hp > 0.0f)
-                {
-                    target = panic->pos;
-                    enemy.focusUnitIndex = panicIndex;
-                    enemy.focusTimer = 2.0f;
-                }
-                else if (weakest)
-                {
-                    target = weakest->pos;
-                    enemy.focusUnitIndex = unitIndex(weakest);
-                    enemy.focusTimer = 1.5f;
-                }
-                else if (const Unit *nearest = pickNearestUnit(enemy.pos))
-                {
-                    target = nearest->pos;
-                    enemy.focusUnitIndex = unitIndex(nearest);
-                    enemy.focusTimer = 1.5f;
+                    chooseFocus(*nearestAlly, 1.5f);
                 }
                 else
                 {
-                    // 味方も指揮官もいない場合は拠点を殴りに行く
-                    Vec2 basePos = sim.basePos;
-                    Vec2 preferred;
-                    if (nearestActiveAllyBase(enemy.pos, preferred))
-                    {
-                        basePos = preferred;
-                    }
-                    target = basePos;
+                    chooseBase();
                 }
                 break;
             }
             case EnemyArchetype::Golem:
             {
-                if (panicAny)
+                const float defendMargin = 300.0f;
+                if (stageHasEnemyBases)
                 {
-                    target = panicAny->pos;
-                    enemy.focusUnitIndex = panicIndex;
-                    enemy.focusTimer = 2.0f;
+                    if (auto threat = pickThreatNearEnemyBase(defendMargin))
+                    {
+                        // 優先: 自軍（敵側）拠点近くのユウナ/司令官を殴る
+                        chooseFocus({threat->pos, threat->unitIndex, threat->isCommander}, 2.5f);
+                        break;
+                    }
                 }
-                else
+                if (stageHasAllyBasesAlive)
                 {
-                    // 拠点防衛型: 拠点中心へ向かい、近くに味方がいればそれを殴る
-                    Vec2 basePos = sim.basePos;
-                    Vec2 preferred;
-                    if (nearestActiveAllyBase(enemy.pos, preferred))
+                    chooseBase();
+                    const float engageRadius = 96.0f;
+                    if (nearestAlly && nearestDistSq <= engageRadius * engageRadius)
                     {
-                        basePos = preferred;
+                        chooseFocus(*nearestAlly, 2.0f);
                     }
-                    target = basePos;
-                    const float engageRadius = sim.config.pixels_per_unit * 18.0f;
-                    if (auto nearest = pickNearestAllyPos(enemy.pos))
-                    {
-                        const float distSq = lengthSq(*nearest - enemy.pos);
-                        if (distSq <= engageRadius * engageRadius)
-                        {
-                            target = *nearest;
-                        }
-                    }
-                    enemy.focusUnitIndex = -1;
-                    enemy.focusTimer = 0.0f;
+                }
+                else if (commander.alive)
+                {
+                    chooseCommander(0.0f);
+                }
+                else if (nearestAlly)
+                {
+                    chooseFocus(*nearestAlly, 2.0f);
                 }
                 break;
             }
             case EnemyArchetype::Boss:
             {
-                if (panicAny)
+                if (stageHasAllyBasesAlive)
                 {
-                    target = panicAny->pos;
-                    enemy.focusUnitIndex = panicIndex;
-                    enemy.focusTimer = 2.5f;
-                }
-                else
-                {
-                    // 拠点へ前進しつつ、近くの味方を優先して蹴散らす
-                    target = sim.basePos;
-                    if (auto nearest = pickNearestAllyPos(enemy.pos))
+                    chooseBase();
+                    const float engageRadius = 96.0f;
+                    if (nearestAlly && nearestDistSq <= engageRadius * engageRadius)
                     {
-                        const float engageRadius = sim.config.pixels_per_unit * 40.0f;
-                        if (lengthSq(*nearest - enemy.pos) <= engageRadius * engageRadius)
-                        {
-                            target = *nearest;
-                        }
+                        chooseFocus(*nearestAlly, 2.5f);
                     }
-                    enemy.focusUnitIndex = -1;
-                    enemy.focusTimer = 0.0f;
+                }
+                else if (commander.alive)
+                {
+                    chooseCommander(0.0f);
+                }
+                else if (nearestAlly)
+                {
+                    chooseFocus(*nearestAlly, 2.5f);
                 }
                 break;
             }
             case EnemyArchetype::Magician:
             {
-                if (panicAny)
+                const float engageRadius = 128.0f;
+                if (nearestAlly && nearestDistSq <= engageRadius * engageRadius)
                 {
-                    target = panicAny->pos;
-                    enemy.focusUnitIndex = panicIndex;
-                    enemy.focusTimer = 2.0f;
+                    chooseFocus(*nearestAlly, 1.5f);
                 }
                 else
                 {
-                    Vec2 basePos = sim.basePos;
-                    Vec2 preferred;
-                    if (nearestActiveAllyBase(enemy.pos, preferred))
-                    {
-                        basePos = preferred;
-                    }
-                    target = basePos;
-                    const float engageRadius =
-                        (enemy.attackRangePx > 0.0f ? enemy.attackRangePx : sim.config.pixels_per_unit * 22.0f) * 1.4f;
-                    if (const Unit *nearest = pickNearestUnit(enemy.pos))
-                    {
-                        if (lengthSq(nearest->pos - enemy.pos) <= engageRadius * engageRadius)
-                        {
-                            target = nearest->pos;
-                        }
-                    }
-                    enemy.focusUnitIndex = -1;
-                    enemy.focusTimer = 0.0f;
+                    chooseBase();
                 }
                 break;
             }
             case EnemyArchetype::Bat:
             {
-                if (panicAny)
+                const float engageRadius = 128.0f;
+                if (nearestAlly && nearestDistSq <= engageRadius * engageRadius)
                 {
-                    target = panicAny->pos;
-                    enemy.focusUnitIndex = panicIndex;
-                    enemy.focusTimer = 1.8f;
+                    chooseFocus(*nearestAlly, 1.5f);
                 }
                 else
                 {
-                    Vec2 basePos = sim.basePos;
-                    Vec2 preferred;
-                    if (nearestActiveAllyBase(enemy.pos, preferred))
-                    {
-                        basePos = preferred;
-                    }
-                    target = basePos;
-                    const float engageRadius = sim.config.pixels_per_unit * 24.0f;
-                    if (const Unit *nearest = pickNearestUnit(enemy.pos))
-                    {
-                        if (lengthSq(nearest->pos - enemy.pos) <= engageRadius * engageRadius)
-                        {
-                            target = nearest->pos;
-                        }
-                    }
-                    enemy.focusUnitIndex = -1;
-                    enemy.focusTimer = 0.0f;
+                    chooseBase();
                 }
                 break;
             }
             case EnemyArchetype::Toritori:
             {
-                if (panicAny)
-                {
-                    target = panicAny->pos;
-                    enemy.focusUnitIndex = panicIndex;
-                    enemy.focusTimer = 2.0f;
-                }
-                else
-                {
-                    Vec2 basePos = sim.basePos;
-                    Vec2 preferred;
-                    if (nearestActiveAllyBase(enemy.pos, preferred))
-                    {
-                        basePos = preferred;
-                    }
-                    target = basePos;
-                    enemy.focusUnitIndex = -1;
-                    enemy.focusTimer = 0.0f;
-                }
+                chooseBase();
+                break;
+            }
+            case EnemyArchetype::Wallbreaker:
+            {
                 break;
             }
             default:
             {
-                if (enemy.type != EnemyArchetype::Wallbreaker)
+                if (forceBaseTarget)
                 {
-                    if (const Unit *panic = pickPanicTarget(enemy.pos, panicRadiusForType(enemy.type)))
-                    {
-                        target = panic->pos;
-                    }
+                    chooseBase();
+                }
+                else if (panicAny && enemy.type != EnemyArchetype::Wallbreaker)
+                {
+                    chooseFocus({panicAny->pos, unitIndex(panicAny), false}, 2.0f);
+                }
+                else
+                {
+                    chooseBase();
                 }
                 break;
             }
             }
-        }
 
-        Vec2 targetFinal = target;
-        // 単独で行軍する際にわずかなレーンずれを入れて密集を和らげる
-        if (!taunted && enemy.focusUnitIndex < 0)
-        {
-            targetFinal += enemy.laneOffset;
-        }
-        // 拠点圏内では拠点を優先で殴る
-        if (stageHasAllyBases)
-        {
-            float bestDistSq = std::numeric_limits<float>::max();
-            Vec2 baseOverride = targetFinal;
-            const float enemyReach = std::max(enemy.radius, enemy.attackRangePx);
-            const float baseRadiusLocal =
-                std::max(sim.config.base_aabb.x, sim.config.base_aabb.y) * 0.5f;
-            for (const StageAllyBaseState &base : stageState.allyBases)
+            if (forceBaseTarget)
             {
-                if (base.destroyed)
-                {
-                    continue;
-                }
-                const float radius =
-                    base.auraRadiusPx > 0.0f ? base.auraRadiusPx : baseRadiusLocal;
-                const float combined = std::max(radius, baseRadiusLocal) + enemyReach;
-                const float distSq = lengthSq(enemy.pos - base.pos);
-                if (distSq <= combined * combined && distSq < bestDistSq)
-                {
-                    bestDistSq = distSq;
-                    baseOverride = base.pos;
-                }
+                chooseBase();
             }
-            if (bestDistSq < std::numeric_limits<float>::max())
+
+            target = choice.pos;
+            bool targetingBase = choice.isBase;
+            if (choice.focusIndex >= 0)
             {
-                targetFinal = baseOverride;
+                enemy.focusUnitIndex = choice.focusIndex;
+                enemy.focusTimer = choice.focusTimer;
             }
-        }
-        Vec2 delta = targetFinal - enemy.pos;
-        float targetDistance = length(delta);
-        Vec2 dir{0.0f, 0.0f};
-        if (targetDistance > 0.0001f)
-        {
-            dir = delta / targetDistance;
-        }
-        if (!taunted && enemy.type == EnemyArchetype::Magician)
-        {
-            const float attackRange = std::max(enemy.attackRangePx, enemy.radius);
-            const float keepNear = attackRange * 0.65f;
-            const float keepFar = attackRange * 0.95f;
-            if (targetDistance < keepNear && targetDistance > 0.0001f)
+            else
             {
-                Vec2 away = enemy.pos - target;
-                const float len = length(away);
-                dir = len > 0.0001f ? away / len : Vec2{0.0f, 0.0f};
+                enemy.focusUnitIndex = -1;
+                enemy.focusTimer = choice.isAlly ? std::max(0.0f, choice.focusTimer) : 0.0f;
             }
-            else if (targetDistance > attackRange && targetDistance > 0.0001f)
+
+            Vec2 targetFinal = target;
+            // 拠点を狙っていない場合のみ、行軍ずらしを適用
+            if (!taunted && enemy.focusUnitIndex < 0 && !targetingBase)
+            {
+                targetFinal += enemy.laneOffset;
+            }
+            Vec2 delta = targetFinal - enemy.pos;
+            float targetDistance = length(delta);
+            Vec2 dir{0.0f, 0.0f};
+            if (targetDistance > 0.0001f)
             {
                 dir = delta / targetDistance;
             }
-            else if (targetDistance > keepFar && targetDistance > 0.0001f)
+            if (!taunted && enemy.type == EnemyArchetype::Magician)
             {
-                dir = delta / targetDistance;
+                const float attackRange = std::max(enemy.attackRangePx, enemy.radius);
+                const float keepNear = attackRange * 0.65f;
+                const float keepFar = attackRange * 0.95f;
+                if (targetDistance < keepNear && targetDistance > 0.0001f)
+                {
+                    Vec2 away = enemy.pos - target;
+                    const float len = length(away);
+                    dir = len > 0.0001f ? away / len : Vec2{0.0f, 0.0f};
+                }
+                else if (targetDistance > attackRange && targetDistance > 0.0001f)
+                {
+                    dir = delta / targetDistance;
+                }
+                else if (targetDistance > keepFar && targetDistance > 0.0001f)
+                {
+                    dir = delta / targetDistance;
+                }
+                else if (targetDistance <= keepFar && targetDistance >= keepNear)
+                {
+                    dir = {0.0f, 0.0f};
+                }
             }
-            else if (targetDistance <= keepFar && targetDistance >= keepNear)
+            float speedPx = enemy.speedPx;
+            if (speedPx <= 0.0f)
             {
-                dir = {0.0f, 0.0f};
+                const float speedUnits = enemy.type == EnemyArchetype::Wallbreaker ? sim.wallbreakerStats.speed_u_s
+                                                                                   : sim.slimeStats.speed_u_s;
+                speedPx = speedUnits * sim.config.pixels_per_unit;
             }
-        }
-        float speedPx = enemy.speedPx;
-        if (speedPx <= 0.0f)
-        {
-            const float speedUnits = enemy.type == EnemyArchetype::Wallbreaker ? sim.wallbreakerStats.speed_u_s
-                                                                               : sim.slimeStats.speed_u_s;
-            speedPx = speedUnits * sim.config.pixels_per_unit;
-        }
-        if (enemy.type == EnemyArchetype::Bat)
-        {
-            const float rushThreshold = 96.0f;
-            const float dashMul = targetDistance > rushThreshold ? 1.45f : 1.15f;
-            speedPx *= dashMul;
-        }
-        if (enemy.attackLockTimer <= 0.0f)
-        {
-            enemy.pos += dir * (speedPx * dt);
+            if (enemy.type == EnemyArchetype::Bat)
+            {
+                const float rushThreshold = 96.0f;
+                const float dashMul = targetDistance > rushThreshold ? 1.45f : 1.15f;
+                speedPx *= dashMul;
+            }
+            if (enemy.attackLockTimer <= 0.0f)
+            {
+                enemy.pos += dir * (speedPx * dt);
+            }
         }
     }
 
@@ -1082,7 +1146,7 @@ void CombatSystem::update(float dt, SystemContext &context)
         std::vector<std::size_t> commanderBaseContacts;
         commanderBaseContacts.reserve(stageState.enemyBases.size());
 
-        gatherEnemiesNear(commander.pos, commander.radius, m_enemyScratch);
+        gatherEnemiesNear(commander.pos, commander.radius + maxEnemyReach, m_enemyScratch);
         for (std::size_t enemyIndex : m_enemyScratch)
         {
             EnemyUnit &enemy = enemies[enemyIndex];
@@ -1090,7 +1154,7 @@ void CombatSystem::update(float dt, SystemContext &context)
             {
                 continue;
             }
-            const float enemyReach = std::max(enemy.radius, enemy.attackRangePx);
+            const float enemyReach = std::max(enemy.radius, enemy.attackRangePx + 6.0f);
             const float combined = commander.radius + enemyReach;
             const bool inRange = lengthSq(commander.pos - enemy.pos) <= combined * combined;
             if (inRange)
@@ -1200,14 +1264,13 @@ void CombatSystem::update(float dt, SystemContext &context)
             triggerShieldTaunt(yuna, sim, enemies);
         }
         const AllyLevelingParams levelParams = kCommanderLevelingParams;
-        float levelMul = 1.0f;
-        if (yuna.isNamed)
-        {
-            const int level = sim.namedLevel(yuna.name);
-            const float delta = static_cast<float>(std::max(level - 1, 0));
-            levelMul = 1.0f + levelParams.dpsPerLevel * delta;
-        }
-        const float baseDps = (yuna.isNamed ? sim.commanderStats.dps : sim.yunaStats.dps) * levelMul;
+        const int level = std::max(yuna.level, 1);
+        const int levelDelta = std::max(level - 1, 0);
+        const float perLevelDps =
+            yuna.isNamed ? levelParams.dpsPerLevel : levelParams.dpsPerLevel * 0.5f;
+        float baseDps = yuna.isNamed ? sim.commanderStats.dps : sim.yunaStats.dps;
+        baseDps += perLevelDps * static_cast<float>(levelDelta);
+        baseDps = std::max(baseDps, 0.0f);
         std::vector<std::size_t> enemyContacts;
         enemyContacts.reserve(m_enemyScratch.size());
         std::vector<std::size_t> gateContacts;
@@ -1215,7 +1278,7 @@ void CombatSystem::update(float dt, SystemContext &context)
         std::vector<std::size_t> baseContacts;
         baseContacts.reserve(stageState.enemyBases.size());
 
-        gatherEnemiesNear(yuna.pos, yuna.radius, m_enemyScratch);
+        gatherEnemiesNear(yuna.pos, yuna.radius + maxEnemyReach, m_enemyScratch);
         for (std::size_t enemyIndex : m_enemyScratch)
         {
             EnemyUnit &enemy = enemies[enemyIndex];
@@ -1377,9 +1440,20 @@ void CombatSystem::update(float dt, SystemContext &context)
             enemyIndex < enemyAllyBaseContacts.size() && !enemyAllyBaseContacts[enemyIndex].empty();
         const bool contactMainBase =
             enemyIndex < enemyMainBaseContact.size() && enemyMainBaseContact[enemyIndex];
+        const float enemyReach = std::max(enemy.radius, enemy.attackRangePx + 6.0f);
+        bool contactMainBaseFinal = contactMainBase;
+        if (!contactMainBaseFinal && mainBaseAlive)
+        {
+            const float combinedMain = mainBaseContactRadius + enemyReach;
+            const float distSq = lengthSq(enemy.pos - baseContactPos);
+            if (distSq <= combinedMain * combinedMain || sim.debugForceBaseContact)
+            {
+                contactMainBaseFinal = true; // 予備判定で強制接触
+            }
+        }
 
         const bool hasContact =
-            contactCommander || contactYunas || contactWalls || contactAllyBases || contactMainBase;
+            contactCommander || contactYunas || contactWalls || contactAllyBases || contactMainBaseFinal;
         if (!hasContact)
         {
             enemy.attackSwingTimer = 0.0f;
@@ -1479,17 +1553,82 @@ void CombatSystem::update(float dt, SystemContext &context)
             }
         }
 
-        if (contactMainBase)
+        if (contactMainBaseFinal)
         {
-            const float mitigation = std::clamp(sim.baseDamageReduction, 0.0f, 0.95f);
-            const float damage = enemy.dpsBase * swingDuration * (1.0f - mitigation);
-            context.baseHp -= damage;
-            if (context.baseHp <= 0.0f)
+            const float mitigation = std::clamp(sim.baseDamageReduction, 0.0f, 0.5f);
+            float damage = enemy.dpsBase * swingDuration * (1.0f - mitigation);
+            if (damage > 0.0f && damage < 1.0f)
             {
-                context.baseHp = 0.0f;
-                if (!context.mission.hasMission || context.mission.fail.baseHpZero)
+                damage = 1.0f; // ensure minimum chip damage per swing
+            }
+
+            if (stageHasAllyBases)
+            {
+                // ダメージ対象として最寄りの未破壊拠点を選ぶ
+                int targetIndex = -1;
+                float bestDistSq = std::numeric_limits<float>::max();
+                for (std::size_t baseIdx = 0; baseIdx < stageState.allyBases.size(); ++baseIdx)
+                {
+                    const StageAllyBaseState &base = stageState.allyBases[baseIdx];
+                    if (base.destroyed)
+                    {
+                        continue;
+                    }
+                    const float distSq = lengthSq(enemy.pos - base.pos);
+                    if (distSq < bestDistSq)
+                    {
+                        bestDistSq = distSq;
+                        targetIndex = static_cast<int>(baseIdx);
+                    }
+                }
+                if (targetIndex >= 0)
+                {
+                    StageAllyBaseState &base = stageState.allyBases[static_cast<std::size_t>(targetIndex)];
+                    sim.damageAllyBase(base, damage);
+                }
+                else
+                {
+                    // 拠点リストはあるが全滅（または空）している場合はメイン拠点HPを削る
+                    context.baseHp -= damage;
+                    if (context.baseHp <= 0.0f)
+                    {
+                        context.baseHp = 0.0f;
+                        if (!commander.alive &&
+                            (!context.mission.hasMission || context.mission.fail.baseHpZero))
+                        {
+                            sim.setResult(GameResult::Defeat, "Defeat");
+                        }
+                    }
+                }
+
+                // 全拠点破壊チェック（司令官も倒れている場合のみ敗北）
+                bool allDestroyed = stageState.allyBases.empty();
+                for (const StageAllyBaseState &base : stageState.allyBases)
+                {
+                    if (!base.destroyed)
+                    {
+                        allDestroyed = false;
+                        break;
+                    }
+                }
+                // Defeat only if拠点が全滅かつ司令官が倒れている
+                if (allDestroyed && !commander.alive &&
+                    (!context.mission.hasMission || context.mission.fail.baseHpZero))
                 {
                     sim.setResult(GameResult::Defeat, "Defeat");
+                }
+            }
+            else
+            {
+                context.baseHp -= damage;
+                if (context.baseHp <= 0.0f)
+                {
+                    context.baseHp = 0.0f;
+                    // Defeat only if司令官が倒れている
+                    if (!commander.alive && (!context.mission.hasMission || context.mission.fail.baseHpZero))
+                    {
+                        sim.setResult(GameResult::Defeat, "Defeat");
+                    }
                 }
             }
         }
@@ -1543,7 +1682,11 @@ void CombatSystem::update(float dt, SystemContext &context)
             Unit &yuna = yunas[i];
             if (yuna.hp <= 0.0f)
             {
-                sim.deathFx.push_back({yuna.pos, 1.0f, 1.0f, yuna.facingX});
+                if (!yuna.isNamed)
+                {
+                    sim.deathFx.push_back({yuna.pos, 1.0f, 1.0f, yuna.facingX});
+                    ++sim.statChibiDeaths;
+                }
                 if (yuna.respawnAllowed)
                 {
                     sim.enqueueYunaRespawn(0.0f);
@@ -1567,7 +1710,10 @@ void CombatSystem::update(float dt, SystemContext &context)
                     {
                         sim.enqueueYunaRespawn(ratio);
                     }
-                    sim.deathFx.push_back({yuna.pos, 1.0f, 1.0f, yuna.facingX});
+                    if (!yuna.isNamed)
+                    {
+                        sim.deathFx.push_back({yuna.pos, 1.0f, 1.0f, yuna.facingX});
+                    }
                     continue;
                 }
                 if (yuna.temperament.definition && yuna.temperament.definition->panicOnHit > 0.0f)
@@ -1581,8 +1727,6 @@ void CombatSystem::update(float dt, SystemContext &context)
         yunas.swap(survivors);
     }
 
-    const float baseRadius = std::max(sim.config.base_aabb.x, sim.config.base_aabb.y) * 0.5f;
-
     if (stageHasAllyBases || stageHasEnemyBases)
     {
         for (std::size_t enemyIndex = 0; enemyIndex < enemies.size(); ++enemyIndex)
@@ -1593,27 +1737,40 @@ void CombatSystem::update(float dt, SystemContext &context)
                 continue;
             }
 
-            if (stageHasAllyBases)
+        if (stageHasAllyBases)
+        {
+            for (std::size_t baseIndex = 0; baseIndex < stageState.allyBases.size(); ++baseIndex)
             {
-                for (std::size_t baseIndex = 0; baseIndex < stageState.allyBases.size(); ++baseIndex)
-                {
-                    StageAllyBaseState &base = stageState.allyBases[baseIndex];
-                    if (base.destroyed)
+                StageAllyBaseState &base = stageState.allyBases[baseIndex];
+                if (base.destroyed)
                     {
                         continue;
                     }
-                    const float enemyReach = std::max(enemy.radius, enemy.attackRangePx);
-                    const float auraEffective =
-                        base.auraRadiusPx > 0.0f ? std::max(base.auraRadiusPx * 0.25f, baseRadius) : baseRadius;
-                    const float radius = std::max(baseRadius, auraEffective);
-                    const float combined = radius + enemyReach;
+                    const float enemyReach = std::max(enemy.radius, enemy.attackRangePx + 6.0f);
+                    const float baseHitRadius = baseRadius + 4.0f;
+                    const float combined = baseHitRadius + enemyReach;
                     if (lengthSq(enemy.pos - base.pos) <= combined * combined)
                     {
                         if (enemyIndex < enemyAllyBaseContacts.size())
                         {
                             enemyAllyBaseContacts[enemyIndex].push_back(baseIndex);
                         }
+                        if (enemyIndex < enemyMainBaseContact.size())
+                        {
+                            enemyMainBaseContact[enemyIndex] = true;
+                        }
                     }
+                }
+            }
+
+            // Always allow main base contact even when ally bases exist
+            const float enemyReach = std::max(enemy.radius, enemy.attackRangePx + 6.0f);
+            const float combinedMain = mainBaseContactRadius + enemyReach;
+            if (lengthSq(enemy.pos - baseContactPos) <= combinedMain * combinedMain)
+            {
+                if (enemyIndex < enemyMainBaseContact.size())
+                {
+                    enemyMainBaseContact[enemyIndex] = true;
                 }
             }
 
@@ -1622,7 +1779,8 @@ void CombatSystem::update(float dt, SystemContext &context)
     }
     else
     {
-        gatherEnemiesNear(sim.basePos, baseRadius, m_enemyScratch);
+        // ステージ拠点リストが無い場合も、メイン拠点半径（オーラ基準）で判定する
+        gatherEnemiesNear(baseContactPos, mainBaseContactRadius + maxEnemyReach, m_enemyScratch);
         for (std::size_t enemyIndex : m_enemyScratch)
         {
             EnemyUnit &enemy = enemies[enemyIndex];
@@ -1630,9 +1788,9 @@ void CombatSystem::update(float dt, SystemContext &context)
             {
                 continue;
             }
-            const float enemyReach = std::max(enemy.radius, enemy.attackRangePx);
-            const float combined = baseRadius + enemyReach;
-            if (lengthSq(enemy.pos - sim.basePos) <= combined * combined)
+            const float enemyReach = std::max(enemy.radius, enemy.attackRangePx + 6.0f);
+            const float combined = mainBaseContactRadius + enemyReach;
+            if (lengthSq(enemy.pos - baseContactPos) <= combined * combined)
             {
                 if (enemyIndex < enemyMainBaseContact.size())
                 {

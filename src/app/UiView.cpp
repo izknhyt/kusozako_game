@@ -488,26 +488,84 @@ void UiView::render(const DrawContext &context) const
     }
 
     const int baseHpInt = static_cast<int>(std::round(std::max(sim.baseHp, 0.0f)));
-    const float hpRatio = sim.config.base_hp > 0 ? std::clamp(baseHpInt / static_cast<float>(sim.config.base_hp), 0.0f, 1.0f)
-                                                 : 0.0f;
-    SDL_Rect barBg{screenW / 2 - 160, topUiAnchor, 320, 20};
-    SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
-    SDL_SetRenderDrawColor(renderer, 28, 22, 40, 200);
-    countedRenderFillRect(renderer, &barBg, stats);
-    SDL_Rect barFill{barBg.x + 4, barBg.y + 4, static_cast<int>((barBg.w - 8) * hpRatio), barBg.h - 8};
-    SDL_SetRenderDrawColor(renderer, 255, 166, 64, 230);
-    countedRenderFillRect(renderer, &barFill, stats);
-    SDL_SetRenderDrawColor(renderer, 90, 70, 120, 230);
-    countedRenderDrawRect(renderer, &barBg, stats);
-    SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
-    font.drawText(renderer, "Base HP", barBg.x, barBg.y - lineHeight, &stats);
-    font.drawText(renderer, std::to_string(baseHpInt), barBg.x + barBg.w + 12, barBg.y - 2, &stats);
+    float baseHpMax = static_cast<float>(sim.config.base_hp);
+    if (sim.stage.enabled)
+    {
+        const float totalStageHp = sim.totalAllyBaseMaxHp();
+        if (totalStageHp > 0.0f)
+        {
+            baseHpMax = totalStageHp;
+        }
+    }
+    const float commanderHpMax = sim.commanderStats.hp;
+    const float commanderMpMax = std::max(sim.commander.mpMax, 0.0f);
 
-    int infoPanelAnchor = barBg.y + barBg.h + 20;
+    // Consolidated status panel (Commander HP/MP + Base HP)
+    const int panelX = 16;
+    const int panelY = topUiAnchor;
+    const int padX = 12;
+    const int padY = 10;
+    const int barWidth = 240;
+    const int barHeight = 10;
+    const int rowGap = 10;
+    const int rowHeight = lineHeight + barHeight + rowGap;
+    const int rows = 3;
+    SDL_Rect statusPanel{panelX,
+                         panelY,
+                         barWidth + padX * 2,
+                         padY * 2 + rows * rowHeight - rowGap};
+    SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+    SDL_SetRenderDrawColor(renderer, 12, 20, 32, 210);
+    countedRenderFillRect(renderer, &statusPanel, stats);
+    SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
+
+    int statusY = statusPanel.y + padY;
+    auto drawStatusBar = [&](const std::string &label, float value, float max, SDL_Color fill, bool dim) {
+        const int valueInt = static_cast<int>(std::round(std::max(value, 0.0f)));
+        const int maxInt = static_cast<int>(std::round(std::max(max, 0.0f)));
+        std::ostringstream text;
+        text << label << ": " << valueInt << " / " << maxInt;
+        SDL_Color textColor = dim ? SDL_Color{160, 170, 180, 255} : SDL_Color{230, 240, 255, 255};
+        font.drawText(renderer, text.str(), statusPanel.x + padX, statusY, &stats, textColor);
+
+        const float ratio = max > 0.0f ? std::clamp(value / max, 0.0f, 1.0f) : 0.0f;
+        SDL_Rect bg{statusPanel.x + padX, statusY + lineHeight + 4, barWidth, barHeight};
+        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+        SDL_SetRenderDrawColor(renderer, 20, 30, 40, 200);
+        countedRenderFillRect(renderer, &bg, stats);
+        SDL_Rect fillRect{bg.x + 2, bg.y + 2, static_cast<int>((bg.w - 4) * ratio), bg.h - 4};
+        SDL_SetRenderDrawColor(renderer, fill.r, fill.g, fill.b, 230);
+        countedRenderFillRect(renderer, &fillRect, stats);
+        SDL_SetRenderDrawColor(renderer, 60, 70, 90, 220);
+        countedRenderDrawRect(renderer, &bg, stats);
+        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
+
+        statusY = bg.y + bg.h + rowGap;
+    };
+
+    drawStatusBar("Commander HP",
+                  sim.commander.alive ? sim.commander.hp : 0.0f,
+                  commanderHpMax,
+                  SDL_Color{255, 120, 120, 255},
+                  !sim.commander.alive);
+    drawStatusBar("Commander MP",
+                  sim.commander.alive ? sim.commander.mp : 0.0f,
+                  commanderMpMax > 0.0f ? commanderMpMax : 1.0f,
+                  SDL_Color{90, 170, 255, 255},
+                  !sim.commander.alive);
+    drawStatusBar("Base HP",
+                  static_cast<float>(baseHpInt),
+                  baseHpMax,
+                  SDL_Color{255, 166, 64, 255},
+                  false);
+
+    topUiAnchor = statusPanel.y + statusPanel.h + 16;
+
+    int infoPanelAnchor = topUiAnchor;
     if (sim.missionMode == MissionMode::Boss && sim.missionUI.showBossHpBar && sim.boss.maxHp > 0.0f)
     {
         const float ratio = std::clamp(sim.boss.maxHp > 0.0f ? sim.boss.hp / sim.boss.maxHp : 0.0f, 0.0f, 1.0f);
-        SDL_Rect bossBg{screenW / 2 - 200, barBg.y + barBg.h + 12, 400, 18};
+        SDL_Rect bossBg{screenW / 2 - 200, infoPanelAnchor, 400, 18};
         SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
         SDL_SetRenderDrawColor(renderer, 30, 10, 60, 200);
         countedRenderFillRect(renderer, &bossBg, stats);
@@ -519,6 +577,10 @@ void UiView::render(const DrawContext &context) const
         SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
         font.drawText(renderer, "Boss HP", bossBg.x, bossBg.y - lineHeight, &stats);
         infoPanelAnchor = bossBg.y + bossBg.h + 20;
+    }
+    else
+    {
+        infoPanelAnchor += 8;
     }
 
     int hudLeftAnchor = infoPanelAnchor;

@@ -1110,6 +1110,105 @@ void WorldState::commanderAttack(const std::optional<Vec2> &targetWorld)
     markComponentsDirty();
 }
 
+void WorldState::commandChibiMove(const std::vector<int> &indices, const Vec2 &targetWorld)
+{
+    if (!m_sim)
+    {
+        return;
+    }
+    bool dirty = false;
+    const float arrivalRadius = std::max(m_sim->config.pixels_per_unit * 0.75f, 8.0f);
+    for (int idx : indices)
+    {
+        if (idx < 0 || static_cast<std::size_t>(idx) >= m_sim->yunas.size())
+        {
+            continue;
+        }
+        Unit &unit = m_sim->yunas[static_cast<std::size_t>(idx)];
+        if (unit.hp <= 0.0f || unit.isNamed)
+        {
+            continue;
+        }
+        unit.manualOrder.active = true;
+        unit.manualOrder.enemyIndex = -1;
+        unit.manualOrder.target = targetWorld;
+        unit.manualOrder.arrivalRadiusPx = arrivalRadius;
+        unit.manualOrder.holdPosition = true;
+        dirty = true;
+    }
+    if (dirty)
+    {
+        markComponentsDirty();
+    }
+}
+
+void WorldState::commandChibiAttack(const std::vector<int> &indices, int enemyIndex)
+{
+    if (!m_sim)
+    {
+        return;
+    }
+    if (enemyIndex < 0 || static_cast<std::size_t>(enemyIndex) >= m_sim->enemies.size())
+    {
+        return;
+    }
+    EnemyUnit &target = m_sim->enemies[static_cast<std::size_t>(enemyIndex)];
+    if (target.hp <= 0.0f)
+    {
+        return;
+    }
+    bool dirty = false;
+    for (int idx : indices)
+    {
+        if (idx < 0 || static_cast<std::size_t>(idx) >= m_sim->yunas.size())
+        {
+            continue;
+        }
+        Unit &unit = m_sim->yunas[static_cast<std::size_t>(idx)];
+        if (unit.hp <= 0.0f || unit.isNamed)
+        {
+            continue;
+        }
+        unit.manualOrder.active = true;
+        unit.manualOrder.enemyIndex = enemyIndex;
+        unit.manualOrder.target = target.pos;
+        unit.manualOrder.holdPosition = false;
+        dirty = true;
+    }
+    if (dirty)
+    {
+        markComponentsDirty();
+    }
+}
+
+void WorldState::clearChibiManualOrders(const std::vector<int> &indices)
+{
+    if (!m_sim)
+    {
+        return;
+    }
+    bool dirty = false;
+    for (int idx : indices)
+    {
+        if (idx < 0 || static_cast<std::size_t>(idx) >= m_sim->yunas.size())
+        {
+            continue;
+        }
+        Unit &unit = m_sim->yunas[static_cast<std::size_t>(idx)];
+        if (!unit.manualOrder.active)
+        {
+            continue;
+        }
+        unit.manualOrder.active = false;
+        unit.manualOrder.enemyIndex = -1;
+        dirty = true;
+    }
+    if (dirty)
+    {
+        markComponentsDirty();
+    }
+}
+
 void WorldState::commanderCancelTarget()
 {
     if (!m_sim)
@@ -1894,18 +1993,29 @@ void renderWorld(SDL_Renderer *renderer, const LegacySimulation &sim, const Form
         }
     };
     const SDL_Rect *friendRing = atlas.getFrame("ring_friend");
-    const SDL_Rect *enemyRing = atlas.getFrame("ring_enemy");
 
     auto chibiFrameForAlly = [&](const LegacySimulation::RenderQueue::AllySprite &ally)
         -> std::pair<const SDL_Rect *, SDL_RendererFlip> {
-        const bool moving = ally.moving;
-        const char *base = moving ? "chibi_walk" : "chibi_idle";
-        const int frames = 6;
-        // animate by real time to avoid reliance on simulation frameCounter
-        const std::uint64_t ticks = SDL_GetTicks64();
-        const std::uint64_t divisorMs = moving ? 100 : 200; // ~10fps walk, ~5fps idle
-        const std::uint64_t idx = ((ticks / divisorMs) % frames);
-        const std::string key = std::string(base) + "_" + std::to_string(idx);
+        constexpr int kFrames = 6;
+        std::uint64_t idx = 0;
+        std::string base;
+        if (ally.attacking && ally.attackDuration > 0.0f)
+        {
+            const float progress =
+                std::clamp(ally.attackTimer / ally.attackDuration, 0.0f, 0.999f);
+            idx = static_cast<std::uint64_t>(progress * kFrames);
+            base = "chibi_attack";
+        }
+        else
+        {
+            const bool moving = ally.moving;
+            base = moving ? "chibi_walk" : "chibi_idle";
+            // animate by real time to avoid reliance on simulation frameCounter
+            const std::uint64_t ticks = SDL_GetTicks64();
+            const std::uint64_t divisorMs = moving ? 100 : 200; // ~10fps walk, ~5fps idle
+            idx = ((ticks / divisorMs) % kFrames);
+        }
+        const std::string key = base + "_" + std::to_string(idx);
         const SDL_Rect *rect = atlas.getFrame(key);
         const SDL_RendererFlip flip = ally.facingX < 0.0f ? SDL_FLIP_HORIZONTAL : SDL_FLIP_NONE;
         return {rect, flip};
@@ -2164,17 +2274,7 @@ void renderWorld(SDL_Renderer *renderer, const LegacySimulation &sim, const Form
             }
             const SDL_Rect *frame = frameForEnemy(enemy.type);
             Vec2 screenPos = worldToScreen(enemy.position, camera);
-            // Colored halo to distinguish archetypes
             const SDL_Color halo = enemyColor(enemy.type);
-            const float haloRadius = enemy.type == EnemyArchetype::Boss ? enemy.radius + 32.0f
-                                   : enemy.type == EnemyArchetype::Golem ? enemy.radius + 22.0f
-                                   : enemy.type == EnemyArchetype::Wallbreaker ? enemy.radius + 16.0f
-                                   : enemy.radius + 14.0f;
-            SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
-            SDL_SetRenderDrawColor(renderer, halo.r, halo.g, halo.b, halo.a);
-            drawFilledCircle(renderer, screenPos, haloRadius, stats);
-            SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
-
             SDL_Rect spriteRect{};
             bool hasSpriteRect = false;
             if (frame)
@@ -2185,15 +2285,6 @@ void renderWorld(SDL_Renderer *renderer, const LegacySimulation &sim, const Form
                     frame->w,
                     frame->h};
                 countedRenderCopy(renderer, atlas.texture.getRaw(), frame, &dest, stats);
-                if (enemyRing)
-                {
-                    SDL_Rect ringDest{
-                        dest.x + (dest.w - enemyRing->w) / 2,
-                        dest.y + dest.h - enemyRing->h,
-                        enemyRing->w,
-                        enemyRing->h};
-                    countedRenderCopy(renderer, atlas.texture.getRaw(), enemyRing, &ringDest, stats);
-                }
                 spriteRect = dest;
                 hasSpriteRect = true;
             }
@@ -2234,9 +2325,10 @@ void renderWorld(SDL_Renderer *renderer, const LegacySimulation &sim, const Form
             const int abbrevWidth = labelFont.measureText(abbrev);
             const int padX = 4;
             const int padY = 2;
+            const float labelAnchorY = hasSpriteRect ? static_cast<float>(spriteRect.y) : screenPos.y - enemy.radius;
             SDL_Rect tagBg{
                 static_cast<int>(std::round(screenPos.x)) - abbrevWidth / 2 - padX,
-                static_cast<int>(std::round(screenPos.y - haloRadius)) - (labelFont.getLineHeight() + padY * 2) - 2,
+                static_cast<int>(std::round(labelAnchorY)) - (labelFont.getLineHeight() + padY * 2) - 2,
                 abbrevWidth + padX * 2,
                 labelFont.getLineHeight() + padY * 2};
             SDL_Color labelBgColor{static_cast<Uint8>(std::min(halo.r + 30, 255)),
@@ -2273,14 +2365,6 @@ void renderWorld(SDL_Renderer *renderer, const LegacySimulation &sim, const Form
             }
             Vec2 screenPos = worldToScreen(enemy.position, camera);
             const SDL_Color halo = enemyColor(enemy.type);
-            const float haloRadius = enemy.type == EnemyArchetype::Boss ? enemy.radius + 32.0f
-                                   : enemy.type == EnemyArchetype::Golem ? enemy.radius + 22.0f
-                                   : enemy.type == EnemyArchetype::Wallbreaker ? enemy.radius + 16.0f
-                                   : enemy.radius + 14.0f;
-            SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
-            SDL_SetRenderDrawColor(renderer, halo.r, halo.g, halo.b, halo.a);
-            drawFilledCircle(renderer, screenPos, haloRadius, stats);
-            SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
             SDL_SetRenderDrawColor(renderer, halo.r, halo.g, halo.b, 255);
             drawFilledCircle(renderer, screenPos, enemy.radius, stats);
             const TextRenderer &labelFont = debugFont.isLoaded() ? debugFont : font;
@@ -2288,9 +2372,10 @@ void renderWorld(SDL_Renderer *renderer, const LegacySimulation &sim, const Form
             const int abbrevWidth = labelFont.measureText(abbrev);
             const int padX = 4;
             const int padY = 2;
+            const float labelAnchorY = screenPos.y - enemy.radius;
             SDL_Rect tagBg{
                 static_cast<int>(std::round(screenPos.x)) - abbrevWidth / 2 - padX,
-                static_cast<int>(std::round(screenPos.y - haloRadius)) - (labelFont.getLineHeight() + padY * 2) - 2,
+                static_cast<int>(std::round(labelAnchorY)) - (labelFont.getLineHeight() + padY * 2) - 2,
                 abbrevWidth + padX * 2,
                 labelFont.getLineHeight() + padY * 2};
             SDL_Color labelBgColor{static_cast<Uint8>(std::min(halo.r + 30, 255)),
@@ -2539,6 +2624,20 @@ class CampScene : public Scene
                 }
                 break;
             }
+            case SDLK_F9:
+            {
+                m_campaign->debugDisableYunaSpawns = !m_campaign->debugDisableYunaSpawns;
+                m_feedbackTimer = 1.5;
+                m_feedbackText = m_campaign->debugDisableYunaSpawns ? "Chibi spawn: OFF" : "Chibi spawn: ON";
+                break;
+            }
+            case SDLK_F10:
+            {
+                m_campaign->debugDisableBaseRegenAndDef = !m_campaign->debugDisableBaseRegenAndDef;
+                m_feedbackTimer = 1.5;
+                m_feedbackText = m_campaign->debugDisableBaseRegenAndDef ? "Base regen/def: OFF" : "Base regen/def: ON";
+                break;
+            }
             default:
                 break;
             }
@@ -2590,6 +2689,16 @@ class CampScene : public Scene
         const TextRenderer &bodyFont = m_bodyFont.isLoaded() ? m_bodyFont : m_titleFont;
         const int headerY = 24;
         titleFont.drawText(renderer, "Camp", 32, headerY, nullptr, SDL_Color{255, 230, 180, 255});
+        if (m_campaign->debugDisableYunaSpawns)
+        {
+            bodyFont.drawText(renderer, "[Debug] Chibi spawn OFF (F9)", 220, headerY,
+                              nullptr, SDL_Color{255, 120, 120, 230});
+        }
+        if (m_campaign->debugDisableBaseRegenAndDef)
+        {
+            bodyFont.drawText(renderer, "[Debug] Base regen/def OFF (F10)", 220, headerY + 26,
+                              nullptr, SDL_Color{255, 150, 120, 230});
+        }
 
         std::ostringstream walletText;
         walletText << "Wallet: " << (m_campaign ? m_campaign->availableMana() : 0) << " mana";
@@ -3261,14 +3370,14 @@ class CampScene : public Scene
         {
             const AllyLevelingParams params = kCommanderLevelingParams;
             const int nextLevel = trainingAbsoluteLevel(entry, level) + 1;
-            auto formatPercent = [](float value) {
+            auto formatFlat = [](float value) {
                 std::ostringstream tmp;
-                tmp << std::fixed << std::setprecision(value < 0.1f ? 3 : 2) << value;
+                tmp << std::fixed << std::setprecision(value < 1.0f ? 3 : 2) << value;
                 return tmp.str();
             };
-            oss << "次 Lv" << nextLevel << "：HP+" << params.hpPerLevel;
-            oss << " / DPS+" << formatPercent(params.dpsPerLevel * 100.0f) << "%";
-            oss << " / SPD+" << formatPercent(params.speedPerLevel * 100.0f) << "%";
+            oss << "次 Lv" << nextLevel << "：HP+" << formatFlat(params.hpPerLevel);
+            oss << " / DPS+" << formatFlat(params.dpsPerLevel);
+            oss << " / SPD+" << formatFlat(params.speedPerLevel);
         }
         else
         {
@@ -3824,9 +3933,27 @@ class BattleScene : public Scene
     bool m_resultOverlayActive = false;
     bool m_resultRecorded = false;
     std::string m_resultSummary;
+    struct ResultDetails
+    {
+        bool available = false;
+        GameResult result = GameResult::Playing;
+        float durationSeconds = 0.0f;
+        int chibiDeaths = 0;
+        int chibiSurvivors = 0;
+        int enemyKills = 0;
+        int manaEarned = 0;
+        int manaCap = 0;
+        int manaBonusPercent = 0;
+        int basesSealed = 0;
+        int basesTotal = 0;
+    } m_resultDetails{};
     std::vector<float> m_speedSteps{1.0f};
     int m_speedIndex = 0;
     float m_userTimeScale = 1.0f;
+    bool m_draggingSelection = false;
+    SDL_Point m_dragStart{0, 0};
+    SDL_Point m_dragCurrent{0, 0};
+    std::vector<int> m_selectedChibis;
 
     void initializeDebugBindings(GameApplication &app);
     void updateDebugToggles();
@@ -3836,6 +3963,9 @@ class BattleScene : public Scene
     void handleResultOverlayKey(SDL_Keycode key, GameApplication &app, SceneStack &stack);
     void cycleGameSpeed(int direction = 1);
     void resetResultState();
+    void selectChibisInRect(const SDL_Rect &rect);
+    int enemyIndexAtScreen(int screenX, int screenY) const;
+    void pruneSelection();
 };
 
 class TitleScene : public Scene
@@ -4132,7 +4262,7 @@ void BattleScene::handleActionFrame(const ActionBuffer::Frame &frame, GameApplic
 
     for (const ActionEvent &evt : frame.events)
     {
-        if (!evt.pressed && evt.id != ActionId::ActivateSkill)
+        if (!evt.pressed && !evt.released && evt.id != ActionId::ActivateSkill)
         {
             continue;
         }
@@ -4276,6 +4406,17 @@ void BattleScene::handleActionFrame(const ActionBuffer::Frame &frame, GameApplic
         case ActionId::CommanderCancelTarget:
             if (evt.pressed)
             {
+                const bool hadSelection = !m_selectedChibis.empty();
+                m_draggingSelection = false;
+                if (hadSelection)
+                {
+                    m_world.clearChibiManualOrders(m_selectedChibis);
+                    m_selectedChibis.clear();
+                }
+                else
+                {
+                    m_world.clearChibiManualOrders(m_selectedChibis);
+                }
                 m_world.commanderCancelTarget();
             }
             break;
@@ -4287,12 +4428,59 @@ void BattleScene::handleActionFrame(const ActionBuffer::Frame &frame, GameApplic
             break;
         case ActionId::CommanderAttack:
         {
-            std::optional<Vec2> targetPos;
-            if (evt.pointer && evt.pointer->pressed)
+            if (!evt.pointer)
             {
-                targetPos = screenToWorld(evt.pointer->x, evt.pointer->y, m_camera);
+                break;
             }
-            m_world.commanderAttack(targetPos);
+            if (evt.pointer->pressed)
+            {
+                m_draggingSelection = true;
+                m_dragStart = {evt.pointer->x, evt.pointer->y};
+                m_dragCurrent = m_dragStart;
+                break;
+            }
+            if (evt.pointer->released)
+            {
+                if (m_draggingSelection)
+                {
+                    m_dragCurrent = {evt.pointer->x, evt.pointer->y};
+                    const int dx = m_dragCurrent.x - m_dragStart.x;
+                    const int dy = m_dragCurrent.y - m_dragStart.y;
+                    const int dragThreshold = 6;
+                    const bool dragged = std::abs(dx) >= dragThreshold || std::abs(dy) >= dragThreshold;
+                    if (dragged)
+                    {
+                        SDL_Rect rect{};
+                        rect.x = std::min(m_dragStart.x, m_dragCurrent.x);
+                        rect.y = std::min(m_dragStart.y, m_dragCurrent.y);
+                        rect.w = std::abs(dx);
+                        rect.h = std::abs(dy);
+                        selectChibisInRect(rect);
+                        m_draggingSelection = false;
+                        break;
+                    }
+                }
+
+                Vec2 worldPos = screenToWorld(evt.pointer->x, evt.pointer->y, m_camera);
+                pruneSelection();
+                if (!m_selectedChibis.empty())
+                {
+                    const int enemyIdx = enemyIndexAtScreen(evt.pointer->x, evt.pointer->y);
+                    if (enemyIdx >= 0)
+                    {
+                        m_world.commandChibiAttack(m_selectedChibis, enemyIdx);
+                    }
+                    else
+                    {
+                        m_world.commandChibiMove(m_selectedChibis, worldPos);
+                    }
+                }
+                else
+                {
+                    m_world.commanderAttack(worldPos);
+                }
+                m_draggingSelection = false;
+            }
             break;
         }
         case ActionId::ActivateSkill:
@@ -4311,6 +4499,11 @@ void BattleScene::handleActionFrame(const ActionBuffer::Frame &frame, GameApplic
         default:
             break;
         }
+    }
+
+    if (m_draggingSelection && frame.pointer.hasPosition)
+    {
+        m_dragCurrent = {frame.pointer.x, frame.pointer.y};
     }
 
     // Cursor feedback: crosshair when hovering an enemy during battle
@@ -4382,6 +4575,20 @@ void BattleScene::update(double deltaSeconds, GameApplication &app, SceneStack &
         }
         m_resultOverlayActive = true;
         m_resultSummary = sim.hud.resultText.empty() ? "RESULT" : sim.hud.resultText;
+        if (sim.hud.resultStats.available)
+        {
+            m_resultDetails.available = true;
+            m_resultDetails.result = sim.hud.resultStats.result;
+            m_resultDetails.durationSeconds = sim.hud.resultStats.durationSeconds;
+            m_resultDetails.chibiDeaths = sim.hud.resultStats.chibiDeaths;
+            m_resultDetails.chibiSurvivors = sim.hud.resultStats.chibiSurvivors;
+            m_resultDetails.enemyKills = sim.hud.resultStats.enemyKills;
+            m_resultDetails.manaEarned = sim.hud.resultStats.manaEarned;
+            m_resultDetails.manaCap = sim.hud.resultStats.manaCap;
+            m_resultDetails.manaBonusPercent = sim.hud.resultStats.manaBonusPercent;
+            m_resultDetails.basesSealed = sim.hud.resultStats.basesSealed;
+            m_resultDetails.basesTotal = sim.hud.resultStats.basesTotal;
+        }
     }
 
     if (m_resultOverlayActive)
@@ -4587,6 +4794,46 @@ void BattleScene::render(SDL_Renderer *renderer, GameApplication &app)
                 m_screenHeight,
                 renderStats);
 
+    if (renderer)
+    {
+        pruneSelection();
+        if (!m_selectedChibis.empty())
+        {
+            SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+            SDL_SetRenderDrawColor(renderer, 70, 180, 255, 120);
+            for (int idx : m_selectedChibis)
+            {
+                if (idx < 0 || static_cast<std::size_t>(idx) >= sim.yunas.size())
+                {
+                    continue;
+                }
+                const Unit &unit = sim.yunas[static_cast<std::size_t>(idx)];
+                if (unit.hp <= 0.0f)
+                {
+                    continue;
+                }
+                Vec2 screenPos = worldToScreen(unit.pos, renderCamera);
+                const float ringRadius = unit.radius + 8.0f;
+                drawFilledCircle(renderer, screenPos, ringRadius, renderStats);
+            }
+            SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
+        }
+        if (m_draggingSelection)
+        {
+            SDL_Rect rect{};
+            rect.x = std::min(m_dragStart.x, m_dragCurrent.x);
+            rect.y = std::min(m_dragStart.y, m_dragCurrent.y);
+            rect.w = std::abs(m_dragCurrent.x - m_dragStart.x);
+            rect.h = std::abs(m_dragCurrent.y - m_dragStart.y);
+            SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+            SDL_SetRenderDrawColor(renderer, 70, 180, 255, 70);
+            countedRenderFillRect(renderer, &rect, renderStats);
+            SDL_SetRenderDrawColor(renderer, 70, 180, 255, 200);
+            countedRenderDrawRect(renderer, &rect, renderStats);
+            SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
+        }
+    }
+
     Uint64 hudSectionStart = 0;
     if (m_frequency > 0.0)
     {
@@ -4728,12 +4975,46 @@ void BattleScene::renderResultOverlay(SDL_Renderer *renderer, GameApplication &a
     SDL_RenderFillRect(renderer, &overlay);
     SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
 
-    std::vector<std::string> lines{
-        m_resultSummary.empty() ? std::string("RESULT") : m_resultSummary,
-        std::string("[Enter] キャンプへ戻る"),
-        std::string("[R] もう一度挑戦"),
-        std::string("[Esc] タイトルへ戻る"),
+    auto formatDuration = [](float seconds) -> std::string {
+        if (seconds < 0.0f || !std::isfinite(seconds))
+        {
+            return "-";
+        }
+        const int total = static_cast<int>(std::round(seconds));
+        const int mins = total / 60;
+        const int secs = total % 60;
+        std::ostringstream oss;
+        oss << mins << "m " << std::setfill('0') << std::setw(2) << secs << "s";
+        return oss.str();
     };
+
+    std::vector<std::string> lines;
+    lines.push_back(m_resultSummary.empty() ? std::string("RESULT") : m_resultSummary);
+    if (m_resultDetails.available)
+    {
+        lines.push_back("戦闘時間: " + formatDuration(m_resultDetails.durationSeconds));
+        std::ostringstream manaLine;
+        manaLine << "マナ: " << m_resultDetails.manaEarned << " / " << m_resultDetails.manaCap;
+        if (m_resultDetails.manaBonusPercent > 0)
+        {
+            manaLine << " (+" << m_resultDetails.manaBonusPercent << "%)";
+        }
+        lines.push_back(manaLine.str());
+        std::ostringstream chibiLine;
+        chibiLine << "ちびわふ: 生存 " << m_resultDetails.chibiSurvivors << " / 死亡 "
+                  << m_resultDetails.chibiDeaths;
+        lines.push_back(chibiLine.str());
+        std::ostringstream enemyLine;
+        enemyLine << "撃破: " << m_resultDetails.enemyKills;
+        if (m_resultDetails.basesTotal > 0)
+        {
+            enemyLine << " / 拠点封鎖 " << m_resultDetails.basesSealed << "/" << m_resultDetails.basesTotal;
+        }
+        lines.push_back(enemyLine.str());
+    }
+    lines.push_back("[Enter] キャンプへ戻る");
+    lines.push_back("[R] もう一度挑戦");
+    lines.push_back("[Esc] タイトルへ戻る");
     const TextRenderer &font = m_hudFont;
     const int lineAdvance = font.getLineHeight() + 8;
     int totalHeight = static_cast<int>(lines.size()) * lineAdvance;
@@ -4789,11 +5070,72 @@ void BattleScene::cycleGameSpeed(int direction)
     showTelemetryMessage(oss.str());
 }
 
+void BattleScene::selectChibisInRect(const SDL_Rect &rect)
+{
+    m_selectedChibis.clear();
+    const LegacySimulation &sim = m_world.legacy();
+    for (std::size_t i = 0; i < sim.yunas.size(); ++i)
+    {
+        const Unit &unit = sim.yunas[i];
+        if (unit.hp <= 0.0f || unit.isNamed)
+        {
+            continue;
+        }
+        Vec2 screenPos = worldToScreen(unit.pos, m_camera);
+        SDL_Point pt{static_cast<int>(std::round(screenPos.x)), static_cast<int>(std::round(screenPos.y))};
+        if (pt.x >= rect.x && pt.x <= rect.x + rect.w && pt.y >= rect.y && pt.y <= rect.y + rect.h)
+        {
+            m_selectedChibis.push_back(static_cast<int>(i));
+        }
+    }
+    pruneSelection();
+}
+
+int BattleScene::enemyIndexAtScreen(int screenX, int screenY) const
+{
+    const LegacySimulation &sim = m_world.legacy();
+    const Vec2 worldPos = screenToWorld(screenX, screenY, m_camera);
+    const float clickPad = 6.0f;
+    int found = -1;
+    float bestDist = std::numeric_limits<float>::max();
+    for (std::size_t i = 0; i < sim.enemies.size(); ++i)
+    {
+        const EnemyUnit &enemy = sim.enemies[i];
+        if (enemy.hp <= 0.0f)
+        {
+            continue;
+        }
+        const float pad = enemy.radius + clickPad;
+        const float distSq = lengthSq(enemy.pos - worldPos);
+        if (distSq <= pad * pad && distSq < bestDist)
+        {
+            found = static_cast<int>(i);
+            bestDist = distSq;
+        }
+    }
+    return found;
+}
+
+void BattleScene::pruneSelection()
+{
+    const LegacySimulation &sim = m_world.legacy();
+    const std::size_t allyCount = sim.yunas.size();
+    m_selectedChibis.erase(std::remove_if(m_selectedChibis.begin(),
+                                          m_selectedChibis.end(),
+                                          [&](int idx) {
+                                              return idx < 0 || static_cast<std::size_t>(idx) >= allyCount ||
+                                                     sim.yunas[static_cast<std::size_t>(idx)].hp <= 0.0f ||
+                                                     sim.yunas[static_cast<std::size_t>(idx)].isNamed;
+                                          }),
+                           m_selectedChibis.end());
+}
+
 void BattleScene::resetResultState()
 {
     m_resultOverlayActive = false;
     m_resultRecorded = false;
     m_resultSummary.clear();
+    m_resultDetails = {};
 }
 
 void BattleScene::evaluatePerformanceBudgets(GameApplication &app)
@@ -4940,7 +5282,7 @@ void BattleScene::applyAppConfig(GameApplication &app)
     }
 
     LegacySimulation &sim = m_world.legacy();
-    sim = {};
+    sim = LegacySimulation{};
     sim.config = appConfig.game;
     sim.temperamentConfig = appConfig.temperament;
     sim.chibiPersonalityConfig = appConfig.chibiPersonality;
@@ -4966,7 +5308,14 @@ void BattleScene::applyAppConfig(GameApplication &app)
     }
     else
     {
+        std::cerr << "[stage] stageConfig missing; clearing stage configuration\n";
         sim.clearStageConfiguration();
+    }
+    const std::size_t allyBaseCount = sim.stage.allyBases.size();
+    if (allyBaseCount == 0)
+    {
+        std::cerr << "[stage] allyBases is empty after configuration (stageConfig="
+                  << (appConfig.stageConfig ? "loaded" : "none") << ")\n";
     }
     m_speedSteps = sim.stage.speed.steps;
     if (m_speedSteps.empty())

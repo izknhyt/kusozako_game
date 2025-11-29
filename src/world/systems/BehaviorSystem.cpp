@@ -597,12 +597,13 @@ void BehaviorSystem::update(float dt, SystemContext &context)
         yuna.desiredVelocity = {0.0f, 0.0f};
         yuna.hasDesiredVelocity = false;
         const AllyLevelingParams levelParams = kCommanderLevelingParams;
-        const int namedLevel = yuna.isNamed ? sim.namedLevel(yuna.name) : 1;
-        const float levelDelta = static_cast<float>(std::max(namedLevel - 1, 0));
-        const float namedSpeedMul = yuna.isNamed ? (1.0f + levelParams.speedPerLevel * levelDelta) : 1.0f;
-        const float yunaSpeedPx = sim.yunaStats.speed_u_s * sim.config.pixels_per_unit * namedSpeedMul;
-        // Named units are tuned to match the commander’s movement speed
-        const float baseSpeed = yuna.isNamed ? commanderSpeedPx : yunaSpeedPx;
+        const int level = std::max(yuna.level, 1);
+        const float levelDelta = static_cast<float>(std::max(level - 1, 0));
+        float baseSpeed =
+            yuna.isNamed ? commanderSpeedPx : sim.yunaStats.speed_u_s * sim.config.pixels_per_unit;
+        const float perLevelSpeed =
+            yuna.isNamed ? levelParams.speedPerLevel : levelParams.speedPerLevel * 0.5f;
+        baseSpeed += perLevelSpeed * levelDelta * sim.config.pixels_per_unit;
         const float unitSpeed = baseSpeed * std::max(0.01f, yuna.moraleSpeedMultiplier);
         const bool immobilized =
             yuna.job.endlag > 0.0f || yuna.job.warrior.stumbleTimer > 0.0f || yuna.job.archer.holdTimer > 0.0f;
@@ -1189,7 +1190,7 @@ void BehaviorSystem::update(float dt, SystemContext &context)
                                     Vec2 away = normalizedDirection(target->pos, enemy.pos);
                                     if (lengthSq(away) > 0.0f)
                                     {
-                                        enemy.pos += away * 108.0f;
+                                        enemy.pos += away * 54.0f;
                                     }
                                 }
                             }
@@ -1220,80 +1221,128 @@ void BehaviorSystem::update(float dt, SystemContext &context)
         };
 
         Vec2 velocity{0.0f, 0.0f};
-        if (retreatActive)
+        bool manualHandled = false;
+        if (yuna.manualOrder.active)
         {
-            Vec2 retreatDir{0.0f, 0.0f};
-            Vec2 away{0.0f, 0.0f};
-            if (EnemyUnit *threat = nearestEnemyLimited(yuna.pos))
+            if (yuna.manualOrder.enemyIndex >= 0 &&
+                yuna.manualOrder.enemyIndex < static_cast<int>(enemies.size()))
             {
-                away = normalizedDirection(threat->pos, yuna.pos);
+                EnemyUnit &target = enemies[static_cast<std::size_t>(yuna.manualOrder.enemyIndex)];
+                if (target.hp > 0.0f)
+                {
+                    Vec2 dir = normalizedDirection(yuna.pos, target.pos);
+                    velocity = makeVelocity(dir);
+                    manualHandled = true;
+                }
+                else
+                {
+                    yuna.manualOrder.active = false;
+                    yuna.manualOrder.enemyIndex = -1;
+                }
             }
-            Vec2 toBase = normalizedDirection(yuna.pos, sim.basePos);
-            const float bias = std::clamp(yuna.moraleRetreatHomewardBias, 0.0f, 1.0f);
-            if (lengthSq(away) > 0.0f && bias < 1.0f)
+            if (yuna.manualOrder.active && !manualHandled)
             {
-                retreatDir += away * (1.0f - bias);
+                const float arrive = std::max(yuna.manualOrder.arrivalRadiusPx, 4.0f);
+                const float arriveSq = arrive * arrive;
+                const float distSq = lengthSq(yuna.manualOrder.target - yuna.pos);
+                if (distSq <= arriveSq)
+                {
+                    if (yuna.manualOrder.holdPosition)
+                    {
+                        velocity = {0.0f, 0.0f};
+                        manualHandled = true;
+                    }
+                    else
+                    {
+                        yuna.manualOrder.active = false;
+                        yuna.manualOrder.enemyIndex = -1;
+                    }
+                }
+                else
+                {
+                    Vec2 dir = normalizedDirection(yuna.pos, yuna.manualOrder.target);
+                    velocity = makeVelocity(dir);
+                    manualHandled = true;
+                }
             }
-            if (lengthSq(toBase) > 0.0f && bias > 0.0f)
-            {
-                retreatDir += toBase * bias;
-            }
-            if (lengthSq(retreatDir) < 0.0001f)
-            {
-                retreatDir = lengthSq(toBase) > 0.0f ? toBase : away;
-            }
-            velocity = makeVelocity(normalize(retreatDir));
         }
-        else if (panicForceFlee)
+
+        if (!manualHandled)
         {
-            EnemyUnit *threat = nearestEnemyLimited(yuna.pos);
-            Vec2 dir{0.0f, 0.0f};
-            if (threat)
+            if (retreatActive)
             {
-                dir = normalizedDirection(threat->pos, yuna.pos);
+                Vec2 retreatDir{0.0f, 0.0f};
+                Vec2 away{0.0f, 0.0f};
+                if (EnemyUnit *threat = nearestEnemyLimited(yuna.pos))
+                {
+                    away = normalizedDirection(threat->pos, yuna.pos);
+                }
+                Vec2 toBase = normalizedDirection(yuna.pos, sim.basePos);
+                const float bias = std::clamp(yuna.moraleRetreatHomewardBias, 0.0f, 1.0f);
+                if (lengthSq(away) > 0.0f && bias < 1.0f)
+                {
+                    retreatDir += away * (1.0f - bias);
+                }
+                if (lengthSq(toBase) > 0.0f && bias > 0.0f)
+                {
+                    retreatDir += toBase * bias;
+                }
+                if (lengthSq(retreatDir) < 0.0001f)
+                {
+                    retreatDir = lengthSq(toBase) > 0.0f ? toBase : away;
+                }
+                velocity = makeVelocity(normalize(retreatDir));
             }
-            else
+            else if (panicForceFlee)
             {
-                dir = normalizedDirection(yuna.pos, sim.basePos);
+                EnemyUnit *threat = nearestEnemyLimited(yuna.pos);
+                Vec2 dir{0.0f, 0.0f};
+                if (threat)
+                {
+                    dir = normalizedDirection(threat->pos, yuna.pos);
+                }
+                else
+                {
+                    dir = normalizedDirection(yuna.pos, sim.basePos);
+                }
+                velocity = makeVelocity(dir);
             }
-            velocity = makeVelocity(dir);
-        }
-        else if (panicShelter)
-        {
-            Vec2 defendSpot = sim.basePos;
-            if (auto info = nearestAllyBaseInfo(yuna.pos))
+            else if (panicShelter)
             {
-                defendSpot = info->first;
+                Vec2 defendSpot = sim.basePos;
+                if (auto info = nearestAllyBaseInfo(yuna.pos))
+                {
+                    defendSpot = info->first;
+                }
+                velocity = makeVelocity(normalizedDirection(yuna.pos, defendSpot));
             }
-            velocity = makeVelocity(normalizedDirection(yuna.pos, defendSpot));
-        }
-        else if (yuna.panicTokkouActive)
-        {
-            Vec2 dir{0.0f, 0.0f};
-            if (EnemyUnit *target = nearestEnemy(yuna.pos, enemies))
+            else if (yuna.panicTokkouActive)
             {
-                dir = normalizedDirection(yuna.pos, target->pos);
+                Vec2 dir{0.0f, 0.0f};
+                if (EnemyUnit *target = nearestEnemy(yuna.pos, enemies))
+                {
+                    dir = normalizedDirection(yuna.pos, target->pos);
+                }
+                else if (auto base = nearestEnemyBase(sim, yuna.pos))
+                {
+                    dir = normalizedDirection(yuna.pos, *base);
+                }
+                else if (!raidTargets.empty())
+                {
+                    dir = normalizedDirection(yuna.pos, raidTargets.front());
+                }
+                else
+                {
+                    dir = normalizedDirection(yuna.pos, sim.basePos);
+                }
+                velocity = makeVelocity(dir);
+                velocity = velocity * sim.chibiPersonalityConfig.tokkou.speedMultiplier;
             }
-            else if (auto base = nearestEnemyBase(sim, yuna.pos))
+            else if (yuna.panicClingActive)
             {
-                dir = normalizedDirection(yuna.pos, *base);
+                Vec2 target = computeClingTarget(yuna, i);
+                velocity = makeVelocity(normalizedDirection(yuna.pos, target));
             }
-            else if (!raidTargets.empty())
-            {
-                dir = normalizedDirection(yuna.pos, raidTargets.front());
-            }
-            else
-            {
-                dir = normalizedDirection(yuna.pos, sim.basePos);
-            }
-            velocity = makeVelocity(dir);
-            velocity = velocity * sim.chibiPersonalityConfig.tokkou.speedMultiplier;
-        }
-        else if (yuna.panicClingActive)
-        {
-            Vec2 target = computeClingTarget(yuna, i);
-            velocity = makeVelocity(normalizedDirection(yuna.pos, target));
-        }
         else if (yuna.panicKaitenActive)
         {
             Vec2 defendSpot = sim.basePos;
@@ -1660,6 +1709,7 @@ void BehaviorSystem::update(float dt, SystemContext &context)
                 velocity = makeVelocity(normalize(temperamentState.wanderDirection));
                 break;
             }
+        }
         }
 
         actionFrameCounts[actionIndex(desiredAction)]++;

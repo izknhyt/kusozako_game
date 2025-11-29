@@ -17,6 +17,11 @@ struct SDL_RWops;
 
 using SDL_bool = int;
 
+using SDL_RendererFlip = int;
+constexpr SDL_RendererFlip SDL_FLIP_NONE = 0x00000000;
+constexpr SDL_RendererFlip SDL_FLIP_HORIZONTAL = 0x00000001;
+constexpr SDL_RendererFlip SDL_FLIP_VERTICAL = 0x00000002;
+
 #ifndef SDL_RenderClear
 inline int SDL_RenderClear(SDL_Renderer *)
 {
@@ -26,6 +31,14 @@ inline int SDL_RenderClear(SDL_Renderer *)
 
 #ifndef SDL_RenderCopy
 inline int SDL_RenderCopy(SDL_Renderer *, SDL_Texture *, const SDL_Rect *, const SDL_Rect *)
+{
+    return 0;
+}
+#endif
+
+#ifndef SDL_RenderCopyEx
+inline int SDL_RenderCopyEx(SDL_Renderer *, SDL_Texture *, const SDL_Rect *, const SDL_Rect *, double,
+                            const void *, SDL_RendererFlip)
 {
     return 0;
 }

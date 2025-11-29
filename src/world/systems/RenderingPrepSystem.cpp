@@ -182,6 +182,9 @@ void RenderingPrepSystem::update(float, SystemContext &context)
         allySprite.action = yuna.temperament.microAction;
         allySprite.facingX = yuna.facingX;
         allySprite.moving = lengthSq(yuna.lastVelocity) > 0.001f;
+        allySprite.attacking = yuna.attackSwingTimer > 0.0f && yuna.attackSwingDuration > 0.0f;
+        allySprite.attackTimer = yuna.attackSwingTimer;
+        allySprite.attackDuration = yuna.attackSwingDuration;
         allySprite.named = !yuna.name.empty();
         allySprite.name = yuna.name;
         queue.allies.push_back(allySprite);

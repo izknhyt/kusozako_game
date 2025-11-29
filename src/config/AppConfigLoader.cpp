@@ -1563,6 +1563,7 @@ std::optional<StageConfig> parseStageConfig(ParseContext &ctx, const std::string
                 base.id = json::getString(entry, "id", base.id);
                 base.hp = json::getNumber(entry, "hp", base.hp);
                 base.auraRadiusPx = json::getNumber(entry, "aura_radius_px", base.auraRadiusPx);
+                base.sealedByDefault = json::getBool(entry, "sealed_by_default", base.sealedByDefault);
                 if (const json::JsonValue *posValue = json::getObjectField(entry, "pos"))
                 {
                     if (auto pos = parseVec2Array(posValue))
@@ -1603,6 +1604,7 @@ std::optional<StageConfig> parseStageConfig(ParseContext &ctx, const std::string
                 base.radiusPx = json::getNumber(entry, "radius_px", base.radiusPx);
                 base.ratePerSecond = json::getNumber(entry, "rate_per_s", base.ratePerSecond);
                 base.rateMax = json::getNumber(entry, "rate_max", base.rateMax);
+                base.sealedByDefault = json::getBool(entry, "sealed_by_default", base.sealedByDefault);
                 if (const json::JsonValue *posValue = json::getObjectField(entry, "pos"))
                 {
                     if (auto pos = parseVec2Array(posValue))
@@ -1725,6 +1727,7 @@ std::optional<EconomyConfig> parseEconomyConfig(ParseContext &ctx, const std::st
     EconomyConfig config;
     config.baseCap = json::getInt(root, "base_cap", config.baseCap);
     config.tokenBonus = json::getNumber(root, "token_bonus", config.tokenBonus);
+    config.gainBonus = json::getNumber(root, "gain_bonus", config.gainBonus);
     if (const json::JsonValue *rewards = json::getObjectField(root, "enemy_rewards"))
     {
         if (rewards->type == json::JsonValue::Type::Object)

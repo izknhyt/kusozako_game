@@ -48,6 +48,12 @@ void CommanderInputSystem::update(float, SystemContext &context)
         return;
     }
 
+    // Movement input cancels current attack swing/lock so movement responds immediately
+    commander.attackLockTimer = 0.0f;
+    commander.attackSwingTimer = 0.0f;
+    commander.attackSwingDuration = 0.0f;
+    commander.attackTargetIndex = -1;
+
     const float invLen = 1.0f / std::sqrt(lenSq);
     commander.moveIntent = {input.x * invLen, input.y * invLen};
     commander.hasMoveIntent = true;

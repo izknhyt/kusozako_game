@@ -13,6 +13,7 @@
 #include "config/AppConfig.h"
 #include "json/JsonUtils.h"
 #include "game/AllyLevelingConfig.h"
+#include "game/TrainingMath.h"
 #include "world/LegacySimulation.h"
 
 // Tracks persistent upgrades and wallet state between runs.
@@ -24,6 +25,8 @@ struct CampaignState
     std::unordered_map<std::string, int> trainingProgress;
     std::unordered_map<std::string, std::string> strategySelections;
     std::unordered_map<std::string, int> metaLevels;
+    bool debugDisableYunaSpawns = false;
+    bool debugDisableBaseRegenAndDef = false;
 
     int availableMana() const { return bankedMana; }
 
@@ -118,16 +121,49 @@ struct CampaignState
         sim.spawnRateBaseMultiplier = 1.0f;
         sim.config.base_hp = config.game.base_hp;
         sim.economyConfig = config.economy;
+        sim.meanChibiLevel = 1.0f;
 
         CommanderStats commander = config.entityCatalog.commander;
         const AllyLevelingParams commanderLeveling = kCommanderLevelingParams;
         const int commanderLevel = std::max(trainingStep("yuna_level") + 1, 1);
         const float commanderLevelDelta = static_cast<float>(commanderLevel - 1);
         commander.hp = commander.hp + commanderLeveling.hpPerLevel * commanderLevelDelta;
-        commander.dps = commander.dps * (1.0f + commanderLeveling.dpsPerLevel * commanderLevelDelta);
-        commander.speed_u_s =
-            commander.speed_u_s * (1.0f + commanderLeveling.speedPerLevel * commanderLevelDelta);
+        commander.dps = commander.dps + commanderLeveling.dpsPerLevel * commanderLevelDelta;
+        commander.speed_u_s = commander.speed_u_s + commanderLeveling.speedPerLevel * commanderLevelDelta;
+        commander.dps = std::max(commander.dps, 0.0f);
+        commander.speed_u_s = std::max(commander.speed_u_s, 0.0f);
         sim.commanderStats = commander;
+
+        // 平均ちびレベル（無名ちびの初期レベル帯）
+        auto findTraining = [&](const std::string &id) -> const TrainingEntry * {
+            for (const TrainingEntry &entry : config.trainingEntries)
+            {
+                if (entry.id == id)
+                {
+                    return &entry;
+                }
+            }
+            return nullptr;
+        };
+        auto trainingValue = [&](const TrainingEntry &entry, int progress) -> float {
+            if (trainingIsRepeatable(entry))
+            {
+                return std::max(progress, 0) * entry.repeatable.delta;
+            }
+            float total = 0.0f;
+            const int steps = std::max(progress, 0);
+            for (int i = 0; i < steps && i < static_cast<int>(entry.steps.size()); ++i)
+            {
+                total += entry.steps[static_cast<std::size_t>(i)].delta;
+            }
+            return total;
+        };
+        if (const TrainingEntry *meanEntry = findTraining("mean_level"))
+        {
+            const int progress = trainingStep("mean_level");
+            const float value = trainingValue(*meanEntry, progress);
+            sim.meanChibiLevel = std::max(1.0f, value);
+        }
 
         auto resolveCampBonus = [&](const std::string &id) -> float {
             const CampUpgradeEntry *entry = findCampUpgrade(config, id);
@@ -163,12 +199,13 @@ struct CampaignState
         sim.config.base_hp = static_cast<int>(std::round(config.game.base_hp + baseHpBonus));
 
         const float defenseBonus = resolveCampBonus("base_def");
-        sim.baseDamageReduction = std::clamp(defenseBonus, 0.0f, 0.95f);
+        sim.baseDamageReduction = debugDisableBaseRegenAndDef ? 0.0f : std::clamp(defenseBonus, 0.0f, 0.95f);
 
         const float spawnBonus = resolveCampBonus("spawn_rate");
         sim.spawnRateBaseMultiplier = std::max(0.1f, 1.0f + spawnBonus);
 
-        sim.baseAuraRegenPerSecond = std::max(0.0f, resolveCampBonus("aura_regen"));
+        sim.baseAuraRegenPerSecond =
+            debugDisableBaseRegenAndDef ? 0.0f : std::max(0.0f, resolveCampBonus("aura_regen"));
 
         const MetaShopItem *capItem = findMetaItem(config, "mana_cap_up_s");
         if (!capItem)
@@ -186,7 +223,19 @@ struct CampaignState
             }
         }
         sim.economyConfig.baseCap = config.economy.baseCap + capBonus;
-        sim.economyConfig.tokenBonus = config.economy.tokenBonus;
+        // Mana gain +X% (stacking) from meta shop
+        float gainBonus = 0.0f;
+        if (const MetaShopItem *gainItem = findMetaItem(config, "mana_gain_up_s"))
+        {
+            const int level = std::max(metaLevel(gainItem->id), 0);
+            if (level > 0 && gainItem->delta != 0.0f)
+            {
+                gainBonus = gainItem->delta * static_cast<float>(level);
+            }
+        }
+        sim.economyConfig.gainBonus = gainBonus;
+        // Mana gain token effect: 100% per token
+        sim.economyConfig.tokenBonus = 1.0f;
 
         // Namedユニットのレベル（上限なし）
         auto buildNamedLevel = [&](const std::string &id) -> int {
@@ -201,6 +250,12 @@ struct CampaignState
     void applyRunStart(const AppConfig &, world::LegacySimulation &sim)
     {
         sim.spawnRateMultiplier = std::max(sim.spawnRateBaseMultiplier, 0.1f);
+        sim.disableYunaSpawns = debugDisableYunaSpawns;
+        if (debugDisableBaseRegenAndDef)
+        {
+            sim.baseDamageReduction = 0.0f;
+            sim.baseAuraRegenPerSecond = 0.0f;
+        }
         if (manaGainTokens > 0)
         {
             sim.economy.tokens = 1;
@@ -247,6 +302,9 @@ struct CampaignState
         bankedMana = static_cast<int>(std::round(json::getNumber(root, "wallet", static_cast<float>(bankedMana))));
         manaGainTokens = static_cast<int>(
             std::round(json::getNumber(root, "mana_gain_tokens", static_cast<float>(manaGainTokens))));
+        debugDisableYunaSpawns = json::getBool(root, "debug_disable_yuna_spawns", debugDisableYunaSpawns);
+        debugDisableBaseRegenAndDef =
+            json::getBool(root, "debug_disable_base_regen_def", debugDisableBaseRegenAndDef);
 
         auto loadIntMap = [](const json::JsonValue *obj, std::unordered_map<std::string, int> &dst) {
             if (!obj || obj->type != json::JsonValue::Type::Object)
@@ -339,6 +397,8 @@ struct CampaignState
         out << "{\n";
         out << "  \"wallet\": " << bankedMana << ",\n";
         out << "  \"mana_gain_tokens\": " << manaGainTokens << ",\n";
+        out << "  \"debug_disable_yuna_spawns\": " << (debugDisableYunaSpawns ? "true" : "false") << ",\n";
+        out << "  \"debug_disable_base_regen_def\": " << (debugDisableBaseRegenAndDef ? "true" : "false") << ",\n";
         writeIntMap(out, "camp_upgrades", campUpgradeLevels);
         writeIntMap(out, "training", trainingProgress);
         writeIntMap(out, "meta_levels", metaLevels);
