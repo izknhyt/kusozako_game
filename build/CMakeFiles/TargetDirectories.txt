@@ -10,6 +10,8 @@
 /Users/izumimotohayato/development/kusozako/build/CMakeFiles/ui_presenter_test.dir
 /Users/izumimotohayato/development/kusozako/build/CMakeFiles/ui_view_test.dir
 /Users/izumimotohayato/development/kusozako/build/CMakeFiles/camp_state_test.dir
+/Users/izumimotohayato/development/kusozako/build/CMakeFiles/json_round_trip_test.dir
+/Users/izumimotohayato/development/kusozako/build/CMakeFiles/file_io_test.dir
 /Users/izumimotohayato/development/kusozako/build/CMakeFiles/test.dir
 /Users/izumimotohayato/development/kusozako/build/CMakeFiles/edit_cache.dir
 /Users/izumimotohayato/development/kusozako/build/CMakeFiles/rebuild_cache.dir

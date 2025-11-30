@@ -16,6 +16,12 @@ CampShop::PurchaseOutcome CampShop::buyUpgrade(const CampUpgradeEntry &entry)
         return result;
     }
     const int currentLevel = m_state.campLevel(entry.id);
+    if (entry.maxLevel > 0 && currentLevel >= entry.maxLevel)
+    {
+        result.status = Status::MaxLevel;
+        result.previousLevel = currentLevel;
+        return result;
+    }
     // 無制限に購入可能（コストは配列の末尾を維持）
     const int cost = upgradeCost(entry, currentLevel);
     if (!m_state.spendMana(cost))

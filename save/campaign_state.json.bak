@@ -1,0 +1,32 @@
+{
+  "wallet": 39,
+  "mana_gain_tokens": 0,
+  "debug_disable_yuna_spawns": false,
+  "debug_disable_base_regen_def": false,
+  "camp_upgrades": {
+    "aura_regen": 3,
+    "base_def": 3,
+    "base_hp": 5,
+    "spawn_rate": 5
+  },
+  "training": {
+    "chibi_level_mean_bonus": 6,
+    "coco_level": 2,
+    "elite_rate": 3,
+    "mary_level": 1,
+    "mean_level": 3,
+    "milly_level": 3,
+    "yuna_level": 8
+  },
+  "meta_levels": {
+    "good_title_rate": 5,
+    "mana_cap_up": 2,
+    "mana_cap_up_s": 7,
+    "mana_gain_up_s": 11
+  },
+  "strategies": {
+    "coco": "focus_fire",
+    "mary": "defend_base",
+    "milly": "defend_base"
+  }
+}

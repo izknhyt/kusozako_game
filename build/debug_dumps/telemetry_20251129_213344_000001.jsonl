@@ -1,5 +1,0 @@
-{"event":"telemetry.log.opened","file":"build/debug_dumps/telemetry_20251129_213344_000001.jsonl","rotation_bytes":"10485760"}
-{"event":"world.spawn.job","job":"archer","origin":"reinforcement","total_spawns":"1"}
-{"event":"world.spawn.job","job":"shield","origin":"reinforcement","total_spawns":"2"}
-{"event":"world.spawn.job","job":"warrior","origin":"reinforcement","total_spawns":"3"}
-{"event":"event_bus.no_listener","event":"battle.scene.entered"}

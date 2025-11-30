@@ -1,7 +1,12 @@
 #pragma once
 
+#include <algorithm>
 #include <cctype>
+#include <cstdint>
+#include <iomanip>
+#include <limits>
 #include <optional>
+#include <sstream>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -456,5 +461,200 @@ inline std::vector<std::string> getStringArray(const JsonValue &obj, const std::
     return result;
 }
 
-} // namespace json
+inline bool jsonEquals(const JsonValue &a, const JsonValue &b)
+{
+    if (a.type != b.type)
+    {
+        return false;
+    }
+    switch (a.type)
+    {
+    case JsonValue::Type::Null: return true;
+    case JsonValue::Type::Number: return a.number == b.number;
+    case JsonValue::Type::String: return a.string == b.string;
+    case JsonValue::Type::Bool: return a.boolean == b.boolean;
+    case JsonValue::Type::Array:
+        if (a.array.size() != b.array.size())
+        {
+            return false;
+        }
+        for (std::size_t i = 0; i < a.array.size(); ++i)
+        {
+            if (!jsonEquals(a.array[i], b.array[i]))
+            {
+                return false;
+            }
+        }
+        return true;
+    case JsonValue::Type::Object:
+        if (a.object.size() != b.object.size())
+        {
+            return false;
+        }
+        for (const auto &kv : a.object)
+        {
+            auto it = b.object.find(kv.first);
+            if (it == b.object.end())
+            {
+                return false;
+            }
+            if (!jsonEquals(kv.second, it->second))
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+    return false;
+}
 
+inline void writeJsonString(const std::string &value, std::string &out)
+{
+    out.push_back('"');
+    for (unsigned char c : value)
+    {
+        switch (c)
+        {
+        case '"': out.append("\\\""); break;
+        case '\\': out.append("\\\\"); break;
+        case '\b': out.append("\\b"); break;
+        case '\f': out.append("\\f"); break;
+        case '\n': out.append("\\n"); break;
+        case '\r': out.append("\\r"); break;
+        case '\t': out.append("\\t"); break;
+        default:
+            if (c < 0x20 || c > 0x7E)
+            {
+                std::ostringstream oss;
+                oss << "\\u" << std::hex << std::uppercase << std::setw(4) << std::setfill('0')
+                    << static_cast<int>(c);
+                out.append(oss.str());
+            }
+            else
+            {
+                out.push_back(static_cast<char>(c));
+            }
+            break;
+        }
+    }
+    out.push_back('"');
+}
+
+inline void writeIndent(std::string &out, int indent)
+{
+    for (int i = 0; i < indent; ++i)
+    {
+        out.push_back(' ');
+    }
+}
+
+inline void writeJsonValue(const JsonValue &value, std::string &out, int indent, int indentSize, bool pretty)
+{
+    auto writeChild = [&](const JsonValue &child, int childIndent) {
+        writeJsonValue(child, out, childIndent, indentSize, pretty);
+    };
+
+    switch (value.type)
+    {
+    case JsonValue::Type::Null:
+        out.append("null");
+        return;
+    case JsonValue::Type::Bool:
+        out.append(value.boolean ? "true" : "false");
+        return;
+    case JsonValue::Type::Number:
+    {
+        std::ostringstream oss;
+        oss << std::setprecision(std::numeric_limits<double>::max_digits10) << value.number;
+        out.append(oss.str());
+        return;
+    }
+    case JsonValue::Type::String:
+        writeJsonString(value.string, out);
+        return;
+    case JsonValue::Type::Array:
+        out.push_back('[');
+        if (!value.array.empty())
+        {
+            if (pretty)
+            {
+                out.push_back('\n');
+            }
+            for (std::size_t i = 0; i < value.array.size(); ++i)
+            {
+                if (pretty)
+                {
+                    writeIndent(out, indent + indentSize);
+                }
+                writeChild(value.array[i], indent + indentSize);
+                if (i + 1 < value.array.size())
+                {
+                    out.push_back(',');
+                }
+                if (pretty)
+                {
+                    out.push_back('\n');
+                }
+            }
+            if (pretty)
+            {
+                writeIndent(out, indent);
+            }
+        }
+        out.push_back(']');
+        return;
+    case JsonValue::Type::Object:
+    {
+        out.push_back('{');
+        if (!value.object.empty())
+        {
+            if (pretty)
+            {
+                out.push_back('\n');
+            }
+            std::vector<std::string> keys;
+            keys.reserve(value.object.size());
+            for (const auto &kv : value.object)
+            {
+                keys.push_back(kv.first);
+            }
+            std::sort(keys.begin(), keys.end());
+            for (std::size_t i = 0; i < keys.size(); ++i)
+            {
+                const std::string &key = keys[i];
+                const auto &child = value.object.at(key);
+                if (pretty)
+                {
+                    writeIndent(out, indent + indentSize);
+                }
+                writeJsonString(key, out);
+                out.append(pretty ? ": " : ":");
+                writeChild(child, indent + indentSize);
+                if (i + 1 < keys.size())
+                {
+                    out.push_back(',');
+                }
+                if (pretty)
+                {
+                    out.push_back('\n');
+                }
+            }
+            if (pretty)
+            {
+                writeIndent(out, indent);
+            }
+        }
+        out.push_back('}');
+        return;
+    }
+    }
+}
+
+inline std::string serializeJson(const JsonValue &value, bool pretty = true, int indentSize = 2)
+{
+    std::string out;
+    writeJsonValue(value, out, 0, indentSize, pretty);
+    return out;
+}
+
+} // namespace json

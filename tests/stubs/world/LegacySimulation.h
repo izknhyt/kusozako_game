@@ -92,12 +92,25 @@ struct GameConfig
 {
     int base_hp = 0;
     float telemetry_duration = 3.0f;
+    float pixels_per_unit = 16.0f;
 };
 
 struct CommanderUnit
 {
     float hp = 0.0f;
+    float mp = 0.0f;
+    float mpMax = 0.0f;
     bool alive = true;
+};
+
+struct CommanderStats
+{
+    float radius = 0.0f;
+    float speed_u_s = 0.0f;
+    float hp = 0.0f;
+    float dps = 0.0f;
+    float mp = 0.0f;
+    float mpRegen = 0.0f;
 };
 
 struct LegacySimulation
@@ -131,6 +144,7 @@ struct LegacySimulation
     BossRuntime boss;
     float missionTimer = 0.0f;
     float baseHp = 0.0f;
+    CommanderStats commanderStats;
     float restartCooldown = 0.0f;
     HUDState hud;
     CommanderUnit commander;

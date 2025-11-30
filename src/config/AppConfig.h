@@ -760,6 +760,7 @@ struct AppConfig
     std::vector<MetaShopItem> metaShopItems;
     std::vector<SkillDef> skills;
     std::string atlasPath = "assets/atlas.json";
+    std::string stageConfigPath = "assets/stage1_config.json";
 };
 
 std::vector<SkillDef> buildDefaultSkills();

@@ -2901,6 +2901,7 @@ AppConfigLoadResult AppConfigLoader::load(AssetManager &assets)
     result.config.game.morale = *morale;
     result.config.mission = mission;
     result.config.stageConfig = stageConfig;
+    result.config.stageConfigPath = stageConfigPath;
     result.config.economy = *economyConfig;
     result.config.campUpgrades = *campUpgrades;
     result.config.trainingEntries = *trainingEntries;

@@ -10,6 +10,7 @@
 #include <unordered_map>
 #include <vector>
 
+#include "assets/FileIO.h"
 #include "config/AppConfig.h"
 #include "json/JsonUtils.h"
 #include "game/AllyLevelingConfig.h"
@@ -349,17 +350,6 @@ struct CampaignState
         {
             return false;
         }
-        std::error_code ec;
-        auto dir = m_savePath.parent_path();
-        if (!dir.empty())
-        {
-            std::filesystem::create_directories(dir, ec);
-        }
-        std::ofstream out(m_savePath, std::ios::trunc);
-        if (!out)
-        {
-            return false;
-        }
 
         auto writeIntMap = [](std::ostream &os, const std::string &key, const std::unordered_map<std::string, int> &map) {
             os << "  \"" << key << "\": {";
@@ -394,6 +384,7 @@ struct CampaignState
             os << ",\n";
         };
 
+        std::ostringstream out;
         out << "{\n";
         out << "  \"wallet\": " << bankedMana << ",\n";
         out << "  \"mana_gain_tokens\": " << manaGainTokens << ",\n";
@@ -433,7 +424,8 @@ struct CampaignState
             out << "}\n";
         }
         out << "}\n";
-        return true;
+        const auto result = atomicWriteFile(m_savePath, out.str());
+        return result.ok;
     }
 
   private:

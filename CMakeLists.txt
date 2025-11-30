@@ -30,11 +30,18 @@ add_executable(kusozako
   src/app/TextRenderer.cpp
   src/app/UiPresenter.cpp
   src/app/UiView.cpp
+  src/app/AppLaunch.cpp
   src/assets/AssetManager.cpp
+  src/assets/FileIO.cpp
+  src/assets/LevelAssets.cpp
+  src/config/StageConfigSerializer.cpp
+  src/gfx/Camera.cpp
+  src/gfx/WorldRenderer.cpp
   src/events/EventBus.cpp
   src/input/ActionBuffer.cpp
   src/input/InputMapper.cpp
   src/game/CampShop.cpp
+  src/scenes/EditorScene.cpp
   src/config/AppConfig.cpp
   src/config/AppConfigLoader.cpp
   src/services/ServiceLocator.cpp
@@ -75,13 +82,20 @@ set(WORLD_STATE_CORE_SOURCES
   src/app/TextRenderer.cpp
   src/app/UiPresenter.cpp
   src/app/UiView.cpp
+  src/app/AppLaunch.cpp
   src/assets/AssetManager.cpp
+  src/assets/FileIO.cpp
+  src/assets/LevelAssets.cpp
+  src/config/StageConfigSerializer.cpp
+  src/gfx/Camera.cpp
+  src/gfx/WorldRenderer.cpp
   src/config/AppConfig.cpp
   src/config/AppConfigLoader.cpp
   src/events/EventBus.cpp
   src/input/ActionBuffer.cpp
   src/input/InputMapper.cpp
   src/game/CampShop.cpp
+  src/scenes/EditorScene.cpp
   src/services/ServiceLocator.cpp
   src/scenes/SceneStack.cpp
   src/telemetry/FileTelemetrySink.cpp
@@ -258,6 +272,7 @@ add_test(NAME ui_view COMMAND ui_view_test)
 add_executable(camp_state_test
   tests/CampStateTest.cpp
   src/game/CampShop.cpp
+  src/assets/FileIO.cpp
 )
 
 target_include_directories(camp_state_test PRIVATE
@@ -266,3 +281,26 @@ target_include_directories(camp_state_test PRIVATE
 )
 
 add_test(NAME camp_state COMMAND camp_state_test)
+
+add_executable(json_round_trip_test
+  tests/JsonRoundTripTest.cpp
+)
+
+target_include_directories(json_round_trip_test PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+
+target_compile_definitions(json_round_trip_test PRIVATE PROJECT_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+
+add_test(NAME json_round_trip COMMAND json_round_trip_test)
+
+add_executable(file_io_test
+  tests/FileIOTest.cpp
+  src/assets/FileIO.cpp
+)
+
+target_include_directories(file_io_test PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+
+add_test(NAME file_io COMMAND file_io_test)

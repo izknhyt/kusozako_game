@@ -34,7 +34,22 @@ struct NaiveCombatState
     std::vector<WallSegment> walls;
     float baseHp = 0.0f;
     float commanderInvulnTimer = 0.0f;
+    float commanderSwingTimer = 0.0f;
+    std::vector<float> yunaSwingTimers;
+    std::vector<float> enemySwingTimers;
 };
+
+float naiveEnemySwingDuration(const EnemyUnit &enemy)
+{
+    switch (enemy.type)
+    {
+    case EnemyArchetype::Magician: return 0.70f;
+    case EnemyArchetype::Bat: return 0.70f;
+    case EnemyArchetype::Golem: return 1.40f;
+    case EnemyArchetype::Boss: return 1.20f;
+    default: return 1.00f;
+    }
+}
 
 NaiveCombatState runNaiveCombatStep(const LegacySimulation &sim,
                                     const std::vector<GateRuntime> &gates,
@@ -42,8 +57,20 @@ NaiveCombatState runNaiveCombatStep(const LegacySimulation &sim,
                                     float dt,
                                     float formationDamageScale)
 {
+    const float commanderSwingDuration = 1.10f;
+    const float yunaSwingDuration = 1.10f;
+    state.yunaSwingTimers.resize(state.yunas.size(), 0.0f);
+    state.enemySwingTimers.resize(state.enemies.size(), 0.0f);
+
     std::vector<float> yunaDamage(state.yunas.size(), 0.0f);
     float commanderDamage = 0.0f;
+
+    std::vector<bool> enemyContactCommander(state.enemies.size(), false);
+    std::vector<std::vector<std::size_t>> enemyContactYunas(state.enemies.size());
+    std::vector<std::vector<std::size_t>> yunaContactEnemies(state.yunas.size());
+    std::vector<std::vector<std::size_t>> enemyContactWalls(state.enemies.size());
+    std::vector<bool> enemyContactBase(state.enemies.size(), false);
+    std::vector<bool> yunaHasEnemyContact(state.yunas.size(), false);
 
     for (EnemyUnit &enemy : state.enemies)
     {
@@ -57,7 +84,37 @@ NaiveCombatState runNaiveCombatStep(const LegacySimulation &sim,
                 Vec2 normal = dist > 0.0f ? (enemy.pos - wall.pos) / dist : Vec2{1.0f, 0.0f};
                 const float overlap = combined - dist;
                 enemy.pos += normal * overlap;
-                wall.hp -= enemy.dpsWall * dt;
+                enemyContactWalls[static_cast<std::size_t>(&enemy - state.enemies.data())].push_back(
+                    static_cast<std::size_t>(&wall - state.walls.data()));
+            }
+        }
+    }
+
+    // Enemy vs ally separation (simple)
+    for (EnemyUnit &enemy : state.enemies)
+    {
+        if (enemy.hp <= 0.0f)
+        {
+            continue;
+        }
+        if (enemy.type == EnemyArchetype::Bat || enemy.type == EnemyArchetype::Toritori)
+        {
+            continue;
+        }
+        for (const Unit &ally : state.yunas)
+        {
+            if (ally.hp <= 0.0f)
+            {
+                continue;
+            }
+            const float combined = enemy.radius + ally.radius;
+            const float distSq = lengthSq(enemy.pos - ally.pos);
+            if (distSq <= combined * combined)
+            {
+                float dist = std::sqrt(std::max(distSq, 0.0001f));
+                Vec2 normal = dist > 0.0f ? (enemy.pos - ally.pos) / dist : Vec2{1.0f, 0.0f};
+                const float overlap = combined - dist;
+                enemy.pos += normal * overlap * 0.65f;
             }
         }
     }
@@ -69,11 +126,7 @@ NaiveCombatState runNaiveCombatStep(const LegacySimulation &sim,
             const float combined = state.commander.radius + enemy.radius;
             if (lengthSq(state.commander.pos - enemy.pos) <= combined * combined)
             {
-                enemy.hp -= sim.commanderStats.dps * dt;
-                if (state.commanderInvulnTimer <= 0.0f)
-                {
-                    commanderDamage += enemy.dpsUnit * dt * formationDamageScale;
-                }
+                enemyContactCommander[static_cast<std::size_t>(&enemy - state.enemies.data())] = true;
             }
         }
         for (const GateRuntime &gate : gates)
@@ -98,11 +151,10 @@ NaiveCombatState runNaiveCombatStep(const LegacySimulation &sim,
             const float combined = yuna.radius + enemy.radius;
             if (lengthSq(yuna.pos - enemy.pos) <= combined * combined)
             {
-                float attackDps = sim.yunaStats.dps * std::max(0.01f, yuna.moraleAccuracyMultiplier);
-                enemy.hp -= attackDps * dt;
-                float incoming = enemy.dpsUnit * dt * formationDamageScale;
-                incoming /= std::max(0.01f, yuna.moraleDefenseMultiplier);
-                yunaDamage[i] += incoming;
+                std::size_t enemyIndex = static_cast<std::size_t>(&enemy - state.enemies.data());
+                enemyContactYunas[enemyIndex].push_back(i);
+                yunaContactEnemies[i].push_back(enemyIndex);
+                yunaHasEnemyContact[i] = true;
             }
         }
         for (const GateRuntime &gate : gates)
@@ -153,13 +205,109 @@ NaiveCombatState runNaiveCombatStep(const LegacySimulation &sim,
         const float combined = baseRadius + enemy.radius;
         if (lengthSq(enemy.pos - sim.basePos) <= combined * combined)
         {
-            state.baseHp -= enemy.dpsBase * dt;
+            enemyContactBase[static_cast<std::size_t>(&enemy - state.enemies.data())] = true;
         }
     }
 
-    state.walls.erase(std::remove_if(state.walls.begin(), state.walls.end(), [](const WallSegment &wall) {
-        return wall.hp <= 0.0f;
-    }), state.walls.end());
+    // Commander swing
+    const bool commanderHasContact =
+        std::any_of(enemyContactCommander.begin(), enemyContactCommander.end(), [](bool v) { return v; });
+    if (state.commander.alive && commanderHasContact)
+    {
+        state.commanderSwingTimer += dt;
+        if (state.commanderSwingTimer >= commanderSwingDuration)
+        {
+            const float swingDamage = sim.commanderStats.dps * commanderSwingDuration;
+            for (std::size_t idx = 0; idx < state.enemies.size(); ++idx)
+            {
+                if (enemyContactCommander[idx])
+                {
+                    state.enemies[idx].hp -= swingDamage;
+                }
+            }
+            state.commanderSwingTimer -= commanderSwingDuration;
+        }
+    }
+    else
+    {
+        state.commanderSwingTimer = 0.0f;
+    }
+
+    // Yuna swings
+    for (std::size_t i = 0; i < state.yunas.size(); ++i)
+    {
+        if (state.yunas[i].hp <= 0.0f || !yunaHasEnemyContact[i])
+        {
+            state.yunaSwingTimers[i] = 0.0f;
+            continue;
+        }
+        state.yunaSwingTimers[i] += dt;
+        if (state.yunaSwingTimers[i] >= yunaSwingDuration)
+        {
+            float attackDps =
+                (sim.yunaStats.dps * std::max(0.01f, state.yunas[i].moraleAccuracyMultiplier)) /
+                std::max(0.01f, state.yunas[i].moraleAttackIntervalMultiplier);
+            const float attackDamage = attackDps * yunaSwingDuration;
+            for (std::size_t enemyIndex : yunaContactEnemies[i])
+            {
+                if (enemyIndex < state.enemies.size())
+                {
+                    state.enemies[enemyIndex].hp -= attackDamage;
+                }
+            }
+            state.yunaSwingTimers[i] -= yunaSwingDuration;
+        }
+    }
+
+    // Enemy swings
+    for (std::size_t idx = 0; idx < state.enemies.size(); ++idx)
+    {
+        EnemyUnit &enemy = state.enemies[idx];
+        if (enemy.hp <= 0.0f)
+        {
+            continue;
+        }
+        const bool hasContact = enemyContactCommander[idx] || !enemyContactYunas[idx].empty() ||
+                                !enemyContactWalls[idx].empty() || enemyContactBase[idx];
+        if (!hasContact)
+        {
+            state.enemySwingTimers[idx] = 0.0f;
+            continue;
+        }
+        state.enemySwingTimers[idx] += dt;
+        const float swingDuration = naiveEnemySwingDuration(enemy);
+        if (state.enemySwingTimers[idx] < swingDuration)
+        {
+            continue;
+        }
+        state.enemySwingTimers[idx] -= swingDuration;
+
+        if (enemyContactCommander[idx] && state.commanderInvulnTimer <= 0.0f)
+        {
+            commanderDamage += enemy.dpsUnit * swingDuration * formationDamageScale;
+        }
+        for (std::size_t yIndex : enemyContactYunas[idx])
+        {
+            if (yIndex >= state.yunas.size())
+            {
+                continue;
+            }
+            float incoming = enemy.dpsUnit * swingDuration * formationDamageScale;
+            incoming /= std::max(0.01f, state.yunas[yIndex].moraleDefenseMultiplier);
+            yunaDamage[yIndex] += incoming;
+        }
+        for (std::size_t wIndex : enemyContactWalls[idx])
+        {
+            if (wIndex < state.walls.size())
+            {
+                state.walls[wIndex].hp -= enemy.dpsWall * swingDuration;
+            }
+        }
+        if (enemyContactBase[idx])
+        {
+            state.baseHp -= enemy.dpsBase * swingDuration;
+        }
+    }
 
     return state;
 }
@@ -691,8 +839,13 @@ bool testCombatSpatialGridParity()
     std::vector<GateRuntime> gates;
 
     LegacySimulation naiveSim = sim;
-    NaiveCombatState naiveState{naiveSim.commander, naiveSim.yunas, naiveSim.enemies, naiveSim.walls, baseHp,
-                                commanderInvulnTimer};
+    NaiveCombatState naiveState{};
+    naiveState.commander = naiveSim.commander;
+    naiveState.yunas = naiveSim.yunas;
+    naiveState.enemies = naiveSim.enemies;
+    naiveState.walls = naiveSim.walls;
+    naiveState.baseHp = baseHp;
+    naiveState.commanderInvulnTimer = commanderInvulnTimer;
     const float defenseMultiplier =
         naiveSim.formationAlignTimer > 0.0f ? std::max(naiveSim.formationDefenseMul, 0.01f) : 1.0f;
     const float formationDamageScale = 1.0f / defenseMultiplier;
@@ -757,12 +910,14 @@ bool testCombatSpatialGridParity()
     bool success = true;
     if (!almostEqual(sim.commander.hp, naiveState.commander.hp))
     {
-        std::cerr << "Commander HP mismatch" << '\n';
+        std::cerr << "Commander HP mismatch actual=" << sim.commander.hp
+                  << " expected=" << naiveState.commander.hp << '\n';
         success = false;
     }
     if (!almostEqual(context.baseHp, naiveState.baseHp))
     {
-        std::cerr << "Base HP mismatch" << '\n';
+        std::cerr << "Base HP mismatch actual=" << context.baseHp
+                  << " expected=" << naiveState.baseHp << '\n';
         success = false;
     }
     if (sim.yunas.size() != naiveState.yunas.size())
@@ -776,7 +931,8 @@ bool testCombatSpatialGridParity()
         {
             if (!almostEqual(sim.yunas[i].hp, naiveState.yunas[i].hp))
             {
-                std::cerr << "Yuna HP mismatch" << '\n';
+                std::cerr << "Yuna HP mismatch idx=" << i << " actual=" << sim.yunas[i].hp
+                          << " expected=" << naiveState.yunas[i].hp << '\n';
                 success = false;
                 break;
             }
@@ -793,7 +949,8 @@ bool testCombatSpatialGridParity()
         {
             if (!almostEqual(sim.enemies[i].hp, naiveState.enemies[i].hp))
             {
-                std::cerr << "Enemy HP mismatch" << '\n';
+                std::cerr << "Enemy HP mismatch idx=" << i << " actual=" << sim.enemies[i].hp
+                          << " expected=" << naiveState.enemies[i].hp << '\n';
                 success = false;
                 break;
             }
@@ -817,7 +974,8 @@ bool testCombatSpatialGridParity()
         {
             if (!almostEqual(sim.walls[i].hp, naiveState.walls[i].hp))
             {
-                std::cerr << "Wall HP mismatch" << '\n';
+                std::cerr << "Wall HP mismatch idx=" << i << " actual=" << sim.walls[i].hp
+                          << " expected=" << naiveState.walls[i].hp << '\n';
                 success = false;
                 break;
             }
