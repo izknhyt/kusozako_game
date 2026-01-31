@@ -188,6 +188,32 @@ void UiView::render(const DrawContext &context) const
     const int topUiAnchorBase = 20;
     int topUiAnchor = topUiAnchorBase;
 
+    const bool minimalHud = true;
+
+    if (context.showSpeedIndicator)
+    {
+        const float clampedScale = context.timeScale > 0.0f ? context.timeScale : 1.0f;
+        std::ostringstream oss;
+        oss << "SPEED x" << std::fixed << std::setprecision(clampedScale >= 2.0f ? 0 : 1) << clampedScale;
+        const std::string speedText = oss.str();
+        const int padX = 12;
+        const int padY = 6;
+        const int textWidth = measureWithFallback(font, speedText, lineHeight);
+        SDL_Rect speedRect{20, topUiAnchor, textWidth + padX * 2, lineHeight + padY * 2};
+        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+        SDL_Color bgColor = clampedScale > 1.0f ? SDL_Color{60, 40, 100, 220} : SDL_Color{30, 30, 60, 160};
+        SDL_SetRenderDrawColor(renderer, bgColor.r, bgColor.g, bgColor.b, bgColor.a);
+        countedRenderFillRect(renderer, &speedRect, stats);
+        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
+        font.drawText(renderer, speedText, speedRect.x + padX, speedRect.y + padY, &stats, SDL_Color{255, 255, 255, 255});
+        topUiAnchor = speedRect.y + speedRect.h + 10;
+    }
+
+    if (minimalHud)
+    {
+        return;
+    }
+
     if (sim.missionMode != MissionMode::None && sim.missionUI.showGoalText && !sim.missionUI.goalText.empty())
     {
         const int padX = 18;
@@ -219,25 +245,6 @@ void UiView::render(const DrawContext &context) const
         SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
         font.drawText(renderer, timerText, timerRect.x + padX, timerRect.y + padY, &stats);
         topUiAnchor = timerRect.y + timerRect.h + 10;
-    }
-
-    if (context.showSpeedIndicator)
-    {
-        const float clampedScale = context.timeScale > 0.0f ? context.timeScale : 1.0f;
-        std::ostringstream oss;
-        oss << "SPEED x" << std::fixed << std::setprecision(clampedScale >= 2.0f ? 0 : 1) << clampedScale;
-        const std::string speedText = oss.str();
-        const int padX = 12;
-        const int padY = 6;
-        const int textWidth = measureWithFallback(font, speedText, lineHeight);
-        SDL_Rect speedRect{20, topUiAnchor, textWidth + padX * 2, lineHeight + padY * 2};
-        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
-        SDL_Color bgColor = clampedScale > 1.0f ? SDL_Color{60, 40, 100, 220} : SDL_Color{30, 30, 60, 160};
-        SDL_SetRenderDrawColor(renderer, bgColor.r, bgColor.g, bgColor.b, bgColor.a);
-        countedRenderFillRect(renderer, &speedRect, stats);
-        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
-        font.drawText(renderer, speedText, speedRect.x + padX, speedRect.y + padY, &stats, SDL_Color{255, 255, 255, 255});
-        topUiAnchor = speedRect.y + speedRect.h + 10;
     }
 
     if (sim.stageState().enabled)

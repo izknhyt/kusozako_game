@@ -114,7 +114,7 @@ using namespace json;
 
 class BattleScene;
 class CampScene;
-bool g_showChibiLabels = true;
+bool g_showChibiLabels = false;
 
 const char *temperamentBehaviorName(TemperamentBehavior behavior)
 {
@@ -2553,7 +2553,7 @@ class BattleScene : public Scene
     int m_cursorRestoreState = SDL_QUERY;
     bool m_startPausedForCamp = false;
     bool m_pausedForCamp = false;
-    bool m_showChibiLabels = true;
+    bool m_showChibiLabels = false;
     bool m_cursorCrosshairActive = false;
     bool m_resultOverlayActive = false;
     bool m_resultRecorded = false;

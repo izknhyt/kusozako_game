@@ -232,6 +232,8 @@ void RenderingPrepSystem::update(float, SystemContext &context)
         sprite.position = enemy.pos;
         sprite.radius = enemy.radius;
         sprite.type = enemy.type;
+        sprite.hp = enemy.hp;
+        sprite.maxHp = enemy.maxHp;
         queue.enemies.push_back(sprite);
     }
     std::sort(queue.enemies.begin(), queue.enemies.end(), [](const auto &lhs, const auto &rhs) {

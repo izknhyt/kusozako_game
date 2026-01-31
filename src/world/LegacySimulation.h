@@ -264,6 +264,7 @@ struct EnemyUnit
     Vec2 pos;
     Vec2 laneOffset{0.0f, 0.0f};
     float hp = 0.0f;
+    float maxHp = 0.0f;
     float radius = 0.0f;
     float attackRangePx = 0.0f;
     EnemyArchetype type = EnemyArchetype::Slime;
@@ -324,6 +325,8 @@ struct StageEnemyBaseState
     Vec2 pos;
     float hp = 0.0f;
     float maxHp = 0.0f;
+    static constexpr float kHpFlashDuration = 0.35f;
+    float hpFlashTimer = 0.0f;
     float radiusPx = 0.0f;
     float ratePerSecond = 0.0f;
     float rateMax = 0.0f;
@@ -536,6 +539,8 @@ struct LegacySimulation
             Vec2 position{0.0f, 0.0f};
             float radius = 0.0f;
             EnemyArchetype type = EnemyArchetype::Slime;
+            float hp = 0.0f;
+            float maxHp = 0.0f;
         };
 
         struct WallSprite
@@ -1068,6 +1073,7 @@ struct LegacySimulation
         base.sealed = true;
         base.spawnAccumulator = 0.0f;
         base.hp = 0.0f;
+        base.hpFlashTimer = 0.0f;
         pushTelemetry(std::string("Enemy base sealed: ") + (base.id.empty() ? "base" : base.id));
         activateHazardsForBase(base.id);
         maybeDeclareStageVictory();
@@ -1143,7 +1149,12 @@ struct LegacySimulation
         {
             return;
         }
+        const float before = base.hp;
         base.hp = std::max(0.0f, base.hp - amount);
+        if (base.hp < before)
+        {
+            base.hpFlashTimer = StageEnemyBaseState::kHpFlashDuration;
+        }
         if (base.hp <= 0.0f)
         {
             std::string name = base.id.empty() ? "Enemy base" : base.id;
@@ -2434,6 +2445,7 @@ struct LegacySimulation
         bossUnit.type = EnemyArchetype::Boss;
         bossUnit.pos = world;
         bossUnit.hp = missionConfig.boss.hp;
+        bossUnit.maxHp = bossUnit.hp;
         bossUnit.radius = missionConfig.boss.radius_px > 0.0f ? missionConfig.boss.radius_px : 32.0f;
         bossUnit.speedPx = missionConfig.boss.speed_u_s * config.pixels_per_unit;
         bossUnit.dpsUnit = slimeStats.dps;
@@ -3007,6 +3019,16 @@ struct LegacySimulation
         regenAllyBases(dt);
         updateProjectiles(dt);
         updateCommanderResources(dt);
+        if (stage.enabled)
+        {
+            for (StageEnemyBaseState &base : stage.enemyBases)
+            {
+                if (base.hpFlashTimer > 0.0f)
+                {
+                    base.hpFlashTimer = std::max(0.0f, base.hpFlashTimer - dt);
+                }
+            }
+        }
 
         if (frameCapturePending > 0)
         {
@@ -3044,6 +3066,7 @@ struct LegacySimulation
         if (type == EnemyArchetype::Wallbreaker)
         {
             enemy.hp = wallbreakerStats.hp;
+            enemy.maxHp = enemy.hp;
             enemy.radius = wallbreakerStats.radius;
             enemy.speedPx = wallbreakerStats.speed_u_s * config.pixels_per_unit;
             enemy.dpsUnit = wallbreakerStats.dps_unit;
@@ -3055,6 +3078,7 @@ struct LegacySimulation
         else if (type == EnemyArchetype::Boss)
         {
             enemy.hp = missionConfig.boss.hp > 0.0f ? missionConfig.boss.hp : 500.0f;
+            enemy.maxHp = enemy.hp;
             enemy.radius = missionConfig.boss.radius_px > 0.0f ? missionConfig.boss.radius_px : 32.0f;
             enemy.speedPx = missionConfig.boss.speed_u_s * config.pixels_per_unit;
             enemy.dpsUnit = slimeStats.dps;
@@ -3069,6 +3093,7 @@ struct LegacySimulation
         {
             auto applyEntityStats = [&](const EntityStats &stats) {
                 enemy.hp = stats.hp;
+                enemy.maxHp = enemy.hp;
                 enemy.radius = stats.radius;
                 enemy.speedPx = stats.speed_u_s * config.pixels_per_unit;
                 enemy.dpsUnit = stats.dps;
@@ -3082,6 +3107,7 @@ struct LegacySimulation
         {
             auto applyEntityStats = [&](const EntityStats &stats) {
                 enemy.hp = stats.hp;
+                enemy.maxHp = enemy.hp;
                 enemy.radius = stats.radius;
                 enemy.speedPx = stats.speed_u_s * config.pixels_per_unit;
                 enemy.dpsUnit = stats.dps;

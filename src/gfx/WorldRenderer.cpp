@@ -25,6 +25,7 @@ void renderWorld(SDL_Renderer *renderer, const LegacySimulation &sim, const Form
     const bool skipActors = queue.skipActors;
     const int lineHeight = std::max(font.getLineHeight(), 18);
     const int debugLineHeight = std::max(debugFont.isLoaded() ? debugFont.getLineHeight() : lineHeight, 14);
+    const bool minimalHud = true;
 
     auto enemyColor = [](EnemyArchetype type) -> SDL_Color {
         switch (type)
@@ -109,6 +110,10 @@ void renderWorld(SDL_Renderer *renderer, const LegacySimulation &sim, const Form
     };
 
     auto drawMoraleIcon = [&](const Vec2 &worldPos, float radius, MoraleState state) {
+        if (minimalHud)
+        {
+            return;
+        }
         if (state == MoraleState::Stable)
         {
             return;
@@ -270,6 +275,253 @@ void renderWorld(SDL_Renderer *renderer, const LegacySimulation &sim, const Form
         debugFont.drawText(renderer, label, bg.x + padX, bg.y + padY, &stats, color);
     };
 
+    auto drawEnemyHpBar = [&](const LegacySimulation::RenderQueue::EnemySprite &enemy,
+                              const Vec2 &screenPos,
+                              const SDL_Rect *spriteRect) {
+        if (enemy.maxHp <= 0.0f || enemy.hp <= 0.0f)
+        {
+            return;
+        }
+        const float ratio = std::clamp(enemy.hp / enemy.maxHp, 0.0f, 1.0f);
+        const float baseWidth = spriteRect ? static_cast<float>(spriteRect->w) : enemy.radius * 2.0f;
+        const float barWidthF = std::clamp(baseWidth * 0.9f, 18.0f, 56.0f);
+        const int barWidth = std::max(1, static_cast<int>(std::round(barWidthF)));
+        const int barHeight = 3;
+        const float centerX = spriteRect ? (static_cast<float>(spriteRect->x) + spriteRect->w * 0.5f) : screenPos.x;
+        const float baseY = spriteRect ? (static_cast<float>(spriteRect->y + spriteRect->h) + 2.0f)
+                                       : (screenPos.y + enemy.radius + 2.0f);
+        const int barX = static_cast<int>(std::round(centerX - barWidthF * 0.5f));
+        const int barY = static_cast<int>(std::round(baseY));
+        SDL_Rect bg{barX, barY, barWidth, barHeight};
+        SDL_Color fill = enemyColor(enemy.type);
+        const int fillWidth = std::max(1, static_cast<int>(std::round(barWidthF * ratio)));
+        SDL_Rect fg{barX, barY, fillWidth, barHeight};
+        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+        SDL_SetRenderDrawColor(renderer, 0, 0, 0, 120);
+        countedRenderFillRect(renderer, &bg, stats);
+        SDL_SetRenderDrawColor(renderer, fill.r, fill.g, fill.b, 180);
+        countedRenderFillRect(renderer, &fg, stats);
+        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
+    };
+
+    auto drawMinimap = [&]() -> SDL_Rect {
+        SDL_Rect empty{0, 0, 0, 0};
+        if (map.width <= 0 || map.height <= 0 || map.tileWidth <= 0 || map.tileHeight <= 0)
+        {
+            return empty;
+        }
+        const int panelSize = std::clamp(screenW / 8, 120, 200);
+        const int margin = 12;
+        const SDL_Rect panel{screenW - panelSize - margin, margin, panelSize, panelSize};
+        const float worldW = static_cast<float>(map.width * map.tileWidth);
+        const float worldH = static_cast<float>(map.height * map.tileHeight);
+        if (worldW <= 0.0f || worldH <= 0.0f)
+        {
+            return empty;
+        }
+        const float scale = std::min(panelSize / worldW, panelSize / worldH);
+        const float offsetX = static_cast<float>(panel.x) + (panelSize - worldW * scale) * 0.5f;
+        const float offsetY = static_cast<float>(panel.y) + (panelSize - worldH * scale) * 0.5f;
+
+        auto toMini = [&](const Vec2 &world) -> SDL_Point {
+            SDL_Point out;
+            out.x = static_cast<int>(std::round(offsetX + world.x * scale));
+            out.y = static_cast<int>(std::round(offsetY + world.y * scale));
+            return out;
+        };
+
+        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+        SDL_SetRenderDrawColor(renderer, 10, 10, 18, 180);
+        countedRenderFillRect(renderer, &panel, stats);
+        SDL_SetRenderDrawColor(renderer, 80, 90, 120, 200);
+        SDL_RenderDrawRect(renderer, &panel);
+
+        const StageRuntimeState &stageState = sim.stageState();
+
+        if (stageState.enabled)
+        {
+            for (const auto &base : stageState.enemyBases)
+            {
+                SDL_Point p = toMini(base.pos);
+                SDL_Color col = base.sealed ? SDL_Color{120, 120, 130, 210} : SDL_Color{230, 90, 90, 230};
+                SDL_Rect dot{p.x - 2, p.y - 2, 5, 5};
+                SDL_SetRenderDrawColor(renderer, col.r, col.g, col.b, col.a);
+                countedRenderFillRect(renderer, &dot, stats);
+                SDL_SetRenderDrawColor(renderer, 10, 10, 18, 200);
+                SDL_RenderDrawRect(renderer, &dot);
+            }
+        }
+
+        SDL_Color allyColor{120, 220, 255, 200};
+        SDL_Color commanderColor{245, 245, 210, 255};
+        SDL_Color bossOutline{250, 220, 120, 230};
+
+        // Enemies (non-boss)
+        for (const auto &enemy : queue.enemies)
+        {
+            if (enemy.type == EnemyArchetype::Boss)
+            {
+                continue;
+            }
+            SDL_Point p = toMini(enemy.position);
+            SDL_Color col = enemyColor(enemy.type);
+            SDL_Rect dot{p.x - 1, p.y - 1, 3, 3};
+            SDL_SetRenderDrawColor(renderer, col.r, col.g, col.b, 200);
+            countedRenderFillRect(renderer, &dot, stats);
+        }
+
+        // Allies (non-commander)
+        for (const auto &ally : queue.allies)
+        {
+            if (ally.commander)
+            {
+                continue;
+            }
+            SDL_Point p = toMini(ally.position);
+            SDL_Rect dot{p.x - 1, p.y - 1, 3, 3};
+            SDL_SetRenderDrawColor(renderer, allyColor.r, allyColor.g, allyColor.b, allyColor.a);
+            countedRenderFillRect(renderer, &dot, stats);
+        }
+
+        // Boss
+        for (const auto &enemy : queue.enemies)
+        {
+            if (enemy.type != EnemyArchetype::Boss)
+            {
+                continue;
+            }
+            SDL_Point p = toMini(enemy.position);
+            SDL_Color col = enemyColor(enemy.type);
+            SDL_Rect dot{p.x - 3, p.y - 3, 7, 7};
+            SDL_SetRenderDrawColor(renderer, col.r, col.g, col.b, 230);
+            countedRenderFillRect(renderer, &dot, stats);
+            SDL_SetRenderDrawColor(renderer, bossOutline.r, bossOutline.g, bossOutline.b, bossOutline.a);
+            SDL_RenderDrawRect(renderer, &dot);
+        }
+
+        // Commander
+        for (const auto &ally : queue.allies)
+        {
+            if (!ally.commander)
+            {
+                continue;
+            }
+            SDL_Point p = toMini(ally.position);
+            SDL_Rect dot{p.x - 2, p.y - 2, 5, 5};
+            SDL_SetRenderDrawColor(renderer, commanderColor.r, commanderColor.g, commanderColor.b, commanderColor.a);
+            countedRenderFillRect(renderer, &dot, stats);
+            SDL_Rect ring{p.x - 4, p.y - 4, 9, 9};
+            SDL_RenderDrawRect(renderer, &ring);
+            break;
+        }
+
+        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
+        return panel;
+    };
+
+    auto drawEnemyBasePanel = [&](const SDL_Rect &minimapRect) {
+        const StageRuntimeState &stageState = sim.stageState();
+        if (!stageState.enabled || stageState.enemyBases.empty())
+        {
+            return;
+        }
+        std::vector<const StageEnemyBaseState *> bases;
+        bases.reserve(stageState.enemyBases.size());
+        for (const auto &base : stageState.enemyBases)
+        {
+            bases.push_back(&base);
+        }
+        std::sort(bases.begin(), bases.end(),
+                  [](const StageEnemyBaseState *a, const StageEnemyBaseState *b) { return a->pos.y < b->pos.y; });
+
+        auto shortLabel = [&](const StageEnemyBaseState &base, std::size_t index) -> std::string {
+            std::string id = base.id;
+            for (char &c : id)
+            {
+                c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+            }
+            if (id.find("north") != std::string::npos) return "N";
+            if (id.find("center") != std::string::npos || id.find("middle") != std::string::npos) return "C";
+            if (id.find("south") != std::string::npos) return "S";
+            if (bases.size() == 3)
+            {
+                return index == 0 ? "N" : (index == 1 ? "C" : "S");
+            }
+            return std::to_string(static_cast<int>(index + 1));
+        };
+
+        const int panelWidth = 78;
+        const int rowHeight = 44;
+        const int padX = 10;
+        const int padY = 10;
+        const int margin = 12;
+        const int panelHeight = padY * 2 + static_cast<int>(bases.size()) * rowHeight;
+        const int panelX = screenW - panelWidth - margin;
+        int panelY = minimapRect.w > 0 ? minimapRect.y + minimapRect.h + 10 : margin;
+        if (panelY + panelHeight > screenH - margin)
+        {
+            panelY = std::max(margin, screenH - margin - panelHeight);
+        }
+        SDL_Rect panel{panelX, panelY, panelWidth, panelHeight};
+        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+        SDL_SetRenderDrawColor(renderer, 8, 10, 18, 200);
+        countedRenderFillRect(renderer, &panel, stats);
+        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
+
+        for (std::size_t i = 0; i < bases.size(); ++i)
+        {
+            const StageEnemyBaseState &base = *bases[i];
+            const int rowY = panel.y + padY + static_cast<int>(i) * rowHeight;
+            const std::string label = shortLabel(base, i);
+            font.drawText(renderer, label, panel.x + padX, rowY, &stats, SDL_Color{220, 230, 245, 255});
+
+            if (base.sealed)
+            {
+                const std::string seal = "封";
+                const int sealPadX = 4;
+                const int sealPadY = 2;
+                const int sealW = font.measureText(seal);
+                SDL_Rect badge{panel.x + padX + 14, rowY, sealW + sealPadX * 2, lineHeight + sealPadY * 2};
+                SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+                SDL_SetRenderDrawColor(renderer, 120, 30, 30, 210);
+                countedRenderFillRect(renderer, &badge, stats);
+                SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
+                font.drawText(renderer, seal, badge.x + sealPadX, badge.y + sealPadY, &stats, SDL_Color{255, 230, 230, 255});
+            }
+
+            SDL_Color baseColor = base.sealed ? SDL_Color{90, 90, 100, 200} : SDL_Color{230, 90, 90, 220};
+            const int iconSize = 10;
+            SDL_Rect icon{panel.x + padX, rowY + lineHeight + 6, iconSize, iconSize};
+            SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+            SDL_SetRenderDrawColor(renderer, baseColor.r, baseColor.g, baseColor.b, baseColor.a);
+            countedRenderFillRect(renderer, &icon, stats);
+            SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
+
+            const int barWidth = 6;
+            const int barHeight = rowHeight - 12;
+            const int barX = panel.x + panel.w - padX - barWidth;
+            const int barY = rowY + (rowHeight - barHeight) / 2;
+            SDL_Rect barBg{barX, barY, barWidth, barHeight};
+            SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+            SDL_SetRenderDrawColor(renderer, 20, 24, 32, 210);
+            countedRenderFillRect(renderer, &barBg, stats);
+            const float ratio = (!base.sealed && base.maxHp > 0.0f) ? std::clamp(base.hp / base.maxHp, 0.0f, 1.0f) : 0.0f;
+            const int fillHeight = std::max(1, static_cast<int>(std::round((barHeight - 2) * ratio)));
+            const float flash = std::clamp(base.hpFlashTimer / StageEnemyBaseState::kHpFlashDuration, 0.0f, 1.0f);
+            const int flashBoost = static_cast<int>(std::round(60.0f * flash));
+            SDL_Color fillColor{
+                static_cast<Uint8>(std::min(baseColor.r + flashBoost, 255)),
+                static_cast<Uint8>(std::min(baseColor.g + flashBoost, 255)),
+                static_cast<Uint8>(std::min(baseColor.b + flashBoost, 255)),
+                static_cast<Uint8>(std::min(baseColor.a + 25, 255))
+            };
+            SDL_Rect barFill{barX + 1, barY + (barHeight - 1) - fillHeight, barWidth - 2, fillHeight};
+            SDL_SetRenderDrawColor(renderer, fillColor.r, fillColor.g, fillColor.b, fillColor.a);
+            countedRenderFillRect(renderer, &barFill, stats);
+            SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
+        }
+    };
+
     MoraleState commanderMorale = sim.moraleSummary.commanderState;
     std::vector<MoraleState> moraleStates(sim.yunas.size(), MoraleState::Stable);
     for (const LegacySimulation::RenderQueue::AllySprite &ally : queue.allies)
@@ -373,7 +625,7 @@ void renderWorld(SDL_Renderer *renderer, const LegacySimulation &sim, const Form
             Vec2 screenPos = worldToScreen(base.pos, camera);
             SDL_SetRenderDrawColor(renderer, 70, 180, 255, 80);
             drawFilledCircle(renderer, screenPos, auraRadius, stats);
-            if (debugFont.isLoaded())
+            if (!minimalHud && debugFont.isLoaded())
             {
                 std::ostringstream oss;
                 oss << "拠点オーラ (r=" << static_cast<int>(std::round(auraRadius)) << ")";
@@ -425,7 +677,7 @@ void renderWorld(SDL_Renderer *renderer, const LegacySimulation &sim, const Form
                 drawFilledCircle(renderer, screenPos, std::max(4.0f, drawRadius * 0.35f), stats);
             }
 
-            if (debugFont.isLoaded())
+            if (!minimalHud && debugFont.isLoaded())
             {
                 std::ostringstream oss;
                 oss << "Base " << (base.id.empty() ? "???": base.id) << ' ';
@@ -802,7 +1054,7 @@ void renderWorld(SDL_Renderer *renderer, const LegacySimulation &sim, const Form
                 drawFilledCircle(renderer, screenPos, enemy.radius, stats);
             }
 
-            if (enemy.type == EnemyArchetype::Boss && debugFont.isLoaded())
+            if (!minimalHud && enemy.type == EnemyArchetype::Boss && debugFont.isLoaded())
             {
                 const std::string bossText = "BOSS";
                 const int textWidth = measureWorldText(debugFont, bossText, debugLineHeight);
@@ -826,27 +1078,32 @@ void renderWorld(SDL_Renderer *renderer, const LegacySimulation &sim, const Form
                 debugFont.drawText(renderer, bossText, labelBg.x + padX, labelBg.y + padY, &stats,
                                    SDL_Color{255, 180, 255, 255});
             }
-            // Archetype abbreviation label (non-bossも表示)
-            const TextRenderer &labelFont = debugFont.isLoaded() ? debugFont : font;
-            const std::string abbrev = enemyLabel(enemy.type);
-            const int abbrevWidth = labelFont.measureText(abbrev);
-            const int padX = 4;
-            const int padY = 2;
-            const float labelAnchorY = hasSpriteRect ? static_cast<float>(spriteRect.y) : screenPos.y - enemy.radius;
-            SDL_Rect tagBg{
-                static_cast<int>(std::round(screenPos.x)) - abbrevWidth / 2 - padX,
-                static_cast<int>(std::round(labelAnchorY)) - (labelFont.getLineHeight() + padY * 2) - 2,
-                abbrevWidth + padX * 2,
-                labelFont.getLineHeight() + padY * 2};
-            SDL_Color labelBgColor{static_cast<Uint8>(std::min(halo.r + 30, 255)),
-                                   static_cast<Uint8>(std::min(halo.g + 30, 255)),
-                                   static_cast<Uint8>(std::min(halo.b + 30, 255)),
-                                   200};
-            SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
-            SDL_SetRenderDrawColor(renderer, labelBgColor.r, labelBgColor.g, labelBgColor.b, labelBgColor.a);
-            countedRenderFillRect(renderer, &tagBg, stats);
-            SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
-            labelFont.drawText(renderer, abbrev, tagBg.x + padX, tagBg.y + padY, &stats, SDL_Color{0, 0, 0, 255});
+            if (!minimalHud)
+            {
+                // Archetype abbreviation label (non-bossも表示)
+                const TextRenderer &labelFont = debugFont.isLoaded() ? debugFont : font;
+                const std::string abbrev = enemyLabel(enemy.type);
+                const int abbrevWidth = labelFont.measureText(abbrev);
+                const int padX = 4;
+                const int padY = 2;
+                const float labelAnchorY = hasSpriteRect ? static_cast<float>(spriteRect.y) : screenPos.y - enemy.radius;
+                SDL_Rect tagBg{
+                    static_cast<int>(std::round(screenPos.x)) - abbrevWidth / 2 - padX,
+                    static_cast<int>(std::round(labelAnchorY)) - (labelFont.getLineHeight() + padY * 2) - 2,
+                    abbrevWidth + padX * 2,
+                    labelFont.getLineHeight() + padY * 2};
+                SDL_Color labelBgColor{static_cast<Uint8>(std::min(halo.r + 30, 255)),
+                                       static_cast<Uint8>(std::min(halo.g + 30, 255)),
+                                       static_cast<Uint8>(std::min(halo.b + 30, 255)),
+                                       200};
+                SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+                SDL_SetRenderDrawColor(renderer, labelBgColor.r, labelBgColor.g, labelBgColor.b, labelBgColor.a);
+                countedRenderFillRect(renderer, &tagBg, stats);
+                SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
+                labelFont.drawText(renderer, abbrev, tagBg.x + padX, tagBg.y + padY, &stats, SDL_Color{0, 0, 0, 255});
+            }
+
+            drawEnemyHpBar(enemy, screenPos, hasSpriteRect ? &spriteRect : nullptr);
         }
     }
     else
@@ -874,27 +1131,30 @@ void renderWorld(SDL_Renderer *renderer, const LegacySimulation &sim, const Form
             const SDL_Color halo = enemyColor(enemy.type);
             SDL_SetRenderDrawColor(renderer, halo.r, halo.g, halo.b, 255);
             drawFilledCircle(renderer, screenPos, enemy.radius, stats);
-            const TextRenderer &labelFont = debugFont.isLoaded() ? debugFont : font;
-            const std::string abbrev = enemyLabel(enemy.type);
-            const int abbrevWidth = labelFont.measureText(abbrev);
-            const int padX = 4;
-            const int padY = 2;
-            const float labelAnchorY = screenPos.y - enemy.radius;
-            SDL_Rect tagBg{
-                static_cast<int>(std::round(screenPos.x)) - abbrevWidth / 2 - padX,
-                static_cast<int>(std::round(labelAnchorY)) - (labelFont.getLineHeight() + padY * 2) - 2,
-                abbrevWidth + padX * 2,
-                labelFont.getLineHeight() + padY * 2};
-            SDL_Color labelBgColor{static_cast<Uint8>(std::min(halo.r + 30, 255)),
-                                   static_cast<Uint8>(std::min(halo.g + 30, 255)),
-                                   static_cast<Uint8>(std::min(halo.b + 30, 255)),
-                                   200};
-            SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
-            SDL_SetRenderDrawColor(renderer, labelBgColor.r, labelBgColor.g, labelBgColor.b, labelBgColor.a);
-            countedRenderFillRect(renderer, &tagBg, stats);
-            SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
-            labelFont.drawText(renderer, abbrev, tagBg.x + padX, tagBg.y + padY, &stats, SDL_Color{0, 0, 0, 255});
-            if (enemy.type == EnemyArchetype::Boss && debugFont.isLoaded())
+            if (!minimalHud)
+            {
+                const TextRenderer &labelFont = debugFont.isLoaded() ? debugFont : font;
+                const std::string abbrev = enemyLabel(enemy.type);
+                const int abbrevWidth = labelFont.measureText(abbrev);
+                const int padX = 4;
+                const int padY = 2;
+                const float labelAnchorY = screenPos.y - enemy.radius;
+                SDL_Rect tagBg{
+                    static_cast<int>(std::round(screenPos.x)) - abbrevWidth / 2 - padX,
+                    static_cast<int>(std::round(labelAnchorY)) - (labelFont.getLineHeight() + padY * 2) - 2,
+                    abbrevWidth + padX * 2,
+                    labelFont.getLineHeight() + padY * 2};
+                SDL_Color labelBgColor{static_cast<Uint8>(std::min(halo.r + 30, 255)),
+                                       static_cast<Uint8>(std::min(halo.g + 30, 255)),
+                                       static_cast<Uint8>(std::min(halo.b + 30, 255)),
+                                       200};
+                SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+                SDL_SetRenderDrawColor(renderer, labelBgColor.r, labelBgColor.g, labelBgColor.b, labelBgColor.a);
+                countedRenderFillRect(renderer, &tagBg, stats);
+                SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
+                labelFont.drawText(renderer, abbrev, tagBg.x + padX, tagBg.y + padY, &stats, SDL_Color{0, 0, 0, 255});
+            }
+            if (!minimalHud && enemy.type == EnemyArchetype::Boss && debugFont.isLoaded())
             {
                 const std::string bossText = "BOSS";
                 const int textWidth = measureWorldText(debugFont, bossText, debugLineHeight);
@@ -916,6 +1176,7 @@ void renderWorld(SDL_Renderer *renderer, const LegacySimulation &sim, const Form
                 debugFont.drawText(renderer, bossText, labelBg.x + padX, labelBg.y + padY, &stats,
                                    SDL_Color{255, 180, 255, 255});
             }
+            drawEnemyHpBar(enemy, screenPos, nullptr);
         }
     }
 
@@ -925,6 +1186,10 @@ void renderWorld(SDL_Renderer *renderer, const LegacySimulation &sim, const Form
     SDL_Rect overlay{0, 0, screenW, screenH};
     countedRenderFillRect(renderer, &overlay, stats);
     SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
+
+    // Minimap (top-right)
+    const SDL_Rect minimapRect = drawMinimap();
+    drawEnemyBasePanel(minimapRect);
 
     // Commander HP/MP HUD
     if (sim.commander.alive)
@@ -936,6 +1201,7 @@ void renderWorld(SDL_Renderer *renderer, const LegacySimulation &sim, const Form
     }
 
     // Enemy legend (always on)
+    if (!minimalHud)
     {
         struct LegendEntry
         {
