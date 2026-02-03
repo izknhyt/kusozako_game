@@ -331,9 +331,12 @@ void renderWorld(SDL_Renderer *renderer, const LegacySimulation &sim, const Form
         };
 
         SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
-        SDL_SetRenderDrawColor(renderer, 10, 10, 18, 180);
+        SDL_SetRenderDrawColor(renderer, 8, 10, 18, 210);
         countedRenderFillRect(renderer, &panel, stats);
-        SDL_SetRenderDrawColor(renderer, 80, 90, 120, 200);
+        SDL_Rect inner{panel.x + 1, panel.y + 1, panel.w - 2, panel.h - 2};
+        SDL_SetRenderDrawColor(renderer, 20, 26, 38, 160);
+        countedRenderDrawRect(renderer, &inner, stats);
+        SDL_SetRenderDrawColor(renderer, 120, 130, 170, 210);
         SDL_RenderDrawRect(renderer, &panel);
 
         const StageRuntimeState &stageState = sim.stageState();
@@ -464,8 +467,13 @@ void renderWorld(SDL_Renderer *renderer, const LegacySimulation &sim, const Form
         }
         SDL_Rect panel{panelX, panelY, panelWidth, panelHeight};
         SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
-        SDL_SetRenderDrawColor(renderer, 8, 10, 18, 200);
+        SDL_SetRenderDrawColor(renderer, 8, 10, 18, 210);
         countedRenderFillRect(renderer, &panel, stats);
+        SDL_Rect panelInner{panel.x + 1, panel.y + 1, panel.w - 2, panel.h - 2};
+        SDL_SetRenderDrawColor(renderer, 20, 26, 38, 160);
+        countedRenderDrawRect(renderer, &panelInner, stats);
+        SDL_SetRenderDrawColor(renderer, 120, 130, 170, 210);
+        SDL_RenderDrawRect(renderer, &panel);
         SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
 
         for (std::size_t i = 0; i < bases.size(); ++i)
@@ -495,6 +503,8 @@ void renderWorld(SDL_Renderer *renderer, const LegacySimulation &sim, const Form
             SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
             SDL_SetRenderDrawColor(renderer, baseColor.r, baseColor.g, baseColor.b, baseColor.a);
             countedRenderFillRect(renderer, &icon, stats);
+            SDL_SetRenderDrawColor(renderer, 30, 30, 40, 200);
+            countedRenderDrawRect(renderer, &icon, stats);
             SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
 
             const int barWidth = 6;
@@ -503,8 +513,10 @@ void renderWorld(SDL_Renderer *renderer, const LegacySimulation &sim, const Form
             const int barY = rowY + (rowHeight - barHeight) / 2;
             SDL_Rect barBg{barX, barY, barWidth, barHeight};
             SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
-            SDL_SetRenderDrawColor(renderer, 20, 24, 32, 210);
+            SDL_SetRenderDrawColor(renderer, 18, 22, 30, 230);
             countedRenderFillRect(renderer, &barBg, stats);
+            SDL_SetRenderDrawColor(renderer, 60, 70, 90, 200);
+            countedRenderDrawRect(renderer, &barBg, stats);
             const float ratio = (!base.sealed && base.maxHp > 0.0f) ? std::clamp(base.hp / base.maxHp, 0.0f, 1.0f) : 0.0f;
             const int fillHeight = std::max(1, static_cast<int>(std::round((barHeight - 2) * ratio)));
             const float flash = std::clamp(base.hpFlashTimer / StageEnemyBaseState::kHpFlashDuration, 0.0f, 1.0f);
@@ -520,6 +532,102 @@ void renderWorld(SDL_Renderer *renderer, const LegacySimulation &sim, const Form
             countedRenderFillRect(renderer, &barFill, stats);
             SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
         }
+    };
+
+    auto drawCommanderConsole = [&]() {
+        const int margin = 14;
+        const int panelW = 260;
+        const int panelH = 94;
+        SDL_Rect panel{margin, screenH - panelH - margin, panelW, panelH};
+        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+        SDL_SetRenderDrawColor(renderer, 12, 16, 26, 220);
+        countedRenderFillRect(renderer, &panel, stats);
+        SDL_Rect panelInner{panel.x + 1, panel.y + 1, panel.w - 2, panel.h - 2};
+        SDL_SetRenderDrawColor(renderer, 24, 30, 44, 160);
+        countedRenderDrawRect(renderer, &panelInner, stats);
+        SDL_SetRenderDrawColor(renderer, 140, 150, 190, 210);
+        SDL_RenderDrawRect(renderer, &panel);
+        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
+
+        const SDL_Rect *portraitFrame = atlas.getFrame("yuna_front_0");
+        const int portraitSize = 48;
+        SDL_Rect portraitRect{panel.x + 12, panel.y + 12, portraitSize, portraitSize};
+        if (portraitFrame && atlas.texture.get())
+        {
+            countedRenderCopy(renderer, atlas.texture.getRaw(), portraitFrame, &portraitRect, stats);
+        }
+        else
+        {
+            SDL_SetRenderDrawColor(renderer, 40, 60, 80, 255);
+            countedRenderFillRect(renderer, &portraitRect, stats);
+        }
+        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+        SDL_SetRenderDrawColor(renderer, 20, 24, 32, 200);
+        countedRenderDrawRect(renderer, &portraitRect, stats);
+        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
+
+        const float hpMax = std::max(sim.commanderStats.hp, 1.0f);
+        const float hp = sim.commander.alive ? sim.commander.hp : 0.0f;
+        const float hpRatio = std::clamp(hp / hpMax, 0.0f, 1.0f);
+        const float hpLagRatio = std::clamp(sim.commanderHudHpLag / hpMax, 0.0f, 1.0f);
+        const float mpMax = std::max(sim.commander.mpMax, 1.0f);
+        const float mp = sim.commander.alive ? sim.commander.mp : 0.0f;
+        const float mpRatio = std::clamp(mp / mpMax, 0.0f, 1.0f);
+
+        const float pulse = (hpRatio < 0.3f && sim.commander.alive)
+                                ? static_cast<float>((std::sin(sim.simTime * 6.0f) + 1.0f) * 0.5f)
+                                : 0.0f;
+        const int pulseBoost = static_cast<int>(std::round(35.0f * pulse));
+
+        const int barX = portraitRect.x + portraitRect.w + 12;
+        const int barW = panel.x + panel.w - barX - 12;
+        const int barH = 10;
+        const int hpBarY = panel.y + 16;
+        const int mpBarY = hpBarY + barH + 18;
+
+        SDL_Rect hpBg{barX, hpBarY, barW, barH};
+        SDL_Rect mpBg{barX, mpBarY, barW, barH};
+        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+        SDL_SetRenderDrawColor(renderer, 18, 24, 34, 230);
+        countedRenderFillRect(renderer, &hpBg, stats);
+        countedRenderFillRect(renderer, &mpBg, stats);
+        SDL_SetRenderDrawColor(renderer, 60, 70, 90, 200);
+        countedRenderDrawRect(renderer, &hpBg, stats);
+        countedRenderDrawRect(renderer, &mpBg, stats);
+
+        const int hpLagW = static_cast<int>(std::round((barW - 2) * hpLagRatio));
+        SDL_Rect hpLag{hpBg.x + 1, hpBg.y + 1, hpLagW, hpBg.h - 2};
+        SDL_SetRenderDrawColor(renderer, 190, 90, 60, 200);
+        countedRenderFillRect(renderer, &hpLag, stats);
+
+        const int hpW = static_cast<int>(std::round((barW - 2) * hpRatio));
+        SDL_Color hpColor{
+            static_cast<Uint8>(std::min(220 + pulseBoost, 255)),
+            static_cast<Uint8>(std::min(90 + pulseBoost, 255)),
+            static_cast<Uint8>(std::min(90 + pulseBoost, 255)),
+            230
+        };
+        if (sim.commanderHudHealFlashTimer > 0.0f)
+        {
+            hpColor.g = static_cast<Uint8>(std::min(200, hpColor.g + 60));
+            hpColor.b = static_cast<Uint8>(std::min(200, hpColor.b + 60));
+        }
+        SDL_Rect hpFill{hpBg.x + 1, hpBg.y + 1, hpW, hpBg.h - 2};
+        SDL_SetRenderDrawColor(renderer, hpColor.r, hpColor.g, hpColor.b, hpColor.a);
+        countedRenderFillRect(renderer, &hpFill, stats);
+
+        const int mpW = static_cast<int>(std::round((barW - 2) * mpRatio));
+        SDL_Rect mpFill{mpBg.x + 1, mpBg.y + 1, mpW, mpBg.h - 2};
+        SDL_SetRenderDrawColor(renderer, 90, 170, 255, 220);
+        countedRenderFillRect(renderer, &mpFill, stats);
+        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
+
+        std::ostringstream hpText;
+        hpText << "HP " << static_cast<int>(std::round(hp)) << "/" << static_cast<int>(std::round(hpMax));
+        font.drawText(renderer, hpText.str(), barX, hpBarY - lineHeight, &stats, SDL_Color{230, 240, 255, 255});
+        std::ostringstream mpText;
+        mpText << "MP " << static_cast<int>(std::round(mp)) << "/" << static_cast<int>(std::round(mpMax));
+        font.drawText(renderer, mpText.str(), barX, mpBarY - lineHeight, &stats, SDL_Color{200, 220, 255, 255});
     };
 
     MoraleState commanderMorale = sim.moraleSummary.commanderState;
@@ -792,6 +900,18 @@ void renderWorld(SDL_Renderer *renderer, const LegacySimulation &sim, const Form
             Vec2 screenPos = worldToScreen(ally.position, camera);
             if (ally.commander)
             {
+                const float hpMax = std::max(sim.commanderStats.hp, 1.0f);
+                const float hpRatio = std::clamp(sim.commander.hp / hpMax, 0.0f, 1.0f);
+                SDL_Color ringColor{
+                    static_cast<Uint8>(std::min(255.0f, 200.0f + (1.0f - hpRatio) * 55.0f)),
+                    static_cast<Uint8>(std::min(255.0f, 180.0f * hpRatio + 40.0f)),
+                    static_cast<Uint8>(std::min(255.0f, 200.0f * hpRatio + 40.0f)),
+                    60
+                };
+                SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+                SDL_SetRenderDrawColor(renderer, ringColor.r, ringColor.g, ringColor.b, ringColor.a);
+                drawFilledCircle(renderer, screenPos, ally.radius + 8.0f, stats);
+                SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
                 if (commanderFrame)
                 {
                     SDL_Rect dest{
@@ -799,6 +919,16 @@ void renderWorld(SDL_Renderer *renderer, const LegacySimulation &sim, const Form
                         static_cast<int>(screenPos.y - commanderFrame->h * 0.5f),
                         commanderFrame->w,
                         commanderFrame->h};
+                    SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+                    SDL_SetRenderDrawColor(renderer, 230, 240, 255, 90);
+                    SDL_Rect outline{
+                        dest.x - 1,
+                        dest.y - 1,
+                        dest.w + 2,
+                        dest.h + 2
+                    };
+                    countedRenderDrawRect(renderer, &outline, stats);
+                    SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
                     countedRenderCopy(renderer, atlas.texture.getRaw(), commanderFrame, &dest, stats);
                     if (friendRing)
                     {
@@ -1191,14 +1321,8 @@ void renderWorld(SDL_Renderer *renderer, const LegacySimulation &sim, const Form
     const SDL_Rect minimapRect = drawMinimap();
     drawEnemyBasePanel(minimapRect);
 
-    // Commander HP/MP HUD
-    if (sim.commander.alive)
-    {
-        std::ostringstream hpmp;
-        hpmp << "HP " << static_cast<int>(std::round(sim.commander.hp)) << "/" << static_cast<int>(std::round(sim.commanderStats.hp))
-             << "  MP " << static_cast<int>(std::round(sim.commander.mp)) << "/" << static_cast<int>(std::round(sim.commander.mpMax));
-        font.drawText(renderer, hpmp.str(), 16, 16, nullptr, SDL_Color{240, 240, 255, 255});
-    }
+    // Commander console (bottom-left)
+    drawCommanderConsole();
 
     // Enemy legend (always on)
     if (!minimalHud)

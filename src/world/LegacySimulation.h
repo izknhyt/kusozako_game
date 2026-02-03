@@ -452,6 +452,11 @@ struct LegacySimulation
     bool debugForceBaseContact = false;
     GameResult result = GameResult::Playing;
     HUDState hud;
+    static constexpr float kCommanderHudHpLagSpeed = 120.0f;
+    static constexpr float kCommanderHudHealFlashDuration = 0.2f;
+    float commanderHudPrevHp = 0.0f;
+    float commanderHudHpLag = 0.0f;
+    float commanderHudHealFlashTimer = 0.0f;
     std::mt19937 rng;
     std::uniform_real_distribution<float> scatterY;
     std::uniform_real_distribution<float> gateJitter;
@@ -1620,6 +1625,9 @@ struct LegacySimulation
         commander.mpMax = std::max(commanderStats.mp, 0.0f);
         commander.mp = commander.mpMax;
         commander.mpRegen = commanderStats.mpRegen;
+        commanderHudPrevHp = commander.hp;
+        commanderHudHpLag = commander.hp;
+        commanderHudHealFlashTimer = 0.0f;
         commander.pos = yunaSpawnPos;
         commander.lastVelocity = {0.0f, 0.0f};
         commander.lastMoveDir = {1.0f, 0.0f};
@@ -3029,6 +3037,40 @@ struct LegacySimulation
                 }
             }
         }
+        if (commanderHudPrevHp <= 0.0f && commander.hp > 0.0f)
+        {
+            commanderHudPrevHp = commander.hp;
+            commanderHudHpLag = commander.hp;
+        }
+        if (commander.alive)
+        {
+            if (commander.hp > commanderHudPrevHp + 0.01f)
+            {
+                commanderHudHealFlashTimer = kCommanderHudHealFlashDuration;
+            }
+            if (commander.hp < commanderHudPrevHp - 0.01f)
+            {
+                commanderHudHpLag = std::max(commanderHudHpLag, commanderHudPrevHp);
+            }
+            if (commanderHudHpLag < commander.hp)
+            {
+                commanderHudHpLag = commander.hp;
+            }
+            else
+            {
+                commanderHudHpLag = std::max(commander.hp, commanderHudHpLag - kCommanderHudHpLagSpeed * dt);
+            }
+            if (commanderHudHealFlashTimer > 0.0f)
+            {
+                commanderHudHealFlashTimer = std::max(0.0f, commanderHudHealFlashTimer - dt);
+            }
+        }
+        else
+        {
+            commanderHudHpLag = 0.0f;
+            commanderHudHealFlashTimer = 0.0f;
+        }
+        commanderHudPrevHp = commander.hp;
 
         if (frameCapturePending > 0)
         {
