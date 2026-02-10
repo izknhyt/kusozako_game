@@ -88,6 +88,12 @@ void RenderingPrepSystem::update(float, SystemContext &context)
         commanderSprite.morale = sim.moraleSummary.commanderState;
         commanderSprite.hasUnitIndex = false;
         commanderSprite.action = ChibiAction::FollowCommander;
+        commanderSprite.facingX = sim.commander.lastMoveDir.x < 0.0f ? -1.0f : 1.0f;
+        commanderSprite.moving = lengthSq(sim.commander.lastVelocity) > 0.001f;
+        commanderSprite.attacking =
+            sim.commander.attackSwingTimer > 0.0f && sim.commander.attackSwingDuration > 0.0f;
+        commanderSprite.attackTimer = sim.commander.attackSwingTimer;
+        commanderSprite.attackDuration = sim.commander.attackSwingDuration;
         queue.allies.push_back(commanderSprite);
 
         LegacySimulation::RenderQueue::MoraleIcon commanderIcon;
@@ -248,7 +254,7 @@ void RenderingPrepSystem::update(float, SystemContext &context)
     queue.deathFx.reserve(sim.deathFx.size());
     for (const auto &fx : sim.deathFx)
     {
-        queue.deathFx.push_back({fx.position, fx.timer, fx.duration, fx.facingX});
+        queue.deathFx.push_back({fx.position, fx.timer, fx.duration, fx.facingX, fx.commander});
     }
 
     queue.walls.clear();

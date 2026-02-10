@@ -58,6 +58,9 @@ AssetManager::TexturePtr defaultTextureLoader(SDL_Renderer *renderer, const std:
     {
         return nullptr;
     }
+    // Pixel-art assets should stay crisp while moving/scaling.
+    SDL_SetTextureScaleMode(texture, SDL_ScaleModeNearest);
+    SDL_SetTextureBlendMode(texture, SDL_BLENDMODE_BLEND);
     return makeTexturePtr(texture);
 }
 
@@ -550,4 +553,3 @@ void AssetManager::emitTextureMemoryWarning()
         ui->showWarningMessage(message.str(), 0.0f);
     }
 }
-

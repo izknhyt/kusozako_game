@@ -1684,7 +1684,7 @@ void CombatSystem::update(float dt, SystemContext &context)
             {
                 if (!yuna.isNamed)
                 {
-                    sim.deathFx.push_back({yuna.pos, 1.0f, 1.0f, yuna.facingX});
+                    sim.deathFx.push_back({yuna.pos, 1.0f, 1.0f, yuna.facingX, false});
                     ++sim.statChibiDeaths;
                 }
                 if (yuna.respawnAllowed)
@@ -1712,7 +1712,7 @@ void CombatSystem::update(float dt, SystemContext &context)
                     }
                     if (!yuna.isNamed)
                     {
-                        sim.deathFx.push_back({yuna.pos, 1.0f, 1.0f, yuna.facingX});
+                        sim.deathFx.push_back({yuna.pos, 1.0f, 1.0f, yuna.facingX, false});
                     }
                     continue;
                 }

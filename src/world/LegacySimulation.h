@@ -426,6 +426,7 @@ struct LegacySimulation
         float timer = 0.0f;
         float duration = 0.0f;
         float facingX = 1.0f;
+        bool commander = false;
     };
     std::vector<DeathFx> deathFx;
     struct DynamicHazard
@@ -578,6 +579,7 @@ struct LegacySimulation
             float timer = 0.0f;
             float duration = 0.0f;
             float facingX = 1.0f;
+            bool commander = false;
         };
 
         struct Projectile
@@ -2664,6 +2666,11 @@ struct LegacySimulation
 
     void scheduleCommanderRespawn(float penaltyMultiplier, float bonusSeconds, float overkillRatio)
     {
+        if (commander.alive)
+        {
+            const float facingX = commander.lastMoveDir.x < 0.0f ? -1.0f : 1.0f;
+            deathFx.push_back({commander.pos, 1.0f, 1.0f, facingX, true});
+        }
         commander.alive = false;
         commander.hp = 0.0f;
         const float penalty = std::max(1.0f, penaltyMultiplier);

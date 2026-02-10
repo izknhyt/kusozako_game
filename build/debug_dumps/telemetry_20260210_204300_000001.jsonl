@@ -1,0 +1,584 @@
+{"event":"telemetry.log.opened","file":"build/debug_dumps/telemetry_20260210_204300_000001.jsonl","rotation_bytes":"10485760"}
+{"event":"world.spawn.job","job":"archer","origin":"reinforcement","total_spawns":"1"}
+{"event":"world.spawn.job","job":"shield","origin":"reinforcement","total_spawns":"2"}
+{"event":"world.spawn.job","job":"warrior","origin":"reinforcement","total_spawns":"3"}
+{"event":"event_bus.no_listener","event":"battle.scene.entered"}
+{"event":"world.spawn.job","job":"archer","origin":"reinforcement","total_spawns":"1"}
+{"event":"world.spawn.job","job":"shield","origin":"reinforcement","total_spawns":"2"}
+{"event":"world.spawn.job","job":"warrior","origin":"reinforcement","total_spawns":"3"}
+{"event":"formation.progress","followers":"0","formation":"Swarm","progress":"0.00","remaining_s":"0.00","state":"idle"}
+{"event":"hud.alignment","active":"false","followers":"0","formation":"Swarm","progress":"0.00","remaining_s":"0.00"}
+{"event":"hud.morale_status","barrier_s":"0.00","commander_state":"stable","leader_down_s":"0.00","mesomeso":"0","panic":"0"}
+{"event":"world.spawn.job","job":"shield","origin":"natural","total_spawns":"4"}
+{"event":"hud.jobs","jobs":"warrior:0/1 archer:0/1 shield:0/2","skills":"imp_bomb(0.0) surge(0.0) self_destruct(0.0) wall(0.0) rally(0.0)"}
+{"event":"hud.alignment","active":"false","followers":"0","label":"Swarm","progress":"0.00","seconds":"0.00"}
+{"event":"hud.jobs","jobs":"warrior:0/1 archer:0/1 shield:0/2","skills":"imp_bomb(0.0) surge(0.0) self_destruct(0.0) wall(0.0) rally(0.0)"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"38.23","stage":"render","tolerance_ms":"0.50"}
+{"event":"telemetry.frame_capture.requested","requested":"true"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"37.43","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"33.74","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"33.38","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"35.29","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"33.07","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"39.13","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"33.60","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"40.94","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"38.21","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"36.27","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"36.63","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"34.88","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"36.58","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"34.22","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"44.19","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"33.55","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"42.43","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"35.74","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"36.14","stage":"render","tolerance_ms":"0.50"}
+{"event":"world.spawn.job","job":"archer","origin":"natural","total_spawns":"5"}
+{"event":"hud.jobs","jobs":"warrior:0/1 archer:0/2 shield:0/2","skills":"imp_bomb(0.0) surge(0.0) self_destruct(0.0) wall(0.0) rally(0.0)"}
+{"event":"hud.jobs","jobs":"warrior:0/1 archer:0/2 shield:0/2","skills":"imp_bomb(0.0) surge(0.0) self_destruct(0.0) wall(0.0) rally(0.0)"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"36.36","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"38.88","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"35.20","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"35.59","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"36.70","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"36.26","stage":"render","tolerance_ms":"0.50"}
+{"event":"ai.actions","ai.actions.assault_base":"0.000","ai.actions.assault_enemy":"0.235","ai.actions.cling_ratio":"0.000","ai.actions.defend_base":"0.048","ai.actions.flee":"0.000","ai.actions.follow_ally":"0.000","ai.actions.follow_commander":"0.717","ai.actions.kaiten_ratio":"0.000","ai.actions.panic_ratio":"0.000","ai.actions.run_ratio":"0.000","ai.actions.tokkou_active":"0","ai.actions.tokkou_peak":"0","ai.actions.unit_seconds":"4.183","ai.actions.wander":"0.000","ai.aoe.avoid_mag":"0.000","ai.aoe.avoid_ratio":"0.000","ai.boids.radius_avg":"39.747","ai.boids.radius_exceed_ratio":"0.000","ai.hazard.active_avg":"0.000"}
+{"event":"battle.performance","entities":"35","fps":"26.2","render_ms":"36.81","spike":"true","update_ms":"0.90"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"41.14","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"46.59","stage":"render","tolerance_ms":"0.50"}
+{"event":"telemetry.frame_capture.requested","requested":"true"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"40.84","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"39.86","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"40.85","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"44.07","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"46.69","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"42.48","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"39.84","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"40.01","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"39.58","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"40.40","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"40.58","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"40.65","stage":"render","tolerance_ms":"0.50"}
+{"event":"world.spawn.job","job":"shield","origin":"natural","total_spawns":"6"}
+{"event":"hud.jobs","jobs":"warrior:0/1 archer:0/2 shield:0/3","skills":"imp_bomb(0.0) surge(0.0) self_destruct(0.0) wall(0.0) rally(0.0)"}
+{"event":"hud.jobs","jobs":"warrior:0/1 archer:0/2 shield:0/3","skills":"imp_bomb(0.0) surge(0.0) self_destruct(0.0) wall(0.0) rally(0.0)"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"35.82","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"34.72","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"35.88","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"34.60","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"34.24","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"33.83","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"35.17","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"35.85","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"35.48","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"34.76","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"39.51","stage":"render","tolerance_ms":"0.50"}
+{"event":"ai.actions","ai.actions.assault_base":"0.074","ai.actions.assault_enemy":"0.185","ai.actions.cling_ratio":"0.000","ai.actions.defend_base":"0.185","ai.actions.flee":"0.000","ai.actions.follow_ally":"0.000","ai.actions.follow_commander":"0.556","ai.actions.kaiten_ratio":"0.000","ai.actions.panic_ratio":"0.000","ai.actions.run_ratio":"0.000","ai.actions.tokkou_active":"0","ai.actions.tokkou_peak":"0","ai.actions.unit_seconds":"5.400","ai.actions.wander":"0.000","ai.aoe.avoid_mag":"0.000","ai.aoe.avoid_ratio":"0.000","ai.boids.radius_avg":"58.104","ai.boids.radius_exceed_ratio":"0.000","ai.hazard.active_avg":"0.000"}
+{"event":"battle.performance","entities":"36","fps":"24.8","render_ms":"38.75","spike":"true","update_ms":"1.09"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"36.44","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"37.70","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"34.74","stage":"render","tolerance_ms":"0.50"}
+{"event":"telemetry.frame_capture.requested","requested":"true"}
+{"event":"hud.jobs","jobs":"warrior:0/1 archer:1/2 shield:0/3","skills":"imp_bomb(0.0) surge(0.0) self_destruct(0.0) wall(0.0) rally(0.0)"}
+{"event":"hud.jobs","jobs":"warrior:0/1 archer:1/2 shield:0/3","skills":"imp_bomb(0.0) surge(0.0) self_destruct(0.0) wall(0.0) rally(0.0)"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"36.28","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"37.91","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"35.29","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"33.15","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"34.47","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"32.40","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"32.09","stage":"render","tolerance_ms":"0.50"}
+{"event":"world.spawn.job","job":"shield","origin":"natural","total_spawns":"7"}
+{"event":"hud.jobs","jobs":"warrior:0/1 archer:1/2 shield:0/4","skills":"imp_bomb(0.0) surge(0.0) self_destruct(0.0) wall(0.0) rally(0.0)"}
+{"event":"hud.jobs","jobs":"warrior:0/1 archer:1/2 shield:0/4","skills":"imp_bomb(0.0) surge(0.0) self_destruct(0.0) wall(0.0) rally(0.0)"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"33.70","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"39.12","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"32.37","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"33.85","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"35.12","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"33.75","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"37.84","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"32.58","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"34.56","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"36.08","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"33.76","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"33.69","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"33.41","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"34.39","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"34.26","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"38.47","stage":"render","tolerance_ms":"0.50"}
+{"event":"ai.actions","ai.actions.assault_base":"0.152","ai.actions.assault_enemy":"0.152","ai.actions.cling_ratio":"0.000","ai.actions.defend_base":"0.242","ai.actions.flee":"0.000","ai.actions.follow_ally":"0.000","ai.actions.follow_commander":"0.455","ai.actions.kaiten_ratio":"0.000","ai.actions.panic_ratio":"0.000","ai.actions.run_ratio":"0.000","ai.actions.tokkou_active":"0","ai.actions.tokkou_peak":"0","ai.actions.unit_seconds":"6.600","ai.actions.wander":"0.000","ai.aoe.avoid_mag":"0.000","ai.aoe.avoid_ratio":"0.000","ai.boids.radius_avg":"73.507","ai.boids.radius_exceed_ratio":"0.000","ai.hazard.active_avg":"0.000"}
+{"event":"battle.performance","entities":"38","fps":"25.4","render_ms":"35.01","spike":"true","update_ms":"0.92"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"39.36","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"33.19","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"33.95","stage":"render","tolerance_ms":"0.50"}
+{"event":"telemetry.frame_capture.requested","requested":"true"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"32.18","stage":"render","tolerance_ms":"0.50"}
+{"event":"world.spawn.job","job":"warrior","origin":"natural","total_spawns":"8"}
+{"event":"hud.jobs","jobs":"warrior:0/2 archer:1/2 shield:0/4","skills":"imp_bomb(0.0) surge(0.0) self_destruct(0.0) wall(0.0) rally(0.0)"}
+{"event":"hud.jobs","jobs":"warrior:0/2 archer:1/2 shield:0/4","skills":"imp_bomb(0.0) surge(0.0) self_destruct(0.0) wall(0.0) rally(0.0)"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"36.89","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"32.40","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"32.65","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"34.12","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"35.39","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"35.95","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"39.86","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"35.14","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"36.57","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"37.22","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"34.73","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"34.12","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"37.40","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"32.84","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"34.29","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"40.41","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"34.61","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"40.85","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"34.00","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"40.55","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"35.42","stage":"render","tolerance_ms":"0.50"}
+{"event":"ai.actions","ai.actions.assault_base":"0.128","ai.actions.assault_enemy":"0.128","ai.actions.cling_ratio":"0.000","ai.actions.defend_base":"0.256","ai.actions.flee":"0.000","ai.actions.follow_ally":"0.000","ai.actions.follow_commander":"0.487","ai.actions.kaiten_ratio":"0.000","ai.actions.panic_ratio":"0.000","ai.actions.run_ratio":"0.000","ai.actions.tokkou_active":"0","ai.actions.tokkou_peak":"0","ai.actions.unit_seconds":"7.800","ai.actions.wander":"0.000","ai.aoe.avoid_mag":"0.000","ai.aoe.avoid_ratio":"0.000","ai.boids.radius_avg":"87.008","ai.boids.radius_exceed_ratio":"0.000","ai.hazard.active_avg":"0.000"}
+{"event":"world.spawn.job","job":"warrior","origin":"natural","total_spawns":"9"}
+{"event":"hud.jobs","jobs":"warrior:0/3 archer:1/2 shield:0/4","skills":"imp_bomb(0.0) surge(0.0) self_destruct(0.0) wall(0.0) rally(0.0)"}
+{"event":"hud.jobs","jobs":"warrior:0/3 archer:1/2 shield:0/4","skills":"imp_bomb(0.0) surge(0.0) self_destruct(0.0) wall(0.0) rally(0.0)"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"37.99","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance","entities":"39","fps":"25.7","render_ms":"35.75","spike":"true","update_ms":"0.99"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"36.88","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"42.39","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"36.74","stage":"render","tolerance_ms":"0.50"}
+{"event":"telemetry.frame_capture.requested","requested":"true"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"38.12","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"35.27","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"38.93","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"35.17","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"40.53","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"46.49","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"37.61","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"35.19","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"36.02","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"34.37","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"34.96","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"35.46","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"32.67","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"34.96","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"33.78","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"36.68","stage":"render","tolerance_ms":"0.50"}
+{"event":"world.spawn.job","job":"shield","origin":"natural","total_spawns":"10"}
+{"event":"hud.jobs","jobs":"warrior:0/3 archer:1/2 shield:0/5","skills":"imp_bomb(0.0) surge(0.0) self_destruct(0.0) wall(0.0) rally(0.0)"}
+{"event":"hud.jobs","jobs":"warrior:0/3 archer:1/2 shield:0/5","skills":"imp_bomb(0.0) surge(0.0) self_destruct(0.0) wall(0.0) rally(0.0)"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"33.66","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"39.59","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"35.80","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"36.69","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"38.66","stage":"render","tolerance_ms":"0.50"}
+{"event":"ai.actions","ai.actions.assault_base":"0.109","ai.actions.assault_enemy":"0.130","ai.actions.cling_ratio":"0.000","ai.actions.defend_base":"0.217","ai.actions.flee":"0.000","ai.actions.follow_ally":"0.000","ai.actions.follow_commander":"0.543","ai.actions.kaiten_ratio":"0.000","ai.actions.panic_ratio":"0.000","ai.actions.run_ratio":"0.000","ai.actions.tokkou_active":"0","ai.actions.tokkou_peak":"0","ai.actions.unit_seconds":"9.200","ai.actions.wander":"0.000","ai.aoe.avoid_mag":"0.000","ai.aoe.avoid_ratio":"0.000","ai.boids.radius_avg":"104.071","ai.boids.radius_exceed_ratio":"1.000","ai.hazard.active_avg":"0.000"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"40.96","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance","entities":"40","fps":"25.0","render_ms":"37.33","spike":"true","update_ms":"1.06"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"42.50","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"41.56","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"39.87","stage":"render","tolerance_ms":"0.50"}
+{"event":"telemetry.frame_capture.requested","requested":"true"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"40.70","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"39.63","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"36.91","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"34.68","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"41.01","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"33.28","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"35.40","stage":"render","tolerance_ms":"0.50"}
+{"event":"hud.jobs","jobs":"warrior:0/3 archer:2/2 shield:0/5","skills":"imp_bomb(0.0) surge(0.0) self_destruct(0.0) wall(0.0) rally(0.0)"}
+{"event":"hud.jobs","jobs":"warrior:0/3 archer:2/2 shield:0/5","skills":"imp_bomb(0.0) surge(0.0) self_destruct(0.0) wall(0.0) rally(0.0)"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"34.70","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"33.63","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"33.01","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"34.65","stage":"render","tolerance_ms":"0.50"}
+{"event":"world.spawn.job","job":"shield","origin":"natural","total_spawns":"11"}
+{"event":"hud.jobs","jobs":"warrior:0/3 archer:2/2 shield:0/6","skills":"imp_bomb(0.0) surge(0.0) self_destruct(0.0) wall(0.0) rally(0.0)"}
+{"event":"hud.jobs","jobs":"warrior:0/3 archer:2/2 shield:0/6","skills":"imp_bomb(0.0) surge(0.0) self_destruct(0.0) wall(0.0) rally(0.0)"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"35.45","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"33.59","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"33.41","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"33.57","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"36.71","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"37.62","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"34.69","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"37.61","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"33.38","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"37.68","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"33.74","stage":"render","tolerance_ms":"0.50"}
+{"event":"ai.actions","ai.actions.assault_base":"0.096","ai.actions.assault_enemy":"0.192","ai.actions.cling_ratio":"0.000","ai.actions.defend_base":"0.192","ai.actions.flee":"0.000","ai.actions.follow_ally":"0.000","ai.actions.follow_commander":"0.519","ai.actions.kaiten_ratio":"0.000","ai.actions.panic_ratio":"0.000","ai.actions.run_ratio":"0.000","ai.actions.tokkou_active":"0","ai.actions.tokkou_peak":"0","ai.actions.unit_seconds":"10.400","ai.actions.wander":"0.000","ai.aoe.avoid_mag":"0.000","ai.aoe.avoid_ratio":"0.000","ai.boids.radius_avg":"116.511","ai.boids.radius_exceed_ratio":"1.000","ai.hazard.active_avg":"0.000"}
+{"event":"hud.jobs","jobs":"warrior:0/3 archer:2/2 shield:1/6","skills":"imp_bomb(0.0) surge(0.0) self_destruct(0.0) wall(0.0) rally(0.0)"}
+{"event":"hud.jobs","jobs":"warrior:0/3 archer:2/2 shield:1/6","skills":"imp_bomb(0.0) surge(0.0) self_destruct(0.0) wall(0.0) rally(0.0)"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"34.09","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"35.17","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance","entities":"42","fps":"26.7","render_ms":"36.05","spike":"true","update_ms":"1.01"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"37.59","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"34.47","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"34.18","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"33.16","stage":"render","tolerance_ms":"0.50"}
+{"event":"telemetry.frame_capture.requested","requested":"true"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"40.17","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"36.91","stage":"render","tolerance_ms":"0.50"}
+{"event":"hud.jobs","jobs":"warrior:0/3 archer:2/2 shield:2/6","skills":"imp_bomb(0.0) surge(0.0) self_destruct(0.0) wall(0.0) rally(0.0)"}
+{"event":"hud.jobs","jobs":"warrior:0/3 archer:2/2 shield:2/6","skills":"imp_bomb(0.0) surge(0.0) self_destruct(0.0) wall(0.0) rally(0.0)"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"34.15","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"39.19","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"40.04","stage":"render","tolerance_ms":"0.50"}
+{"event":"world.spawn.job","job":"shield","origin":"natural","total_spawns":"12"}
+{"event":"world.spawn.distribution","total_archer":"2","total_shield":"7","total_spawns":"12","total_warrior":"3","window":"12","window_archer":"2","window_shield":"7","window_warrior":"3"}
+{"event":"hud.jobs","jobs":"warrior:0/3 archer:2/2 shield:2/7","skills":"imp_bomb(0.0) surge(0.0) self_destruct(0.0) wall(0.0) rally(0.0)"}
+{"event":"hud.jobs","jobs":"warrior:0/3 archer:2/2 shield:2/7","skills":"imp_bomb(0.0) surge(0.0) self_destruct(0.0) wall(0.0) rally(0.0)"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"43.84","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"36.36","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"35.12","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"37.70","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"34.83","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"34.93","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"33.94","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"38.14","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"33.95","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"35.62","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"34.08","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"33.93","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"35.15","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"34.67","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"39.85","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"34.34","stage":"render","tolerance_ms":"0.50"}
+{"event":"ai.actions","ai.actions.assault_base":"0.086","ai.actions.assault_enemy":"0.224","ai.actions.cling_ratio":"0.000","ai.actions.defend_base":"0.172","ai.actions.flee":"0.000","ai.actions.follow_ally":"0.000","ai.actions.follow_commander":"0.517","ai.actions.kaiten_ratio":"0.000","ai.actions.panic_ratio":"0.000","ai.actions.run_ratio":"0.000","ai.actions.tokkou_active":"0","ai.actions.tokkou_peak":"0","ai.actions.unit_seconds":"11.600","ai.actions.wander":"0.000","ai.aoe.avoid_mag":"0.000","ai.aoe.avoid_ratio":"0.000","ai.boids.radius_avg":"123.838","ai.boids.radius_exceed_ratio":"1.000","ai.hazard.active_avg":"0.000"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"34.40","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"34.99","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance","entities":"43","fps":"26.8","render_ms":"36.11","spike":"true","update_ms":"1.01"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"36.78","stage":"render","tolerance_ms":"0.50"}
+{"event":"hud.jobs","jobs":"warrior:1/3 archer:2/2 shield:2/7","skills":"imp_bomb(0.0) surge(0.0) self_destruct(0.0) wall(0.0) rally(0.0)"}
+{"event":"hud.jobs","jobs":"warrior:1/3 archer:2/2 shield:2/7","skills":"imp_bomb(0.0) surge(0.0) self_destruct(0.0) wall(0.0) rally(0.0)"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"34.30","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"33.78","stage":"render","tolerance_ms":"0.50"}
+{"event":"world.spawn.job","job":"archer","origin":"natural","total_spawns":"13"}
+{"event":"hud.jobs","jobs":"warrior:1/3 archer:2/3 shield:2/7","skills":"imp_bomb(0.0) surge(0.0) self_destruct(0.0) wall(0.0) rally(0.0)"}
+{"event":"hud.jobs","jobs":"warrior:1/3 archer:2/3 shield:2/7","skills":"imp_bomb(0.0) surge(0.0) self_destruct(0.0) wall(0.0) rally(0.0)"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"36.83","stage":"render","tolerance_ms":"0.50"}
+{"event":"telemetry.frame_capture.requested","requested":"true"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"34.65","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"34.50","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"34.01","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"36.05","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"33.89","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"36.84","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"35.68","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"34.48","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"33.20","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"34.50","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"33.29","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"37.31","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"35.31","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"35.71","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"36.37","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"42.79","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"40.02","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"41.82","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"40.59","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"40.29","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"37.26","stage":"render","tolerance_ms":"0.50"}
+{"event":"ai.actions","ai.actions.assault_base":"0.078","ai.actions.assault_enemy":"0.297","ai.actions.cling_ratio":"0.000","ai.actions.defend_base":"0.156","ai.actions.flee":"0.000","ai.actions.follow_ally":"0.000","ai.actions.follow_commander":"0.469","ai.actions.kaiten_ratio":"0.000","ai.actions.panic_ratio":"0.000","ai.actions.run_ratio":"0.000","ai.actions.tokkou_active":"0","ai.actions.tokkou_peak":"0","ai.actions.unit_seconds":"12.800","ai.actions.wander":"0.000","ai.aoe.avoid_mag":"0.000","ai.aoe.avoid_ratio":"0.000","ai.boids.radius_avg":"130.678","ai.boids.radius_exceed_ratio":"1.000","ai.hazard.active_avg":"0.000"}
+{"event":"world.spawn.job","job":"archer","origin":"natural","total_spawns":"14"}
+{"event":"hud.jobs","jobs":"warrior:1/3 archer:2/4 shield:2/7","skills":"imp_bomb(0.0) surge(0.0) self_destruct(0.0) wall(0.0) rally(0.0)"}
+{"event":"hud.jobs","jobs":"warrior:1/3 archer:2/4 shield:2/7","skills":"imp_bomb(0.0) surge(0.0) self_destruct(0.0) wall(0.0) rally(0.0)"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"40.61","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"37.47","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance","entities":"44","fps":"26.3","render_ms":"36.60","spike":"true","update_ms":"1.16"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"36.58","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"38.89","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"35.63","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"33.54","stage":"render","tolerance_ms":"0.50"}
+{"event":"telemetry.frame_capture.requested","requested":"true"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"33.25","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"34.47","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"37.77","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"33.28","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"34.69","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"34.11","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"33.80","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"36.10","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"35.48","stage":"render","tolerance_ms":"0.50"}
+{"event":"hud.jobs","jobs":"warrior:1/3 archer:3/4 shield:2/7","skills":"imp_bomb(0.0) surge(0.0) self_destruct(0.0) wall(0.0) rally(0.0)"}
+{"event":"hud.jobs","jobs":"warrior:1/3 archer:3/4 shield:2/7","skills":"imp_bomb(0.0) surge(0.0) self_destruct(0.0) wall(0.0) rally(0.0)"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"34.29","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"35.70","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"40.88","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"35.93","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"51.25","stage":"render","tolerance_ms":"0.50"}
+{"event":"world.spawn.job","job":"archer","origin":"natural","total_spawns":"15"}
+{"event":"hud.jobs","jobs":"warrior:1/3 archer:3/5 shield:2/7","skills":"imp_bomb(0.0) surge(0.0) self_destruct(0.0) wall(0.0) rally(0.0)"}
+{"event":"hud.jobs","jobs":"warrior:1/3 archer:3/5 shield:2/7","skills":"imp_bomb(0.0) surge(0.0) self_destruct(0.0) wall(0.0) rally(0.0)"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"36.78","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"35.97","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"34.93","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"33.93","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"34.90","stage":"render","tolerance_ms":"0.50"}
+{"event":"ai.actions","ai.actions.assault_base":"0.070","ai.actions.assault_enemy":"0.296","ai.actions.cling_ratio":"0.000","ai.actions.defend_base":"0.141","ai.actions.flee":"0.000","ai.actions.follow_ally":"0.000","ai.actions.follow_commander":"0.493","ai.actions.kaiten_ratio":"0.000","ai.actions.panic_ratio":"0.000","ai.actions.run_ratio":"0.000","ai.actions.tokkou_active":"0","ai.actions.tokkou_peak":"0","ai.actions.unit_seconds":"14.200","ai.actions.wander":"0.000","ai.aoe.avoid_mag":"0.000","ai.aoe.avoid_ratio":"0.000","ai.boids.radius_avg":"124.651","ai.boids.radius_exceed_ratio":"1.000","ai.hazard.active_avg":"0.000"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"36.54","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"42.12","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"36.72","stage":"render","tolerance_ms":"0.50"}
+{"event":"hud.jobs","jobs":"warrior:2/3 archer:3/5 shield:2/7","skills":"imp_bomb(0.0) surge(0.0) self_destruct(0.0) wall(0.0) rally(0.0)"}
+{"event":"hud.jobs","jobs":"warrior:2/3 archer:3/5 shield:2/7","skills":"imp_bomb(0.0) surge(0.0) self_destruct(0.0) wall(0.0) rally(0.0)"}
+{"event":"battle.performance","entities":"45","fps":"25.6","render_ms":"36.42","spike":"true","update_ms":"1.18"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"35.90","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"39.96","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"39.86","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"41.54","stage":"render","tolerance_ms":"0.50"}
+{"event":"telemetry.frame_capture.requested","requested":"true"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"39.21","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"41.33","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"38.96","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"37.05","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"33.95","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"33.73","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"39.56","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"35.48","stage":"render","tolerance_ms":"0.50"}
+{"event":"world.spawn.job","job":"archer","origin":"natural","total_spawns":"16"}
+{"event":"hud.jobs","jobs":"warrior:2/3 archer:3/6 shield:2/7","skills":"imp_bomb(0.0) surge(0.0) self_destruct(0.0) wall(0.0) rally(0.0)"}
+{"event":"hud.jobs","jobs":"warrior:2/3 archer:3/6 shield:2/7","skills":"imp_bomb(0.0) surge(0.0) self_destruct(0.0) wall(0.0) rally(0.0)"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"38.78","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"33.49","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"34.12","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"32.16","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"33.00","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"39.02","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"38.75","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"33.58","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"34.44","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"34.71","stage":"render","tolerance_ms":"0.50"}
+{"event":"ai.actions","ai.actions.assault_base":"0.065","ai.actions.assault_enemy":"0.325","ai.actions.cling_ratio":"0.000","ai.actions.defend_base":"0.130","ai.actions.flee":"0.000","ai.actions.follow_ally":"0.000","ai.actions.follow_commander":"0.481","ai.actions.kaiten_ratio":"0.000","ai.actions.panic_ratio":"0.000","ai.actions.run_ratio":"0.000","ai.actions.tokkou_active":"0","ai.actions.tokkou_peak":"0","ai.actions.unit_seconds":"15.400","ai.actions.wander":"0.000","ai.aoe.avoid_mag":"0.000","ai.aoe.avoid_ratio":"0.000","ai.boids.radius_avg":"119.860","ai.boids.radius_exceed_ratio":"1.000","ai.hazard.active_avg":"0.000"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"36.14","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"35.03","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"38.92","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance","entities":"47","fps":"24.9","render_ms":"36.67","spike":"true","update_ms":"1.37"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"33.88","stage":"render","tolerance_ms":"0.50"}
+{"event":"hud.jobs","jobs":"warrior:2/3 archer:3/6 shield:3/7","skills":"imp_bomb(0.0) surge(0.0) self_destruct(0.0) wall(0.0) rally(0.0)"}
+{"event":"hud.jobs","jobs":"warrior:2/3 archer:3/6 shield:3/7","skills":"imp_bomb(0.0) surge(0.0) self_destruct(0.0) wall(0.0) rally(0.0)"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"37.27","stage":"render","tolerance_ms":"0.50"}
+{"event":"hud.jobs","jobs":"warrior:3/3 archer:3/6 shield:3/7","skills":"imp_bomb(0.0) surge(0.0) self_destruct(0.0) wall(0.0) rally(0.0)"}
+{"event":"hud.jobs","jobs":"warrior:3/3 archer:3/6 shield:3/7","skills":"imp_bomb(0.0) surge(0.0) self_destruct(0.0) wall(0.0) rally(0.0)"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"34.34","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"35.70","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"38.12","stage":"render","tolerance_ms":"0.50"}
+{"event":"telemetry.frame_capture.requested","requested":"true"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"34.62","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"40.46","stage":"render","tolerance_ms":"0.50"}
+{"event":"world.spawn.job","job":"archer","origin":"natural","total_spawns":"17"}
+{"event":"hud.jobs","jobs":"warrior:3/3 archer:3/7 shield:3/7","skills":"imp_bomb(0.0) surge(0.0) self_destruct(0.0) wall(0.0) rally(0.0)"}
+{"event":"hud.jobs","jobs":"warrior:3/3 archer:3/7 shield:3/7","skills":"imp_bomb(0.0) surge(0.0) self_destruct(0.0) wall(0.0) rally(0.0)"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"41.68","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"34.67","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"37.35","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"41.56","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"34.59","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"33.42","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"35.24","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"36.77","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"34.58","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"35.54","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"36.24","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"35.55","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"35.58","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"36.07","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"35.42","stage":"render","tolerance_ms":"0.50"}
+{"event":"hud.jobs","jobs":"warrior:3/3 archer:3/7 shield:4/7","skills":"imp_bomb(0.0) surge(0.0) self_destruct(0.0) wall(0.0) rally(0.0)"}
+{"event":"hud.jobs","jobs":"warrior:3/3 archer:3/7 shield:4/7","skills":"imp_bomb(0.0) surge(0.0) self_destruct(0.0) wall(0.0) rally(0.0)"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"35.36","stage":"render","tolerance_ms":"0.50"}
+{"event":"ai.actions","ai.actions.assault_base":"0.060","ai.actions.assault_enemy":"0.337","ai.actions.cling_ratio":"0.000","ai.actions.defend_base":"0.120","ai.actions.flee":"0.000","ai.actions.follow_ally":"0.000","ai.actions.follow_commander":"0.482","ai.actions.kaiten_ratio":"0.000","ai.actions.panic_ratio":"0.000","ai.actions.run_ratio":"0.000","ai.actions.tokkou_active":"0","ai.actions.tokkou_peak":"0","ai.actions.unit_seconds":"16.600","ai.actions.wander":"0.000","ai.aoe.avoid_mag":"0.000","ai.aoe.avoid_ratio":"0.000","ai.boids.radius_avg":"125.262","ai.boids.radius_exceed_ratio":"1.000","ai.hazard.active_avg":"0.000"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"35.53","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"39.55","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"41.32","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"39.69","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance","entities":"48","fps":"26.2","render_ms":"36.87","spike":"true","update_ms":"1.16"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"39.37","stage":"render","tolerance_ms":"0.50"}
+{"event":"world.spawn.job","job":"shield","origin":"natural","total_spawns":"18"}
+{"event":"hud.jobs","jobs":"warrior:3/3 archer:3/7 shield:4/8","skills":"imp_bomb(0.0) surge(0.0) self_destruct(0.0) wall(0.0) rally(0.0)"}
+{"event":"hud.jobs","jobs":"warrior:3/3 archer:3/7 shield:4/8","skills":"imp_bomb(0.0) surge(0.0) self_destruct(0.0) wall(0.0) rally(0.0)"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"40.98","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"41.36","stage":"render","tolerance_ms":"0.50"}
+{"event":"hud.jobs","jobs":"warrior:3/3 archer:3/7 shield:5/8","skills":"imp_bomb(0.0) surge(0.0) self_destruct(0.0) wall(0.0) rally(0.0)"}
+{"event":"hud.jobs","jobs":"warrior:3/3 archer:3/7 shield:5/8","skills":"imp_bomb(0.0) surge(0.0) self_destruct(0.0) wall(0.0) rally(0.0)"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"36.27","stage":"render","tolerance_ms":"0.50"}
+{"event":"telemetry.frame_capture.requested","requested":"true"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"34.78","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"36.20","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"34.39","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"38.73","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"36.13","stage":"render","tolerance_ms":"0.50"}
+{"event":"hud.jobs","jobs":"warrior:3/3 archer:3/7 shield:6/8","skills":"imp_bomb(0.0) surge(0.0) self_destruct(0.0) wall(0.0) rally(0.0)"}
+{"event":"hud.jobs","jobs":"warrior:3/3 archer:3/7 shield:6/8","skills":"imp_bomb(0.0) surge(0.0) self_destruct(0.0) wall(0.0) rally(0.0)"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"34.75","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"35.36","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"34.75","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"35.70","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"34.27","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"34.80","stage":"render","tolerance_ms":"0.50"}
+{"event":"hud.jobs","jobs":"warrior:3/3 archer:3/7 shield:7/8","skills":"imp_bomb(0.0) surge(0.0) self_destruct(0.0) wall(0.0) rally(0.0)"}
+{"event":"hud.jobs","jobs":"warrior:3/3 archer:3/7 shield:7/8","skills":"imp_bomb(0.0) surge(0.0) self_destruct(0.0) wall(0.0) rally(0.0)"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"33.96","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"34.10","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"34.36","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"35.41","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"34.67","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"36.32","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"38.66","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"34.09","stage":"render","tolerance_ms":"0.50"}
+{"event":"ai.actions","ai.actions.assault_base":"0.056","ai.actions.assault_enemy":"0.337","ai.actions.cling_ratio":"0.000","ai.actions.defend_base":"0.112","ai.actions.flee":"0.000","ai.actions.follow_ally":"0.000","ai.actions.follow_commander":"0.494","ai.actions.kaiten_ratio":"0.000","ai.actions.panic_ratio":"0.000","ai.actions.run_ratio":"0.000","ai.actions.tokkou_active":"0","ai.actions.tokkou_peak":"0","ai.actions.unit_seconds":"17.800","ai.actions.wander":"0.000","ai.aoe.avoid_mag":"0.000","ai.aoe.avoid_ratio":"0.000","ai.boids.radius_avg":"132.112","ai.boids.radius_exceed_ratio":"1.000","ai.hazard.active_avg":"0.000"}
+{"event":"world.spawn.job","job":"warrior","origin":"natural","total_spawns":"19"}
+{"event":"hud.jobs","jobs":"warrior:3/4 archer:3/7 shield:7/8","skills":"imp_bomb(0.0) surge(0.0) self_destruct(0.0) wall(0.0) rally(0.0)"}
+{"event":"hud.jobs","jobs":"warrior:3/4 archer:3/7 shield:7/8","skills":"imp_bomb(0.0) surge(0.0) self_destruct(0.0) wall(0.0) rally(0.0)"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"36.40","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"36.55","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"34.69","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"34.34","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance","entities":"49","fps":"26.8","render_ms":"35.84","spike":"true","update_ms":"1.17"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"35.75","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"36.01","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"30.83","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"36.50","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"38.41","stage":"render","tolerance_ms":"0.50"}
+{"event":"telemetry.frame_capture.requested","requested":"true"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"33.79","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"35.20","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"37.05","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"32.87","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"34.00","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"33.27","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"34.17","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"35.33","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"33.92","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"36.41","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"35.03","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"37.15","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"35.36","stage":"render","tolerance_ms":"0.50"}
+{"event":"world.spawn.job","job":"warrior","origin":"natural","total_spawns":"20"}
+{"event":"hud.jobs","jobs":"warrior:3/5 archer:3/7 shield:7/8","skills":"imp_bomb(0.0) surge(0.0) self_destruct(0.0) wall(0.0) rally(0.0)"}
+{"event":"hud.jobs","jobs":"warrior:3/5 archer:3/7 shield:7/8","skills":"imp_bomb(0.0) surge(0.0) self_destruct(0.0) wall(0.0) rally(0.0)"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"35.76","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"38.27","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"38.74","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"34.53","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"34.36","stage":"render","tolerance_ms":"0.50"}
+{"event":"ai.actions","ai.actions.assault_base":"0.104","ai.actions.assault_enemy":"0.313","ai.actions.cling_ratio":"0.000","ai.actions.defend_base":"0.115","ai.actions.flee":"0.000","ai.actions.follow_ally":"0.000","ai.actions.follow_commander":"0.469","ai.actions.kaiten_ratio":"0.000","ai.actions.panic_ratio":"0.000","ai.actions.run_ratio":"0.000","ai.actions.tokkou_active":"0","ai.actions.tokkou_peak":"0","ai.actions.unit_seconds":"19.200","ai.actions.wander":"0.000","ai.aoe.avoid_mag":"0.000","ai.aoe.avoid_ratio":"0.000","ai.boids.radius_avg":"141.387","ai.boids.radius_exceed_ratio":"1.000","ai.hazard.active_avg":"0.000"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"40.29","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"33.70","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"35.75","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"35.10","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"36.61","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance","entities":"50","fps":"27.2","render_ms":"35.60","spike":"true","update_ms":"1.14"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"38.27","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"37.63","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"34.86","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"34.63","stage":"render","tolerance_ms":"0.50"}
+{"event":"hud.jobs","jobs":"warrior:3/5 archer:3/7 shield:8/8","skills":"imp_bomb(0.0) surge(0.0) self_destruct(0.0) wall(0.0) rally(0.0)"}
+{"event":"hud.jobs","jobs":"warrior:3/5 archer:3/7 shield:8/8","skills":"imp_bomb(0.0) surge(0.0) self_destruct(0.0) wall(0.0) rally(0.0)"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"34.51","stage":"render","tolerance_ms":"0.50"}
+{"event":"telemetry.frame_capture.requested","requested":"true"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"39.51","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"35.01","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"34.72","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"35.46","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"39.78","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"40.07","stage":"render","tolerance_ms":"0.50"}
+{"event":"world.spawn.job","job":"archer","origin":"natural","total_spawns":"21"}
+{"event":"hud.jobs","jobs":"warrior:3/5 archer:3/8 shield:8/8","skills":"imp_bomb(0.0) surge(0.0) self_destruct(0.0) wall(0.0) rally(0.0)"}
+{"event":"hud.jobs","jobs":"warrior:3/5 archer:3/8 shield:8/8","skills":"imp_bomb(0.0) surge(0.0) self_destruct(0.0) wall(0.0) rally(0.0)"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"39.93","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"41.09","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"39.90","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"41.56","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"40.45","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"37.26","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"40.00","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"37.28","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"35.37","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"33.42","stage":"render","tolerance_ms":"0.50"}
+{"event":"ai.actions","ai.actions.assault_base":"0.118","ai.actions.assault_enemy":"0.294","ai.actions.cling_ratio":"0.000","ai.actions.defend_base":"0.147","ai.actions.flee":"0.000","ai.actions.follow_ally":"0.000","ai.actions.follow_commander":"0.441","ai.actions.kaiten_ratio":"0.000","ai.actions.panic_ratio":"0.000","ai.actions.run_ratio":"0.000","ai.actions.tokkou_active":"0","ai.actions.tokkou_peak":"0","ai.actions.unit_seconds":"20.400","ai.actions.wander":"0.000","ai.aoe.avoid_mag":"0.000","ai.aoe.avoid_ratio":"0.000","ai.boids.radius_avg":"145.309","ai.boids.radius_exceed_ratio":"1.000","ai.hazard.active_avg":"0.000"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"46.03","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"42.09","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"37.53","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"34.78","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"41.22","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance","entities":"52","fps":"25.2","render_ms":"38.02","spike":"true","update_ms":"1.38"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"34.44","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"36.18","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"35.85","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"37.23","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"33.62","stage":"render","tolerance_ms":"0.50"}
+{"event":"telemetry.frame_capture.requested","requested":"true"}
+{"event":"world.spawn.job","job":"warrior","origin":"natural","total_spawns":"22"}
+{"event":"hud.jobs","jobs":"warrior:3/6 archer:3/8 shield:8/8","skills":"imp_bomb(0.0) surge(0.0) self_destruct(0.0) wall(0.0) rally(0.0)"}
+{"event":"hud.jobs","jobs":"warrior:3/6 archer:3/8 shield:8/8","skills":"imp_bomb(0.0) surge(0.0) self_destruct(0.0) wall(0.0) rally(0.0)"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"35.23","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"34.43","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"34.13","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"36.79","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"38.60","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"36.72","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"34.43","stage":"render","tolerance_ms":"0.50"}
+{"event":"hud.jobs","jobs":"warrior:4/6 archer:3/8 shield:8/8","skills":"imp_bomb(0.0) surge(0.0) self_destruct(0.0) wall(0.0) rally(0.0)"}
+{"event":"hud.jobs","jobs":"warrior:4/6 archer:3/8 shield:8/8","skills":"imp_bomb(0.0) surge(0.0) self_destruct(0.0) wall(0.0) rally(0.0)"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"42.15","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"35.51","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"39.39","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"39.23","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"37.92","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"35.17","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"36.12","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"37.28","stage":"render","tolerance_ms":"0.50"}
+{"event":"ai.actions","ai.actions.assault_base":"0.139","ai.actions.assault_enemy":"0.278","ai.actions.cling_ratio":"0.000","ai.actions.defend_base":"0.167","ai.actions.flee":"0.000","ai.actions.follow_ally":"0.000","ai.actions.follow_commander":"0.417","ai.actions.kaiten_ratio":"0.000","ai.actions.panic_ratio":"0.000","ai.actions.run_ratio":"0.000","ai.actions.tokkou_active":"0","ai.actions.tokkou_peak":"0","ai.actions.unit_seconds":"21.600","ai.actions.wander":"0.000","ai.aoe.avoid_mag":"0.000","ai.aoe.avoid_ratio":"0.000","ai.boids.radius_avg":"124.739","ai.boids.radius_exceed_ratio":"1.000","ai.hazard.active_avg":"0.000"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"35.19","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"34.36","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"33.63","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"38.40","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"39.17","stage":"render","tolerance_ms":"0.50"}
+{"event":"world.spawn.job","job":"archer","origin":"natural","total_spawns":"23"}
+{"event":"hud.jobs","jobs":"warrior:4/6 archer:3/9 shield:8/8","skills":"imp_bomb(0.0) surge(0.0) self_destruct(0.0) wall(0.0) rally(0.0)"}
+{"event":"hud.jobs","jobs":"warrior:4/6 archer:3/9 shield:8/8","skills":"imp_bomb(0.0) surge(0.0) self_destruct(0.0) wall(0.0) rally(0.0)"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"38.90","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance","entities":"53","fps":"25.1","render_ms":"36.74","spike":"true","update_ms":"1.33"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"39.66","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"37.22","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"42.22","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"39.04","stage":"render","tolerance_ms":"0.50"}
+{"event":"telemetry.frame_capture.requested","requested":"true"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"36.21","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"34.42","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"34.16","stage":"render","tolerance_ms":"0.50"}
+{"event":"hud.jobs","jobs":"warrior:4/6 archer:4/9 shield:8/8","skills":"imp_bomb(0.0) surge(0.0) self_destruct(0.0) wall(0.0) rally(0.0)"}
+{"event":"hud.jobs","jobs":"warrior:4/6 archer:4/9 shield:8/8","skills":"imp_bomb(0.0) surge(0.0) self_destruct(0.0) wall(0.0) rally(0.0)"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"35.30","stage":"render","tolerance_ms":"0.50"}
+{"event":"hud.jobs","jobs":"warrior:4/6 archer:5/9 shield:8/8","skills":"imp_bomb(0.0) surge(0.0) self_destruct(0.0) wall(0.0) rally(0.0)"}
+{"event":"hud.jobs","jobs":"warrior:4/6 archer:5/9 shield:8/8","skills":"imp_bomb(0.0) surge(0.0) self_destruct(0.0) wall(0.0) rally(0.0)"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"33.96","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"34.67","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"34.53","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"34.57","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"34.60","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"41.06","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"33.88","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"36.28","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"34.69","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"36.77","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"35.33","stage":"render","tolerance_ms":"0.50"}
+{"event":"ai.actions","ai.actions.assault_base":"0.132","ai.actions.assault_enemy":"0.263","ai.actions.cling_ratio":"0.000","ai.actions.defend_base":"0.211","ai.actions.flee":"0.000","ai.actions.follow_ally":"0.000","ai.actions.follow_commander":"0.395","ai.actions.kaiten_ratio":"0.000","ai.actions.panic_ratio":"0.000","ai.actions.run_ratio":"0.000","ai.actions.tokkou_active":"0","ai.actions.tokkou_peak":"0","ai.actions.unit_seconds":"22.800","ai.actions.wander":"0.000","ai.aoe.avoid_mag":"0.000","ai.aoe.avoid_ratio":"0.000","ai.boids.radius_avg":"115.850","ai.boids.radius_exceed_ratio":"1.000","ai.hazard.active_avg":"0.000"}
+{"event":"world.spawn.job","job":"archer","origin":"natural","total_spawns":"24"}
+{"event":"world.spawn.distribution","total_archer":"10","total_shield":"8","total_spawns":"24","total_warrior":"6","window":"12","window_archer":"8","window_shield":"1","window_warrior":"3"}
+{"event":"hud.jobs","jobs":"warrior:4/6 archer:5/10 shield:8/8","skills":"imp_bomb(0.0) surge(0.0) self_destruct(0.0) wall(0.0) rally(0.0)"}
+{"event":"hud.jobs","jobs":"warrior:4/6 archer:5/10 shield:8/8","skills":"imp_bomb(0.0) surge(0.0) self_destruct(0.0) wall(0.0) rally(0.0)"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"36.93","stage":"render","tolerance_ms":"0.50"}
+{"event":"hud.jobs","jobs":"warrior:4/6 archer:6/10 shield:8/8","skills":"imp_bomb(0.0) surge(0.0) self_destruct(0.0) wall(0.0) rally(0.0)"}
+{"event":"hud.jobs","jobs":"warrior:4/6 archer:6/10 shield:8/8","skills":"imp_bomb(0.0) surge(0.0) self_destruct(0.0) wall(0.0) rally(0.0)"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"35.50","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"36.30","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"38.13","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"41.21","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"35.18","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"36.08","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance","entities":"54","fps":"25.6","render_ms":"36.41","spike":"true","update_ms":"1.47"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"38.47","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"34.33","stage":"render","tolerance_ms":"0.50"}
+{"event":"battle.performance.budget_exceeded","budget_ms":"8.00","sample_ms":"36.30","stage":"render","tolerance_ms":"0.50"}

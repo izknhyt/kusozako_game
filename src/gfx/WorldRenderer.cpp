@@ -887,6 +887,34 @@ void renderWorld(SDL_Renderer *renderer, const LegacySimulation &sim, const Form
         const SDL_RendererFlip flip = ally.facingX < 0.0f ? SDL_FLIP_HORIZONTAL : SDL_FLIP_NONE;
         return {rect, flip};
     };
+    auto commanderFrameForAlly = [&](const LegacySimulation::RenderQueue::AllySprite &ally)
+        -> std::pair<const SDL_Rect *, SDL_RendererFlip> {
+        constexpr int kFrames = 6;
+        std::uint64_t idx = 0;
+        std::string base;
+        if (ally.attacking && ally.attackDuration > 0.0f)
+        {
+            const float progress = std::clamp(ally.attackTimer / ally.attackDuration, 0.0f, 0.999f);
+            idx = static_cast<std::uint64_t>(progress * kFrames);
+            base = "yuna_attack";
+        }
+        else
+        {
+            const bool moving = ally.moving;
+            base = moving ? "yuna_walk" : "yuna_idle";
+            const std::uint64_t ticks = SDL_GetTicks64();
+            const std::uint64_t divisorMs = moving ? 100 : 200;
+            idx = ((ticks / divisorMs) % kFrames);
+        }
+        const std::string key = base + "_" + std::to_string(idx);
+        const SDL_Rect *rect = atlas.getFrame(key);
+        if (!rect)
+        {
+            rect = commanderFrame;
+        }
+        const SDL_RendererFlip flip = ally.facingX < 0.0f ? SDL_FLIP_HORIZONTAL : SDL_FLIP_NONE;
+        return {rect, flip};
+    };
 
     if (atlas.texture.get())
     {
@@ -912,24 +940,16 @@ void renderWorld(SDL_Renderer *renderer, const LegacySimulation &sim, const Form
                 SDL_SetRenderDrawColor(renderer, ringColor.r, ringColor.g, ringColor.b, ringColor.a);
                 drawFilledCircle(renderer, screenPos, ally.radius + 8.0f, stats);
                 SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
-                if (commanderFrame)
+                const auto [resolvedCommanderFrame, commanderFlip] = commanderFrameForAlly(ally);
+                if (resolvedCommanderFrame)
                 {
                     SDL_Rect dest{
-                        static_cast<int>(screenPos.x - commanderFrame->w * 0.5f),
-                        static_cast<int>(screenPos.y - commanderFrame->h * 0.5f),
-                        commanderFrame->w,
-                        commanderFrame->h};
-                    SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
-                    SDL_SetRenderDrawColor(renderer, 230, 240, 255, 90);
-                    SDL_Rect outline{
-                        dest.x - 1,
-                        dest.y - 1,
-                        dest.w + 2,
-                        dest.h + 2
-                    };
-                    countedRenderDrawRect(renderer, &outline, stats);
-                    SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
-                    countedRenderCopy(renderer, atlas.texture.getRaw(), commanderFrame, &dest, stats);
+                        static_cast<int>(screenPos.x - resolvedCommanderFrame->w * 0.5f),
+                        static_cast<int>(screenPos.y - resolvedCommanderFrame->h * 0.5f),
+                        resolvedCommanderFrame->w,
+                        resolvedCommanderFrame->h};
+                    countedRenderCopyFlip(
+                        renderer, atlas.texture.getRaw(), resolvedCommanderFrame, &dest, commanderFlip, stats);
                     if (friendRing)
                     {
                         SDL_Rect ringDest{
@@ -1030,7 +1050,8 @@ void renderWorld(SDL_Renderer *renderer, const LegacySimulation &sim, const Form
                 const float duration = std::max(fx.duration, 0.0001f);
                 const float progress = std::clamp(1.0f - (fx.timer / duration), 0.0f, 1.0f);
                 const int frameIdx = std::min(3, static_cast<int>(progress * 4.0f));
-                const std::string key = "chibi_death_" + std::to_string(frameIdx);
+                const std::string key = std::string(fx.commander ? "yuna_death_" : "chibi_death_") +
+                                        std::to_string(frameIdx);
                 const SDL_Rect *frame = atlas.getFrame(key);
                 if (!frame)
                 {

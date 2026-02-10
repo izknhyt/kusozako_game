@@ -1,0 +1,65 @@
+{
+  "meta": {
+    "image": "yuna_idle_sheet48.png",
+    "size": [
+      288,
+      48
+    ],
+    "pad": 0,
+    "frame_size": [
+      48,
+      48
+    ],
+    "note": "idle with subtle full-body bob"
+  },
+  "frames": {
+    "yuna_idle_0": {
+      "xywh": [
+        0,
+        0,
+        48,
+        48
+      ]
+    },
+    "yuna_idle_1": {
+      "xywh": [
+        48,
+        0,
+        48,
+        48
+      ]
+    },
+    "yuna_idle_2": {
+      "xywh": [
+        96,
+        0,
+        48,
+        48
+      ]
+    },
+    "yuna_idle_3": {
+      "xywh": [
+        144,
+        0,
+        48,
+        48
+      ]
+    },
+    "yuna_idle_4": {
+      "xywh": [
+        192,
+        0,
+        48,
+        48
+      ]
+    },
+    "yuna_idle_5": {
+      "xywh": [
+        240,
+        0,
+        48,
+        48
+      ]
+    }
+  }
+}
