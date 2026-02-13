@@ -1,12 +1,14 @@
 # Editor Preflight Notes
 
+Status: Supporting
+
 現状の実装とワークフローを踏まえたエディタ実装前の整理メモ。
 
 - 対象優先度
-  - P0: ステージ配置 (`assets/stage1_config.json`): 拠点/敵拠点/ハザードの座標・湧き率・封鎖条件。
-  - P1: ウェーブ/スポーン (`assets/spawn_level1.json`): 時間セットと通知文言、テスト再生。
-  - P1: 基本パラメータ (`assets/game.json`/`assets/entities.json`): fixed_dt/pixels_per_unit/LOD/HP/DPS。
-  - P2: 職業・スキル (`assets/jobs.json`/`assets/skills.json`): クールダウンや倍率のテーブル編集。
+  - P0: ステージ配置 (`assets/data/world/stage1_config.json`): 拠点/敵拠点/ハザードの座標・湧き率・封鎖条件。
+  - P1: ウェーブ/スポーン (`assets/data/spawn/spawn_level1.json`): 時間セットと通知文言、テスト再生。
+  - P1: 基本パラメータ (`assets/data/system/game.json`/`assets/data/characters/entities.json`): fixed_dt/pixels_per_unit/LOD/HP/DPS。
+  - P2: 職業・スキル (`assets/data/characters/jobs.json`/`assets/data/characters/skills.json`): クールダウンや倍率のテーブル編集。
 - 保存方針
   - JSON の読込/書出しは `json/JsonUtils` で round-trip できる形に統一。
   - 保存は `atomicWriteFile`（`src/assets/FileIO.*`）でテンポラリ→リネーム、既存ファイルは `.bak` を自動生成。

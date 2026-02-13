@@ -1,6 +1,6 @@
 {
-  "wallet": 144,
-  "mana_gain_tokens": 0,
+  "wallet": 35,
+  "mana_gain_tokens": 1,
   "debug_disable_yuna_spawns": false,
   "debug_disable_base_regen_def": false,
   "camp_upgrades": {
@@ -10,8 +10,8 @@
     "spawn_rate": 5
   },
   "training": {
-    "chibi_level_mean_bonus": 7,
-    "coco_level": 2,
+    "chibi_level_mean_bonus": 8,
+    "coco_level": 3,
     "elite_rate": 3,
     "mary_level": 1,
     "mean_level": 3,

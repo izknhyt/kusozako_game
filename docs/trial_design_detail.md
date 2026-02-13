@@ -1,5 +1,7 @@
 # くそざこ体験版 詳細設計書 v0.1
 
+Status: Active
+
 > 執筆スタンス: すご腕SE（実装・性能）、ゲームデザイナー（遊び）、実際のプレイヤー（体験）の3視点で記述。  
 > 参照元: `くそざこ体験版_新仕様_v_1.md`（最新仕様）、`docs/trial_design_outline.md`（骨子）、現行実装（`assets/*.json` / `src/*`）。
 
@@ -27,9 +29,9 @@
 | ファイル | 役割 | 主なフィールド（新規/更新） |
 | --- | --- | --- |
 | `assets/map_meta.json` | 拠点座標/オーラ/封鎖演出ID | `ally_bases`, `enemy_bases`, `aura_radius`, `seal_fx` |
-| `assets/spawn_level1.json` | 敵スポーン仕様 | `enemy_bases[i].rate_per_s`, `weights`, `on_seal` |
+| `assets/data/spawn/spawn_level1.json` | 敵スポーン仕様 | `enemy_bases[i].rate_per_s`, `weights`, `on_seal` |
 | `assets/run_config.json` (新) | ラン汎用設定 | `victory`, `defeat`, `boss_triggers`, `speed_mod` |
-| `assets/camp_upgrades.json` | 恒久強化 | `base_hp`, `spawn_rate`, `aura_regen`, etc.（仕様値通り） |
+| `assets/data/meta/camp_upgrades.json` | 恒久強化 | `base_hp`, `spawn_rate`, `aura_regen`, etc.（仕様値通り） |
 | `assets/shop_meta.json` (新) | ルーの店 | `mana_gain_up_s`, `mana_cap_up_s`, `good_title_rate`, `mana_gain_token` |
 
 ### 1.3 システム層改修

@@ -1,17 +1,17 @@
-Start testing: Nov 30 22:26 JST
+Start testing: Feb 11 23:48 JST
 ----------------------------------------------------------
 1/13 Testing: config_schema
 1/13 Test: config_schema
 Command: "/Users/izumimotohayato/development/kusozako/build/config_schema_test"
 Directory: /Users/izumimotohayato/development/kusozako/build
-"config_schema" start time: Nov 30 22:26 JST
+"config_schema" start time: Feb 11 23:48 JST
 Output:
 ----------------------------------------------------------
 <end of output>
-Test time =   0.02 sec
+Test time =   0.60 sec
 ----------------------------------------------------------
 Test Passed.
-"config_schema" end time: Nov 30 22:26 JST
+"config_schema" end time: Feb 11 23:48 JST
 "config_schema" time elapsed: 00:00:00
 ----------------------------------------------------------
 
@@ -19,14 +19,14 @@ Test Passed.
 2/13 Test: world_state_step_order
 Command: "/Users/izumimotohayato/development/kusozako/build/world_state_step_order_test"
 Directory: /Users/izumimotohayato/development/kusozako/build
-"world_state_step_order" start time: Nov 30 22:26 JST
+"world_state_step_order" start time: Feb 11 23:48 JST
 Output:
 ----------------------------------------------------------
 <end of output>
-Test time =   0.90 sec
+Test time =   0.51 sec
 ----------------------------------------------------------
 Test Passed.
-"world_state_step_order" end time: Nov 30 22:26 JST
+"world_state_step_order" end time: Feb 11 23:48 JST
 "world_state_step_order" time elapsed: 00:00:00
 ----------------------------------------------------------
 
@@ -34,14 +34,14 @@ Test Passed.
 3/13 Test: systems_behavior
 Command: "/Users/izumimotohayato/development/kusozako/build/systems_behavior_test"
 Directory: /Users/izumimotohayato/development/kusozako/build
-"systems_behavior" start time: Nov 30 22:26 JST
+"systems_behavior" start time: Feb 11 23:48 JST
 Output:
 ----------------------------------------------------------
 <end of output>
-Test time =   0.40 sec
+Test time =   0.53 sec
 ----------------------------------------------------------
 Test Passed.
-"systems_behavior" end time: Nov 30 22:26 JST
+"systems_behavior" end time: Feb 11 23:48 JST
 "systems_behavior" time elapsed: 00:00:00
 ----------------------------------------------------------
 
@@ -49,151 +49,30 @@ Test Passed.
 4/13 Test: job_ability_system
 Command: "/Users/izumimotohayato/development/kusozako/build/job_ability_system_test"
 Directory: /Users/izumimotohayato/development/kusozako/build
-"job_ability_system" start time: Nov 30 22:26 JST
+"job_ability_system" start time: Feb 11 23:48 JST
 Output:
 ----------------------------------------------------------
 <end of output>
-Test time =   0.39 sec
+Test time =   0.48 sec
 ----------------------------------------------------------
 Test Passed.
-"job_ability_system" end time: Nov 30 22:26 JST
+"job_ability_system" end time: Feb 11 23:48 JST
 "job_ability_system" time elapsed: 00:00:00
-----------------------------------------------------------
-
-5/13 Testing: event_bus
-5/13 Test: event_bus
-Command: "/Users/izumimotohayato/development/kusozako/build/event_bus_test"
-Directory: /Users/izumimotohayato/development/kusozako/build
-"event_bus" start time: Nov 30 22:26 JST
-Output:
-----------------------------------------------------------
-<end of output>
-Test time =   0.00 sec
-----------------------------------------------------------
-Test Passed.
-"event_bus" end time: Nov 30 22:26 JST
-"event_bus" time elapsed: 00:00:00
-----------------------------------------------------------
-
-6/13 Testing: spawner
-6/13 Test: spawner
-Command: "/Users/izumimotohayato/development/kusozako/build/spawner_test"
-Directory: /Users/izumimotohayato/development/kusozako/build
-"spawner" start time: Nov 30 22:26 JST
-Output:
-----------------------------------------------------------
-Spawner tests passed
-<end of output>
-Test time =   0.00 sec
-----------------------------------------------------------
-Test Passed.
-"spawner" end time: Nov 30 22:26 JST
-"spawner" time elapsed: 00:00:00
-----------------------------------------------------------
-
-7/13 Testing: performance_budget_monitor
-7/13 Test: performance_budget_monitor
-Command: "/Users/izumimotohayato/development/kusozako/build/performance_budget_monitor_test"
-Directory: /Users/izumimotohayato/development/kusozako/build
-"performance_budget_monitor" start time: Nov 30 22:26 JST
-Output:
-----------------------------------------------------------
-<end of output>
-Test time =   0.00 sec
-----------------------------------------------------------
-Test Passed.
-"performance_budget_monitor" end time: Nov 30 22:26 JST
-"performance_budget_monitor" time elapsed: 00:00:00
-----------------------------------------------------------
-
-8/13 Testing: asset_manager_memory_warning
-8/13 Test: asset_manager_memory_warning
-Command: "/Users/izumimotohayato/development/kusozako/build/asset_manager_memory_warning_test"
-Directory: /Users/izumimotohayato/development/kusozako/build
-"asset_manager_memory_warning" start time: Nov 30 22:26 JST
-Output:
-----------------------------------------------------------
-<end of output>
-Test time =   0.01 sec
-----------------------------------------------------------
-Test Passed.
-"asset_manager_memory_warning" end time: Nov 30 22:26 JST
-"asset_manager_memory_warning" time elapsed: 00:00:00
-----------------------------------------------------------
-
-9/13 Testing: ui_presenter
-9/13 Test: ui_presenter
-Command: "/Users/izumimotohayato/development/kusozako/build/ui_presenter_test"
-Directory: /Users/izumimotohayato/development/kusozako/build
-"ui_presenter" start time: Nov 30 22:26 JST
-Output:
-----------------------------------------------------------
-<end of output>
-Test time =   0.00 sec
-----------------------------------------------------------
-Test Passed.
-"ui_presenter" end time: Nov 30 22:26 JST
-"ui_presenter" time elapsed: 00:00:00
-----------------------------------------------------------
-
-10/13 Testing: ui_view
-10/13 Test: ui_view
-Command: "/Users/izumimotohayato/development/kusozako/build/ui_view_test"
-Directory: /Users/izumimotohayato/development/kusozako/build
-"ui_view" start time: Nov 30 22:26 JST
-Output:
-----------------------------------------------------------
-<end of output>
-Test time =   0.01 sec
-----------------------------------------------------------
-Test Passed.
-"ui_view" end time: Nov 30 22:26 JST
-"ui_view" time elapsed: 00:00:00
-----------------------------------------------------------
-
-11/13 Testing: camp_state
-11/13 Test: camp_state
-Command: "/Users/izumimotohayato/development/kusozako/build/camp_state_test"
-Directory: /Users/izumimotohayato/development/kusozako/build
-"camp_state" start time: Nov 30 22:26 JST
-Output:
-----------------------------------------------------------
-<end of output>
-Test time =   0.00 sec
-----------------------------------------------------------
-Test Passed.
-"camp_state" end time: Nov 30 22:26 JST
-"camp_state" time elapsed: 00:00:00
 ----------------------------------------------------------
 
 12/13 Testing: json_round_trip
 12/13 Test: json_round_trip
 Command: "/Users/izumimotohayato/development/kusozako/build/json_round_trip_test"
 Directory: /Users/izumimotohayato/development/kusozako/build
-"json_round_trip" start time: Nov 30 22:26 JST
+"json_round_trip" start time: Feb 11 23:48 JST
 Output:
 ----------------------------------------------------------
 <end of output>
-Test time =   0.00 sec
+Test time =   0.38 sec
 ----------------------------------------------------------
 Test Passed.
-"json_round_trip" end time: Nov 30 22:26 JST
+"json_round_trip" end time: Feb 11 23:48 JST
 "json_round_trip" time elapsed: 00:00:00
 ----------------------------------------------------------
 
-13/13 Testing: file_io
-13/13 Test: file_io
-Command: "/Users/izumimotohayato/development/kusozako/build/file_io_test"
-Directory: /Users/izumimotohayato/development/kusozako/build
-"file_io" start time: Nov 30 22:26 JST
-Output:
-----------------------------------------------------------
-<end of output>
-Test time =   0.00 sec
-----------------------------------------------------------
-Test Passed.
-"file_io" end time: Nov 30 22:26 JST
-"file_io" time elapsed: 00:00:00
-----------------------------------------------------------
-
-End testing: Nov 30 22:26 JST
+End testing: Feb 11 23:48 JST

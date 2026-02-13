@@ -2615,24 +2615,24 @@ AppConfigLoadResult AppConfigLoader::load(AssetManager &assets)
     }
 
     const json::JsonValue *assetsObj = json::getObjectField(*appJson, "assets");
-    std::string gamePath = "assets/game.json";
-    std::string entitiesPath = "assets/entities.json";
-    std::string mapDefsPath = "assets/map_defs.json";
-    std::string temperamentPath = "assets/ai_temperaments.json";
-    std::string jobsPath = "assets/jobs.json";
-    std::string skillsPath = "assets/skills.json";
-    std::string formationsPath = "assets/formations.json";
-    std::string atlasPath = "assets/atlas.json";
-    std::string moralePath = "assets/morale.json";
-    std::string spawnWeightsPath = "assets/spawn_weights.json";
-    std::string economyPath = "assets/economy.json";
-    std::string campUpgradesPath = "assets/camp_upgrades.json";
-    std::string trainingPath = "assets/training.json";
-    std::string strategiesPath = "assets/strategies.json";
-    std::string metaShopPath = "assets/meta_shop.json";
-    std::string stageConfigPath = "assets/stage1_config.json";
-    std::string chibiPersonalityPath = "assets/chibi_personality.json";
-    std::string chibiAiParamsPath = "assets/ai_params.json";
+    std::string gamePath = "assets/data/system/game.json";
+    std::string entitiesPath = "assets/data/characters/entities.json";
+    std::string mapDefsPath = "assets/data/world/map_defs.json";
+    std::string temperamentPath = "assets/data/ai/ai_temperaments.json";
+    std::string jobsPath = "assets/data/characters/jobs.json";
+    std::string skillsPath = "assets/data/characters/skills.json";
+    std::string formationsPath = "assets/data/characters/formations.json";
+    std::string atlasPath = "assets/data/system/atlas.json";
+    std::string moralePath = "assets/data/characters/morale.json";
+    std::string spawnWeightsPath = "assets/data/spawn/spawn_weights.json";
+    std::string economyPath = "assets/data/meta/economy.json";
+    std::string campUpgradesPath = "assets/data/meta/camp_upgrades.json";
+    std::string trainingPath = "assets/data/meta/training.json";
+    std::string strategiesPath = "assets/data/meta/strategies.json";
+    std::string metaShopPath = "assets/data/meta/meta_shop.json";
+    std::string stageConfigPath = "assets/data/world/stage1_config.json";
+    std::string chibiPersonalityPath = "assets/data/ai/chibi_personality.json";
+    std::string chibiAiParamsPath = "assets/data/ai/ai_params.json";
     if (assetsObj)
     {
         gamePath = json::getString(*assetsObj, "game", gamePath);

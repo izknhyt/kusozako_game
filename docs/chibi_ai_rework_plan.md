@@ -1,5 +1,7 @@
 # ちびわふAI刷新マスタープラン v1.0
 
+Status: Draft
+
 > 目的: `くそざこ体験版_新仕様_v_1.md` が求める仕様（性格二軸、Panic分岐、7行動スコア、Boids、HUD表示）を現コードへ完全に反映する。  
 > 対象: ちびわふ生成〜行動〜表示までの全レイヤ（`LegacySimulation` / `BehaviorSystem` / `CombatSystem` / HUD / テレメトリ / データ）。
 

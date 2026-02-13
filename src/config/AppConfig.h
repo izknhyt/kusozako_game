@@ -201,7 +201,7 @@ struct GameConfig
     float victory_grace = 5.0f;
     float telemetry_duration = 3.0f;
     float restart_delay = 2.0f;
-    std::string enemy_script = "assets/spawn_level1.json";
+    std::string enemy_script = "assets/data/spawn/spawn_level1.json";
     std::string map_path = "assets/maps/level1.tmx";
     int rng_seed = 1337;
     int lod_threshold_entities = 0;
@@ -759,8 +759,8 @@ struct AppConfig
     std::vector<StrategyCharacter> strategyCharacters;
     std::vector<MetaShopItem> metaShopItems;
     std::vector<SkillDef> skills;
-    std::string atlasPath = "assets/atlas.json";
-    std::string stageConfigPath = "assets/stage1_config.json";
+    std::string atlasPath = "assets/data/system/atlas.json";
+    std::string stageConfigPath = "assets/data/world/stage1_config.json";
 };
 
 std::vector<SkillDef> buildDefaultSkills();

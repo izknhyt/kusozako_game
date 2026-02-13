@@ -1,19 +1,23 @@
 {
   "schema_version": 1,
   "assets": {
-    "game": "assets/game.json",
-    "entities": "assets/entities.json",
-    "map_defs": "assets/map_defs.json",
-    "temperaments": "assets/ai_temperaments.json",
-    "jobs": "assets/jobs.json",
-    "morale": "assets/morale.json",
-    "spawn_weights": "assets/spawn_weights.json",
-    "skills": "assets/skills.json",
-    "formations": "assets/formations.json",
-    "economy": "assets/economy.json",
-    "atlas": "assets/atlas.json",
-    "stage_config": "assets/stage1_config.json",
-    "chibi_personality": "assets/chibi_personality.json",
-    "ai_params": "assets/ai_params.json"
+    "game": "assets/data/system/game.json",
+    "entities": "assets/data/characters/entities.json",
+    "map_defs": "assets/data/world/map_defs.json",
+    "temperaments": "assets/data/ai/ai_temperaments.json",
+    "jobs": "assets/data/characters/jobs.json",
+    "morale": "assets/data/characters/morale.json",
+    "spawn_weights": "assets/data/spawn/spawn_weights.json",
+    "skills": "assets/data/characters/skills.json",
+    "formations": "assets/data/characters/formations.json",
+    "economy": "assets/data/meta/economy.json",
+    "atlas": "assets/data/system/atlas.json",
+    "stage_config": "assets/data/world/stage1_config.json",
+    "chibi_personality": "assets/data/ai/chibi_personality.json",
+    "ai_params": "assets/data/ai/ai_params.json",
+    "camp_upgrades": "assets/data/meta/camp_upgrades.json",
+    "training": "assets/data/meta/training.json",
+    "strategies": "assets/data/meta/strategies.json",
+    "meta_shop": "assets/data/meta/meta_shop.json"
   }
 }

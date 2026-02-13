@@ -1,8 +1,10 @@
 # ちびわふ ピクセルスプライト設計
 
+Status: Supporting
+
 ## 目的と方向性
 - 体験版仕様内の「ちびわふ」を**32×32px／低コントラスト＆まろやか線**で表現するためのガイド。
-- 既存の `assets/atlas.png` に合わせ、`sprite_prefix: "wafu_XXX"` で4方向＋歩行2枚を想定（最少6フレーム）。
+- 既存の `assets/data/system/atlas.png` に合わせ、`sprite_prefix: "wafu_XXX"` で4方向＋歩行2枚を想定（最少6フレーム）。
 - 触感はふわふわ＋ゆるい赤ちゃん体型。アウトラインは中間色で柔らかくし、ディスプレイ拡大でも破綻しない簡易アニメを優先。
 
 ## 推奨カラーパレット（8色）
@@ -69,8 +71,8 @@ Legend: `A..H` = 上記パレット、`.` = 透明
 - 体の左右端はDで囲み、脚の間にCを1px落として分離。
 
 ## ゲーム実装メモ
-1. `atlas.png` の空き32×32枠にフレームを追加し、`assets/atlas.json` に `wafu_front_0/1/2`, `wafu_right_0/1`, `wafu_back_0/1`, `wafu_panic_0` 等を追記。
-2. `assets/entities.json` で `sprite_prefix: "wafu_front"` などを設定し、`r_px`/`speed_u_s` は既存ちびに準拠。
+1. `atlas.png` の空き32×32枠にフレームを追加し、`assets/data/system/atlas.json` に `wafu_front_0/1/2`, `wafu_right_0/1`, `wafu_back_0/1`, `wafu_panic_0` 等を追記。
+2. `assets/data/characters/entities.json` で `sprite_prefix: "wafu_front"` などを設定し、`r_px`/`speed_u_s` は既存ちびに準拠。
 3. 影（接地サークル）は別レイヤで統一し、ボディには描かない。Y方向1pxの揺れはシェーダで補完するか、フレーム内で実装。
 4. 将来差分（職業装飾）は **装飾上書きレイヤ方式**を想定し、耳やリボンに1pxの固有ブロックを残しておくとカラー差分が作りやすい。
 

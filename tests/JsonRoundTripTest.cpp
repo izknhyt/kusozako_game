@@ -63,9 +63,9 @@ int main()
     const std::filesystem::path root = std::filesystem::path(PROJECT_SOURCE_DIR);
     const std::vector<std::filesystem::path> targets{
         root / "config" / "app.json",
-        root / "assets" / "game.json",
-        root / "assets" / "stage1_config.json",
-        root / "assets" / "entities.json",
+        root / "assets" / "data" / "system" / "game.json",
+        root / "assets" / "data" / "world" / "stage1_config.json",
+        root / "assets" / "data" / "characters" / "entities.json",
     };
 
     for (const auto &path : targets)

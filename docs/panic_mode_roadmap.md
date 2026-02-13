@@ -1,5 +1,7 @@
 # Panic モード固定化ロードマップ
 
+Status: Supporting
+
 ## 1. ステートとデータ構造
 - `TemperamentState` に `PanicMode` enum（None / Tokkou / FollowCommander / Flee / Retreat / Wander）と発症HP・解除HPなどの補助値を追加。
 - `Unit` に個別の PanicMode を保持させ、スポーン時・HP回復時・死亡時のクリア処理を一元化。
@@ -21,8 +23,8 @@
 - `build/debug_dumps/ai_actions.tsv` に `"panic_mode"` 列を追加し、QA でモード比率を検証できるようにする。
 
 ## 5. データ調整
-- `assets/chibi_personality.json` に PanicMode 抽選用パラメータ（勇敢補正、知性補正、司令官依存フラグ）を追加。
-- 必要に応じて `ai_params.json` から Panic 絡みのスコア項目を整理。
+- `assets/data/ai/chibi_personality.json` に PanicMode 抽選用パラメータ（勇敢補正、知性補正、司令官依存フラグ）を追加。
+- 必要に応じて `assets/data/ai/ai_params.json` から Panic 絡みのスコア項目を整理。
 
 ## 6. 検証
 1. `ninja -C build` でビルド確認。

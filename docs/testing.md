@@ -1,5 +1,7 @@
 # Testing
 
+Status: Active
+
 The project uses CMake to build self-contained test executables. The
 recommended workflow is:
 
@@ -53,7 +55,7 @@ enemy, and wall snapshots and triggers telemetry events for both success
 
 ## Frame-budget telemetry
 
-`assets/game.json` now exposes a `performance` block that defines CPU, GPU,
+`assets/data/system/game.json` now exposes a `performance` block that defines CPU, GPU,
 input, and HUD budgets in milliseconds, along with a shared tolerance. The
 runtime samples each stage every frame; if a sample exceeds `budget +
 tolerance`, the battle scene:

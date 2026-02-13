@@ -167,7 +167,7 @@ overkill_ratio = `clamp( (過撃ダメ) / 最大HP, 0..3 )`
 
 ---
 
-## 10. 敵ウェーブ（`assets/spawn_level1.json`）
+## 10. 敵ウェーブ（`assets/data/spawn/spawn_level1.json`）
 
 * 敵ゲート A/B/C からスポーン。`y_jitter_px = 8`
 * ウェーブ構成：
@@ -212,11 +212,11 @@ overkill_ratio = `clamp( (過撃ダメ) / 最大HP, 0..3 )`
 
 | パス                                 | 役割                                 |
 | ---------------------------------- | ---------------------------------- |
-| `assets/game.json`                 | ゲームループ設定（Δt、マップ、スポーン、リスポーン、カメラ等）   |
-| `assets/entities.json`             | コマンダー／味方／敵ステータス。※現在コマンダー速度 3.2 u/s |
-| `assets/skills.json`               | スキル定義（効果種別・CD・数値）                  |
-| `assets/spawn_level1.json`         | ウェーブ脚本（タイミング・ゲート・敵種）。              |
-| `assets/atlas.json` + `atlas.png`  | スプライトアトラス（コマンダー／味方／敵／リング等）。        |
+| `assets/data/system/game.json`                 | ゲームループ設定（Δt、マップ、スポーン、リスポーン、カメラ等）   |
+| `assets/data/characters/entities.json`             | コマンダー／味方／敵ステータス。※現在コマンダー速度 3.2 u/s |
+| `assets/data/characters/skills.json`               | スキル定義（効果種別・CD・数値）                  |
+| `assets/data/spawn/spawn_level1.json`         | ウェーブ脚本（タイミング・ゲート・敵種）。              |
+| `assets/data/system/atlas.json` + `atlas.png`  | スプライトアトラス（コマンダー／味方／敵／リング等）。        |
 | `assets/maps/level1.tmx`           | Tiled マップデータ。                      |
 | `assets/ui/NotoSansJP-Regular.ttf` | HUD フォント（TrueType）。                |
 
@@ -242,11 +242,11 @@ overkill_ratio = `clamp( (過撃ダメ) / 最大HP, 0..3 )`
 
 ## 16. ミッションモード v1（Boss / Capture / Survival）
 
-> 既存MVPに薄い差分で導入。各面は `assets/mission_levelX.json` を読み込み、ObjectiveSystemが勝敗を判定する。
+> 既存MVPに薄い差分で導入。各面は `assets/data/world/mission_levelX.json` を読み込み、ObjectiveSystemが勝敗を判定する。
 
 ### 16.1 共通仕様（ObjectiveSystem）
 
-* 読み込み：`assets/mission_levelX.json`
+* 読み込み：`assets/data/world/mission_levelX.json`
 * 共通フィールド：
 
   * `mode`: `"boss" | "capture" | "survival"`
@@ -374,7 +374,7 @@ overkill_ratio = `clamp( (過撃ダメ) / 最大HP, 0..3 )`
 
 > 注：**ひねくれものは RAID_GATE に変更**（拠点防衛ではありません）。
 
-### H-2. 置くだけJSON（`assets/ai_temperaments.json`）
+### H-2. 置くだけJSON（`assets/data/ai/ai_temperaments.json`）
 
 ```json
 {
@@ -640,4 +640,3 @@ job = weightedChoice(weights);
 * 同職が続いた後に**職の偏りが緩和**されるのが分かる。
 
 > 注：前提通り **ユウナ死亡中もスポーン継続**、**死亡時の即時10体増援は廃止**。
-

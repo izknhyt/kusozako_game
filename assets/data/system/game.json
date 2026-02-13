@@ -1,0 +1,45 @@
+{
+  "version": 1,
+  "fixed_dt": 0.0166667,
+  "pixels_per_unit": 16,
+  "camera": { "zoom_steps": [1, 2, 3], "speed_u_s": 6.0 },
+  "base": { "hp": 300, "aabb_px": [32, 32] },
+  "jobs_config": "assets/data/characters/jobs.json",
+  "morale_config": "assets/data/characters/morale.json",
+  "formations_config": "assets/data/characters/formations.json",
+  "spawn_weights": "assets/data/spawn/spawn_weights.json",
+  "spawn": {
+    "yuna_interval_s": 0.75,
+    "yuna_max": 200,
+    "yuna_offset_px": [48, 0],
+    "yuna_scatter_y_px": 16,
+    "budget": { "max_per_frame": 8, "warning_text": "Spawn queue delayed" },
+    "jobs": {
+      "weights": { "warrior": 1.2, "shield": 1.0, "archer": 1.1 },
+      "pity": { "repeatLimit": 3, "unseenBoost": 2.0 },
+      "history_limit": 18,
+      "telemetry_window": 12
+    }
+  },
+  "respawn": {
+    "chibi": { "base_s": 5, "scale_s": 5, "k": 1.0, "invuln_s": 2 },
+    "commander": { "base_s": 8, "scale_s": 5, "k": 2.0, "floor_s": 12, "invuln_s": 2 }
+  },
+  "victory": { "grace_period_s": 5.0 },
+  "result": { "telemetry_duration_s": 3.0, "restart_delay_s": 2.0 },
+  "enemy_script": "assets/data/spawn/spawn_level1.json",
+  "map": "assets/maps/level1.tmx",
+  "mission": "assets/data/world/mission_level1.json",
+  "rng_seed": 1337,
+  "performance": {
+    "budget": {
+      "update_ms": 6.0,
+      "render_ms": 8.0,
+      "input_ms": 1.5,
+      "hud_ms": 2.0
+    },
+    "tolerance_ms": 0.5
+  },
+  "on_commander_death": { "auto_reinforce_chibi": 0 },
+  "lod": { "threshold_entities": 300, "skip_draw_every": 2 }
+}

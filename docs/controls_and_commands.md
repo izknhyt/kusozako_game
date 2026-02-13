@@ -1,5 +1,7 @@
 # 操作・コマンドまとめ（体験版）
 
+Status: Active
+
 ## 基本操作
 - 移動: WASD / 方向キー
 - カメラ移動: 同上（Overview未使用）
@@ -19,7 +21,7 @@
 ## スキル／召喚
 - スキルホットキー: `1`〜`5`（SummonMode設定）
 - スキル発動（マウス操作時）: 右クリック
-- 壁/サージ/自爆/インプ爆弾などは各スロットに割付（`config/input.json`/`assets/skills.json`）
+- 壁/サージ/自爆/インプ爆弾などは各スロットに割付（`config/input.json`/`assets/data/characters/skills.json`）
 
 ## キャンプ（ショップ等）
 - タブ切替: `1`〜`4`
