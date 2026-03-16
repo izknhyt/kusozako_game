@@ -2,6 +2,9 @@
 
 Status: Active
 
+- 本書は現行ビルドで実際に使える入力の確認用。
+- 今後の実装で寄せるべき正本入力は `docs/requirements_rebaseline_all_in_one_ja.md` を参照する。
+
 ## 基本操作
 - 移動: WASD / 方向キー
 - カメラ移動: 同上（Overview未使用）

@@ -28,6 +28,7 @@ class CombatSystem : public ISystem
     std::vector<std::size_t> m_enemyScratch;
     std::vector<std::size_t> m_wallScratch;
     std::vector<std::size_t> m_unitScratch;
+    std::size_t m_lastAllyBaseCount = 0;
 };
 
 } // namespace world::systems

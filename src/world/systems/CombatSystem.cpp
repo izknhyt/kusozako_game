@@ -168,12 +168,11 @@ void CombatSystem::update(float dt, SystemContext &context)
     const bool stageEnabled = stageState.enabled;
     const bool stageHasAllyBases = stageEnabled && !stageState.allyBases.empty();
     // Debug: track unexpected ally base count drops at runtime
-    static std::size_t s_lastAllyBaseCount = 0;
-    if (stageEnabled && stageState.allyBases.size() != s_lastAllyBaseCount)
+    if (stageEnabled && stageState.allyBases.size() != m_lastAllyBaseCount)
     {
-        std::cerr << "[stage] allyBases size changed at runtime: " << s_lastAllyBaseCount << " -> "
+        std::cerr << "[stage] allyBases size changed at runtime: " << m_lastAllyBaseCount << " -> "
                   << stageState.allyBases.size() << '\n';
-        s_lastAllyBaseCount = stageState.allyBases.size();
+        m_lastAllyBaseCount = stageState.allyBases.size();
     }
     bool stageHasAllyBasesAlive = false;
     if (stageHasAllyBases)

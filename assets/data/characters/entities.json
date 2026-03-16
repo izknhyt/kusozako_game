@@ -5,18 +5,18 @@
       24
     ],
     "r_px": 12,
-    "speed_u_s": 1.6,
-    "hp": 60.0,
-    "mp": 30,
-    "mp_regen": 0.25,
-    "dps": 15.0,
-    "sprite_prefix": "commander"
+    "speed_u_s": 2.4,
+    "hp": 80.0,
+    "mp": 40,
+    "mp_regen": 0.4,
+    "dps": 20.0,
+    "sprite_prefix": "yuna_idle"
   },
   "yuna": {
     "r_px": 4,
-    "speed_u_s": 0.9,
-    "hp": 10.0,
-    "dps": 3.0,
+    "speed_u_s": 1.1,
+    "hp": 14.0,
+    "dps": 3.5,
     "sprite_prefix": "chibi_idle"
   },
   "slime": {
@@ -36,7 +36,7 @@
       "unit": 7.5,
       "base": 7.5
     },
-    "sprite_prefix": "elite_wallbreaker",
+    "sprite_prefix": "slime_walk",
     "traits": {
       "ignore_knockback": true,
       "prefer_wall_radius_px": 256
@@ -68,7 +68,7 @@
   },
   "toritori": {
     "r_px": 12,
-    "speed_u_s": 1.3999999999999997,
+    "speed_u_s": 1.4,
     "hp": 135.0,
     "dps": 12.0,
     "attack_range_px": 8,

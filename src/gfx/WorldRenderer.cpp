@@ -1,4 +1,5 @@
 #include "gfx/WorldRenderer.h"
+#include "world/FormationUtils.h"
 
 #include <algorithm>
 #include <array>
@@ -25,7 +26,9 @@ void renderWorld(SDL_Renderer *renderer, const LegacySimulation &sim, const Form
     const bool skipActors = queue.skipActors;
     const int lineHeight = std::max(font.getLineHeight(), 18);
     const int debugLineHeight = std::max(debugFont.isLoaded() ? debugFont.getLineHeight() : lineHeight, 14);
-    const bool minimalHud = true;
+    const bool minimalHud = false;
+    const bool showWorldLabels = true;
+    const bool showMoraleMarkers = true;
 
     auto enemyColor = [](EnemyArchetype type) -> SDL_Color {
         switch (type)
@@ -110,7 +113,7 @@ void renderWorld(SDL_Renderer *renderer, const LegacySimulation &sim, const Form
     };
 
     auto drawMoraleIcon = [&](const Vec2 &worldPos, float radius, MoraleState state) {
-        if (minimalHud)
+        if (!showMoraleMarkers)
         {
             return;
         }
@@ -304,6 +307,19 @@ void renderWorld(SDL_Renderer *renderer, const LegacySimulation &sim, const Form
         SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
     };
 
+    auto drawWorldPulse = [&](const Vec2 &worldPos, float radius, SDL_Color color, float phase, float alphaScale) {
+        Vec2 screenPos = worldToScreen(worldPos, camera);
+        const float pulse = 0.75f + 0.25f * static_cast<float>((std::sin(sim.simTime * phase) + 1.0f) * 0.5f);
+        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+        SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b,
+                               static_cast<Uint8>(std::clamp(alphaScale * 0.55f, 0.0f, 255.0f)));
+        drawFilledCircle(renderer, screenPos, radius * 1.35f * pulse, stats);
+        SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b,
+                               static_cast<Uint8>(std::clamp(alphaScale, 0.0f, 255.0f)));
+        drawFilledCircle(renderer, screenPos, radius * 0.82f * pulse, stats);
+        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
+    };
+
     auto drawMinimap = [&]() -> SDL_Rect {
         SDL_Rect empty{0, 0, 0, 0};
         if (map.width <= 0 || map.height <= 0 || map.tileWidth <= 0 || map.tileHeight <= 0)
@@ -333,6 +349,9 @@ void renderWorld(SDL_Renderer *renderer, const LegacySimulation &sim, const Form
         SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
         SDL_SetRenderDrawColor(renderer, 8, 10, 18, 210);
         countedRenderFillRect(renderer, &panel, stats);
+        SDL_Rect titleBand{panel.x, panel.y, panel.w, 22};
+        SDL_SetRenderDrawColor(renderer, 24, 42, 64, 220);
+        countedRenderFillRect(renderer, &titleBand, stats);
         SDL_Rect inner{panel.x + 1, panel.y + 1, panel.w - 2, panel.h - 2};
         SDL_SetRenderDrawColor(renderer, 20, 26, 38, 160);
         countedRenderDrawRect(renderer, &inner, stats);
@@ -419,6 +438,7 @@ void renderWorld(SDL_Renderer *renderer, const LegacySimulation &sim, const Form
         }
 
         SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
+        font.drawText(renderer, "TACTICAL MAP", panel.x + 10, panel.y + 3, &stats, SDL_Color{235, 241, 255, 255});
         return panel;
     };
 
@@ -453,12 +473,12 @@ void renderWorld(SDL_Renderer *renderer, const LegacySimulation &sim, const Form
             return std::to_string(static_cast<int>(index + 1));
         };
 
-        const int panelWidth = 78;
+        const int panelWidth = 92;
         const int rowHeight = 44;
         const int padX = 10;
         const int padY = 10;
         const int margin = 12;
-        const int panelHeight = padY * 2 + static_cast<int>(bases.size()) * rowHeight;
+        const int panelHeight = padY * 2 + 18 + static_cast<int>(bases.size()) * rowHeight;
         const int panelX = screenW - panelWidth - margin;
         int panelY = minimapRect.w > 0 ? minimapRect.y + minimapRect.h + 10 : margin;
         if (panelY + panelHeight > screenH - margin)
@@ -469,17 +489,21 @@ void renderWorld(SDL_Renderer *renderer, const LegacySimulation &sim, const Form
         SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
         SDL_SetRenderDrawColor(renderer, 8, 10, 18, 210);
         countedRenderFillRect(renderer, &panel, stats);
+        SDL_Rect titleBand{panel.x, panel.y, panel.w, 20};
+        SDL_SetRenderDrawColor(renderer, 68, 28, 28, 220);
+        countedRenderFillRect(renderer, &titleBand, stats);
         SDL_Rect panelInner{panel.x + 1, panel.y + 1, panel.w - 2, panel.h - 2};
         SDL_SetRenderDrawColor(renderer, 20, 26, 38, 160);
         countedRenderDrawRect(renderer, &panelInner, stats);
         SDL_SetRenderDrawColor(renderer, 120, 130, 170, 210);
         SDL_RenderDrawRect(renderer, &panel);
         SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
+        font.drawText(renderer, "BASES", panel.x + 10, panel.y + 2, &stats, SDL_Color{255, 232, 220, 255});
 
         for (std::size_t i = 0; i < bases.size(); ++i)
         {
             const StageEnemyBaseState &base = *bases[i];
-            const int rowY = panel.y + padY + static_cast<int>(i) * rowHeight;
+            const int rowY = panel.y + padY + 18 + static_cast<int>(i) * rowHeight;
             const std::string label = shortLabel(base, i);
             font.drawText(renderer, label, panel.x + padX, rowY, &stats, SDL_Color{220, 230, 245, 255});
 
@@ -536,22 +560,26 @@ void renderWorld(SDL_Renderer *renderer, const LegacySimulation &sim, const Form
 
     auto drawCommanderConsole = [&]() {
         const int margin = 14;
-        const int panelW = 260;
-        const int panelH = 94;
+        const int panelW = 288;
+        const int panelH = 124;
         SDL_Rect panel{margin, screenH - panelH - margin, panelW, panelH};
         SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
         SDL_SetRenderDrawColor(renderer, 12, 16, 26, 220);
         countedRenderFillRect(renderer, &panel, stats);
+        SDL_Rect titleBand{panel.x, panel.y, panel.w, 22};
+        SDL_SetRenderDrawColor(renderer, 24, 44, 74, 220);
+        countedRenderFillRect(renderer, &titleBand, stats);
         SDL_Rect panelInner{panel.x + 1, panel.y + 1, panel.w - 2, panel.h - 2};
         SDL_SetRenderDrawColor(renderer, 24, 30, 44, 160);
         countedRenderDrawRect(renderer, &panelInner, stats);
         SDL_SetRenderDrawColor(renderer, 140, 150, 190, 210);
         SDL_RenderDrawRect(renderer, &panel);
         SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
+        font.drawText(renderer, "YUUNA COMMAND", panel.x + 10, panel.y + 3, &stats, SDL_Color{245, 240, 220, 255});
 
         const SDL_Rect *portraitFrame = atlas.getFrame("yuna_front_0");
         const int portraitSize = 48;
-        SDL_Rect portraitRect{panel.x + 12, panel.y + 12, portraitSize, portraitSize};
+        SDL_Rect portraitRect{panel.x + 12, panel.y + 34, portraitSize, portraitSize};
         if (portraitFrame && atlas.texture.get())
         {
             countedRenderCopy(renderer, atlas.texture.getRaw(), portraitFrame, &portraitRect, stats);
@@ -582,7 +610,7 @@ void renderWorld(SDL_Renderer *renderer, const LegacySimulation &sim, const Form
         const int barX = portraitRect.x + portraitRect.w + 12;
         const int barW = panel.x + panel.w - barX - 12;
         const int barH = 10;
-        const int hpBarY = panel.y + 16;
+        const int hpBarY = panel.y + 38;
         const int mpBarY = hpBarY + barH + 18;
 
         SDL_Rect hpBg{barX, hpBarY, barW, barH};
@@ -628,6 +656,23 @@ void renderWorld(SDL_Renderer *renderer, const LegacySimulation &sim, const Form
         std::ostringstream mpText;
         mpText << "MP " << static_cast<int>(std::round(mp)) << "/" << static_cast<int>(std::round(mpMax));
         font.drawText(renderer, mpText.str(), barX, mpBarY - lineHeight, &stats, SDL_Color{200, 220, 255, 255});
+
+        std::ostringstream stanceText;
+        stanceText << "Order " << stanceLabel(sim.currentOrder());
+        std::ostringstream formationText;
+        formationText << "Formation " << formationLabel(sim.formation);
+        std::ostringstream guardText;
+        guardText << "Guard " << (sim.commander.guardActive ? "READY" : "OPEN");
+        std::ostringstream supportText;
+        supportText << "Allies " << sim.yunas.size() << "  Panic " << sim.moraleSummary.panicCount;
+
+        const int infoY = mpBg.y + mpBg.h + 12;
+        font.drawText(renderer, stanceText.str(), panel.x + 12, infoY, &stats, SDL_Color{255, 224, 170, 255});
+        font.drawText(renderer, formationText.str(), panel.x + 12, infoY + lineHeight, &stats, SDL_Color{205, 230, 255, 255});
+        font.drawText(renderer, guardText.str(), panel.x + 144, infoY, &stats,
+                      sim.commander.guardActive ? SDL_Color{120, 255, 220, 255} : SDL_Color{255, 210, 150, 255});
+        font.drawText(renderer, supportText.str(), panel.x + 144, infoY + lineHeight, &stats,
+                      sim.moraleSummary.panicCount > 0 ? SDL_Color{255, 170, 170, 255} : SDL_Color{215, 235, 225, 255});
     };
 
     MoraleState commanderMorale = sim.moraleSummary.commanderState;
@@ -671,6 +716,19 @@ void renderWorld(SDL_Renderer *renderer, const LegacySimulation &sim, const Form
     drawTileLayer(renderer, map, map.deco, camera, screenW, screenH, stats);
 
     const StageRuntimeState &stageState = sim.stageState();
+
+    drawWorldPulse(sim.basePos, 42.0f, SDL_Color{60, 110, 180, 52}, 1.6f, 42.0f);
+    for (const StageEnemyBaseState &base : stageState.enemyBases)
+    {
+        if (base.sealed)
+        {
+            drawWorldPulse(base.pos, std::max(base.radiusPx, 24.0f), SDL_Color{90, 90, 100, 28}, 1.3f, 20.0f);
+        }
+        else
+        {
+            drawWorldPulse(base.pos, std::max(base.radiusPx, 24.0f), SDL_Color{180, 58, 52, 50}, 2.2f, 46.0f);
+        }
+    }
 
     // Draw base
     const Vec2 baseScreen = worldToScreen(sim.basePos, camera);
@@ -733,12 +791,15 @@ void renderWorld(SDL_Renderer *renderer, const LegacySimulation &sim, const Form
             Vec2 screenPos = worldToScreen(base.pos, camera);
             SDL_SetRenderDrawColor(renderer, 70, 180, 255, 80);
             drawFilledCircle(renderer, screenPos, auraRadius, stats);
-            if (!minimalHud && debugFont.isLoaded())
+            if (showWorldLabels)
             {
+                const TextRenderer &labelFont = debugFont.isLoaded() ? debugFont : font;
                 std::ostringstream oss;
-                oss << "拠点オーラ (r=" << static_cast<int>(std::round(auraRadius)) << ")";
+                oss << "ALLY " << (base.id.empty() ? "Camp" : base.id) << ' '
+                    << static_cast<int>(std::round(std::max(base.hp, 0.0f))) << '/'
+                    << static_cast<int>(std::round(std::max(base.maxHp, 0.0f)));
                 const std::string label = oss.str();
-                const int labelWidth = measureWorldText(debugFont, label, debugLineHeight);
+                const int labelWidth = measureWorldText(labelFont, label, debugLineHeight);
                 const int pad = 4;
                 SDL_Rect labelBg{
                     static_cast<int>(std::round(screenPos.x)) - labelWidth / 2 - pad,
@@ -751,7 +812,7 @@ void renderWorld(SDL_Renderer *renderer, const LegacySimulation &sim, const Form
                 SDL_SetRenderDrawColor(renderer, 10, 30, 50, 160);
                 countedRenderFillRect(renderer, &labelBg, stats);
                 SDL_Color textColor{210, 240, 255, 255};
-                debugFont.drawText(renderer, label, labelBg.x + pad, labelBg.y + pad, &stats, textColor);
+                labelFont.drawText(renderer, label, labelBg.x + pad, labelBg.y + pad, &stats, textColor);
             }
         }
         SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
@@ -785,8 +846,9 @@ void renderWorld(SDL_Renderer *renderer, const LegacySimulation &sim, const Form
                 drawFilledCircle(renderer, screenPos, std::max(4.0f, drawRadius * 0.35f), stats);
             }
 
-            if (!minimalHud && debugFont.isLoaded())
+            if (showWorldLabels)
             {
+                const TextRenderer &labelFont = debugFont.isLoaded() ? debugFont : font;
                 std::ostringstream oss;
                 oss << "Base " << (base.id.empty() ? "???": base.id) << ' ';
                 if (base.sealed)
@@ -802,7 +864,7 @@ void renderWorld(SDL_Renderer *renderer, const LegacySimulation &sim, const Form
                     oss << "Active";
                 }
                 const std::string label = oss.str();
-                const int labelWidth = measureWorldText(debugFont, label, debugLineHeight);
+                const int labelWidth = measureWorldText(labelFont, label, debugLineHeight);
                 const int pad = 4;
                 SDL_Rect labelBg{
                     static_cast<int>(std::round(screenPos.x)) - labelWidth / 2 - pad,
@@ -815,20 +877,13 @@ void renderWorld(SDL_Renderer *renderer, const LegacySimulation &sim, const Form
                 SDL_SetRenderDrawColor(renderer, 28, 12, 12, 160);
                 countedRenderFillRect(renderer, &labelBg, stats);
                 SDL_Color textColor = base.sealed ? SDL_Color{200, 200, 200, 255} : SDL_Color{255, 210, 210, 255};
-                debugFont.drawText(renderer, label, labelBg.x + pad, labelBg.y + pad, &stats, textColor);
+                labelFont.drawText(renderer, label, labelBg.x + pad, labelBg.y + pad, &stats, textColor);
             }
         }
         SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
     }
 
     const SDL_Rect *commanderFrame = nullptr;
-    const SDL_Rect *slimeFrame = nullptr;
-    const SDL_Rect *goblinFrame = nullptr;
-    const SDL_Rect *magicianFrame = nullptr;
-    const SDL_Rect *batFrame = nullptr;
-    const SDL_Rect *toritoriFrame = nullptr;
-    const SDL_Rect *golemFrame = nullptr;
-    const SDL_Rect *wallbreakerFrame = nullptr;
     auto fetchFrame = [&](const std::string &prefix) -> const SDL_Rect * {
         if (prefix.empty())
         {
@@ -837,26 +892,50 @@ void renderWorld(SDL_Renderer *renderer, const LegacySimulation &sim, const Form
         return atlas.getFrame(prefix + "_0");
     };
     commanderFrame = fetchFrame(sim.commanderStats.spritePrefix);
-    slimeFrame = fetchFrame(sim.slimeStats.spritePrefix);
-    goblinFrame = fetchFrame(sim.goblinStats.spritePrefix);
-    magicianFrame = fetchFrame(sim.magicianStats.spritePrefix);
-    batFrame = fetchFrame(sim.batStats.spritePrefix);
-    toritoriFrame = fetchFrame(sim.toritoriStats.spritePrefix);
-    golemFrame = fetchFrame(sim.golemStats.spritePrefix);
-    wallbreakerFrame = fetchFrame(sim.wallbreakerStats.spritePrefix);
+    auto animatedFrameForPrefix = [&](const std::string &prefix, std::uint64_t divisorMs) -> const SDL_Rect * {
+        if (prefix.empty())
+        {
+            return nullptr;
+        }
+        std::vector<const SDL_Rect *> frames;
+        for (int i = 0; i < 8; ++i)
+        {
+            const SDL_Rect *frame = atlas.getFrame(prefix + "_" + std::to_string(i));
+            if (!frame)
+            {
+                break;
+            }
+            frames.push_back(frame);
+        }
+        if (frames.empty())
+        {
+            return nullptr;
+        }
+        if (frames.size() == 1)
+        {
+            return frames.front();
+        }
+        const std::uint64_t ticks = SDL_GetTicks64();
+        return frames[(ticks / divisorMs) % frames.size()];
+    };
     auto frameForEnemy = [&](EnemyArchetype type) -> const SDL_Rect * {
         switch (type)
         {
-        case EnemyArchetype::Goblin: return goblinFrame ? goblinFrame : slimeFrame;
-        case EnemyArchetype::Magician: return magicianFrame ? magicianFrame : slimeFrame;
-        case EnemyArchetype::Bat: return batFrame ? batFrame : slimeFrame;
-        case EnemyArchetype::Toritori: return toritoriFrame ? toritoriFrame : slimeFrame;
-        case EnemyArchetype::Golem: return golemFrame ? golemFrame : slimeFrame;
-        case EnemyArchetype::Wallbreaker: return wallbreakerFrame ? wallbreakerFrame : slimeFrame;
+        case EnemyArchetype::Goblin:
+        {
+            const SDL_Rect *goblin = animatedFrameForPrefix(sim.goblinStats.spritePrefix, 120);
+            const SDL_Rect *slime = animatedFrameForPrefix(sim.slimeStats.spritePrefix, 180);
+            return goblin ? goblin : slime;
+        }
+        case EnemyArchetype::Magician: return animatedFrameForPrefix(sim.magicianStats.spritePrefix, 180);
+        case EnemyArchetype::Bat: return animatedFrameForPrefix(sim.batStats.spritePrefix, 140);
+        case EnemyArchetype::Toritori: return animatedFrameForPrefix(sim.toritoriStats.spritePrefix, 180);
+        case EnemyArchetype::Golem: return animatedFrameForPrefix(sim.golemStats.spritePrefix, 220);
+        case EnemyArchetype::Wallbreaker: return animatedFrameForPrefix(sim.wallbreakerStats.spritePrefix, 180);
         case EnemyArchetype::Boss:
             return nullptr;
         case EnemyArchetype::Slime:
-        default: return slimeFrame;
+        default: return animatedFrameForPrefix(sim.slimeStats.spritePrefix, 180);
         }
     };
     const SDL_Rect *friendRing = atlas.getFrame("ring_friend");

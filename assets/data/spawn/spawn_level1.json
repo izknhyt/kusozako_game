@@ -1,61 +1,100 @@
 {
   "gates": {
-    "A": {
-      "tile": [
-        2,
-        10
-      ]
-    }
+    "A": { "tile": [2, 10] },
+    "B": { "tile": [2, 22] },
+    "C": { "tile": [2, 34] }
   },
-  "y_jitter_px": 8,
+  "y_jitter_px": 12,
   "waves": [
+    {
+      "t": 5,
+      "sets": [],
+      "telemetry": "スライムの群れが接近中…！"
+    },
+    {
+      "t": 15,
+      "sets": [
+        { "gate": "A", "count": 3, "interval_s": 0.5, "typeId": "slime" }
+      ],
+      "telemetry": "ウェーブ1: スライムの先発隊が現れた！"
+    },
     {
       "t": 40,
       "sets": [],
-      "telemetry": "敵増援がもうすぐ来る…(20s後)"
+      "telemetry": "別方向からも敵が来る…！"
     },
     {
-      "t": 60,
+      "t": 50,
       "sets": [
-        {
-          "gate": "A",
-          "count": 1,
-          "interval_s": 0.0
-        }
+        { "gate": "A", "count": 4, "interval_s": 0.4, "typeId": "slime" },
+        { "gate": "B", "count": 3, "interval_s": 0.5, "typeId": "slime" }
       ],
-      "telemetry": "増援到着！"
+      "telemetry": "ウェーブ2: 上下から挟み撃ち！"
     },
     {
-      "t": 100,
+      "t": 85,
       "sets": [],
-      "telemetry": "次の増援がもうすぐ来る…(20s後)"
+      "telemetry": "ゴブリンの足音が聞こえる…！"
     },
     {
-      "t": 120,
+      "t": 95,
       "sets": [
-        {
-          "gate": "A",
-          "count": 1,
-          "interval_s": 0.0
-        }
+        { "gate": "A", "count": 3, "interval_s": 0.4, "typeId": "slime" },
+        { "gate": "B", "count": 2, "interval_s": 0.5, "typeId": "goblin" },
+        { "gate": "C", "count": 3, "interval_s": 0.4, "typeId": "slime" }
       ],
-      "telemetry": "増援到着！"
+      "telemetry": "ウェーブ3: 3方向同時！ゴブリン登場！"
     },
     {
-      "t": 160,
+      "t": 135,
       "sets": [],
-      "telemetry": "次の増援がもうすぐ来る…(20s後)"
+      "telemetry": "敵が大量に集結している…！"
     },
     {
-      "t": 180,
+      "t": 145,
       "sets": [
-        {
-          "gate": "A",
-          "count": 1,
-          "interval_s": 0.0
-        }
+        { "gate": "A", "count": 5, "interval_s": 0.35, "typeId": "slime" },
+        { "gate": "B", "count": 4, "interval_s": 0.3,  "typeId": "goblin" },
+        { "gate": "C", "count": 5, "interval_s": 0.35, "typeId": "slime" }
       ],
-      "telemetry": "増援到着！"
+      "telemetry": "ウェーブ4: 大波！持ちこたえろ！"
+    },
+    {
+      "t": 185,
+      "sets": [
+        { "gate": "B", "count": 3, "interval_s": 0.3, "typeId": "goblin" }
+      ],
+      "telemetry": "ウェーブ5前半: ゴブリン先行部隊！"
+    },
+    {
+      "t": 200,
+      "sets": [
+        { "gate": "A", "count": 6, "interval_s": 0.3, "typeId": "slime" },
+        { "gate": "C", "count": 6, "interval_s": 0.3, "typeId": "slime" }
+      ],
+      "telemetry": "ウェーブ5後半: 南北から大量スライム！"
+    },
+    {
+      "t": 245,
+      "sets": [],
+      "telemetry": "最終ウェーブが迫る…！全員持ち場に就け！"
+    },
+    {
+      "t": 260,
+      "sets": [
+        { "gate": "A", "count": 6, "interval_s": 0.25, "typeId": "goblin" },
+        { "gate": "B", "count": 8, "interval_s": 0.25, "typeId": "slime" },
+        { "gate": "C", "count": 6, "interval_s": 0.25, "typeId": "goblin" }
+      ],
+      "telemetry": "最終ウェーブ: 全軍総攻撃！！拠点を守り抜け！！"
+    },
+    {
+      "t": 290,
+      "sets": [
+        { "gate": "A", "count": 4, "interval_s": 0.2, "typeId": "slime" },
+        { "gate": "C", "count": 4, "interval_s": 0.2, "typeId": "slime" }
+      ],
+      "telemetry": "敵の最後の抵抗！もう少しだ！"
     }
   ]
 }

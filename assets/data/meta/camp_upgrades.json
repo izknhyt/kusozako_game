@@ -22,16 +22,16 @@
       "label": "Chibi Spawn Rate",
       "type": "percent",
       "max_level": 10,
-      "costs": [30, 48, 77, 123, 197, 315, 503, 805, 1288, 2062],
-      "delta": 0.05
+      "costs": [20, 34, 55, 88, 141, 226, 362, 578, 925, 1480],
+      "delta": 0.08
     },
     {
       "id": "aura_regen",
       "label": "Aura Regen",
       "type": "additive",
-      "max_level": 5,
-      "costs": [35, 56, 90, 143, 229],
-      "delta": 0.5
+      "max_level": 8,
+      "costs": [25, 40, 64, 102, 164, 262, 419, 671],
+      "delta": 0.8
     }
   ]
 }

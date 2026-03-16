@@ -438,6 +438,15 @@ bool testWarningAndResultOverlays()
     sim.renderQueue.telemetryTimer = 1.0f;
     sim.hud.resultText = "Mission Complete";
     sim.hud.resultTimer = 1.0f;
+    sim.hud.resultStats.available = true;
+    sim.hud.resultStats.basesSealed = 2;
+    sim.hud.resultStats.basesTotal = 3;
+    sim.hud.resultStats.manaEarned = 45;
+    sim.hud.resultStats.manaCap = 60;
+    sim.hud.resultStats.manaBonusPercent = 10;
+    sim.hud.resultStats.enemyKills = 18;
+    sim.hud.resultStats.chibiSurvivors = 6;
+    sim.hud.resultStats.chibiDeaths = 4;
     sim.restartCooldown = 0.5f;
 
     RenderStats stats{};
@@ -453,6 +462,10 @@ bool testWarningAndResultOverlays()
                                "Spawn warning should render with warm highlight color");
     success &= assertDrawPresent(renderer, "Elite incoming", "Telemetry text should be drawn when timer is active");
     success &= assertDrawPresent(renderer, "Mission Complete", "Result overlay should appear while timer is active");
+    success &= assertDrawPresent(renderer, "Bases sealed 2/3", "Result overlay should summarize objective progress");
+    success &= assertDrawPresent(renderer, "Mana 45/60  (+10%)", "Result overlay should show mana gain and bonus");
+    success &= assertDrawPresent(renderer, "Kills 18  Survivors 6  Lost 4",
+                                 "Result overlay should summarize combat outcomes");
     success &= assertDrawNotPresent(renderer, "Rキーで再挑戦",
                                     "Restart hint should stay hidden while cooldown is active");
 
@@ -461,6 +474,63 @@ bool testWarningAndResultOverlays()
     RecordingRenderer cooldownReadyRenderer = renderView(view, context);
     success &= assertDrawPresent(cooldownReadyRenderer, "Rキーで再挑戦",
                                  "Restart hint should appear once restart cooldown finishes");
+
+    return success;
+}
+
+bool testStageObjectiveAndEconomyPanels()
+{
+    bool success = true;
+
+    TextRenderer hudFont(20);
+    TextRenderer debugFont(16);
+    UiView view = makeView(hudFont, debugFont);
+
+    world::LegacySimulation sim{};
+    sim.config.base_hp = 100;
+    sim.baseHp = 80.0f;
+    sim.commander.alive = false;
+    sim.hud.economy.currency = 33;
+    sim.hud.economy.cap = 50;
+    sim.hud.economy.tokens = 2;
+    sim.hud.economy.recommended = "Tip: buy mana cap";
+    sim.stage.enabled = true;
+    sim.stage.victory.requireDragon = true;
+    sim.stage.dragonDefeated = false;
+
+    world::StageEnemyBaseState enemyA{};
+    enemyA.id = "North";
+    enemyA.sealed = true;
+    world::StageEnemyBaseState enemyB{};
+    enemyB.id = "South";
+    enemyB.sealed = false;
+    enemyB.hp = 40.0f;
+    enemyB.maxHp = 100.0f;
+    sim.stage.enemyBases = {enemyA, enemyB};
+
+    world::StageAllyBaseState allyA{};
+    allyA.id = "Home";
+    allyA.destroyed = false;
+    world::StageAllyBaseState allyB{};
+    allyB.id = "West";
+    allyB.destroyed = true;
+    sim.stage.allyBases = {allyA, allyB};
+
+    RenderStats stats{};
+    UiView::DrawContext context{};
+    context.simulation = &sim;
+    context.renderStats = &stats;
+
+    RecordingRenderer renderer = renderView(view, context);
+
+    success &= assertDrawPresent(renderer, "OBJECTIVE  Seal 1/2  |  Dragon Alive",
+                                 "Objective strip should summarize seal progress and dragon state");
+    success &= assertDrawPresent(renderer, "ALLY BASES 1/2 alive  |  Commander Down",
+                                 "Pressure strip should highlight base losses and commander danger");
+    success &= assertDrawPresent(renderer, "Mana 33/50", "Economy panel should show current mana");
+    success &= assertDrawPresent(renderer, "Tokens 2", "Economy panel should show token count");
+    success &= assertDrawPresent(renderer, "Tip: buy mana cap",
+                                 "Economy panel should include recommendation text");
 
     return success;
 }
@@ -528,6 +598,7 @@ int main()
     success &= testMoraleSummaryBullets();
     success &= testJobListFormatting();
     success &= testWarningAndResultOverlays();
+    success &= testStageObjectiveAndEconomyPanels();
     success &= testInputDiagnosticsPanel();
 
     return success ? 0 : 1;

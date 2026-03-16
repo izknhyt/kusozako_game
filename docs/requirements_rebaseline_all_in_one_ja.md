@@ -1,12 +1,14 @@
-# くそざこタワーダンジョンバトル 要件・設計 統合ベースライン（日本語包括版）
+# くそざこタワーダンジョンバトル 統合仕様書
 
-Status: Draft
-Updated: 2026-02-12
-Owner: Rebaseline Working Draft
+Status: Active
+Updated: 2026-03-16
+Owner: Gameplay / Implementation
 
 ## 0. このドキュメントの位置づけ
-- 目的: 既存の要件定義・仕様・設計・運用ルールを、日本語で1ファイルに統合して再要件定義の起点にする。
-- 注意: 数値の最終的な正はランタイムJSON（`assets/data/**`）と`config/app.json`。本書は意思決定と参照導線の統合資料。
+- 目的: 本格実装フェーズの起点として、ゲームコンセプト、コアループ、入力、進行、実装方針を 1 ファイルに統合する。
+- 本書の役割: 「何を作るか」を決める正本。現行ランタイムの説明は `docs/system_overview_ja.md`、数値とパスの最終的な正はランタイムJSON（`assets/data/**`）と `config/app.json` が担う。
+- 優先順位: 仕様意図・期待挙動で本書と他文書が衝突した場合は本書を優先し、実装/データを本書に寄せて更新する。
+- 注意: 実装途中で旧挙動が残ることは許容するが、その場合は「現行実装との差分」として記録する。未確定のまま複数の正本を作らない。
 - 原典（統合対象）:
   - `くそざこ体験版_新仕様_v_1.md`
   - `mvp_spec_v_3.md`
@@ -27,9 +29,12 @@ Owner: Rebaseline Working Draft
 - 重複禁止: 競合する仕様表、競合する入力マップ、同一ドメインの複数Active。
 
 ### 1.2 ドメイン別の現行正本
-- Runtime gameplay/balance:
+- Product concept / implementation scope:
+  - Primary: `docs/requirements_rebaseline_all_in_one_ja.md`
+  - Supporting: `くそざこ体験版_新仕様_v_1.md`, `mvp_spec_v_3.md`, `docs/trial_design_detail.md`
+- Current runtime overview:
   - Primary: `docs/system_overview_ja.md`
-  - Supporting: `docs/mvp_design.md`, `mvp_spec_v_3.md`, `くそざこ体験版_新仕様_v_1.md`
+  - Supporting: `docs/mvp_design.md`, `docs/ASSET_DATA_INDEX.md`
 - Trial redesign:
   - Primary: `docs/trial_design_detail.md`
   - Supporting: `docs/trial_design_outline.md`
@@ -51,11 +56,16 @@ Owner: Rebaseline Working Draft
 - 体験版ステージ目標:
   - 勝利: `ドラゴン撃破` かつ `敵拠点3か所封鎖`（順不同、片達成では継続）。
   - 敗北: `味方拠点全滅` かつ `ユウナ戦闘不能`。
-- 1ラン目安:
-  - MVP基準 5〜10分
-  - 体験版再設計の想定は12〜18分帯（仕様v1.1 QA条件）
+- 1ラン目安: フルクリアで 12〜18 分。5〜10 分帯は内部検証用の短縮構成としてのみ扱う。
 
-### 2.2 対応環境・技術前提
+### 2.2 本格実装フェーズで固定する方針
+- まず守るべき体験は「弱い群れを、プレイヤーの立ち回りと判断で勝たせる」こと。プレイヤー単騎の無双感は主目的にしない。
+- コアループは `キャンプで育てる` → `戦闘で封鎖を進める` → `敗北/勝利後に次の強化判断をする` の反復で固定する。
+- ラン中の主な成長は「操作理解」「ちび制御」「封鎖順の判断」に寄せ、恒久成長だけで押し切る構造にはしない。
+- 本フェーズの正本入力は `WASD + Space + J/K/L/I/Q` を採用する。旧MVPキーは移行完了までの互換入力であり、UI/チュートリアルの正本には使わない。
+- 戦闘中リスポーンは原則なしで進める。再出撃要素は拠点生産とラン間成長に集約する。
+
+### 2.3 対応環境・技術前提
 - C++17
 - SDL2 / SDL2_image / SDL2_ttf
 - CMake 3.24+
@@ -63,7 +73,7 @@ Owner: Rebaseline Working Draft
 - フォント: `assets/ui/NotoSansJP-Regular.ttf`
 - 実行入口: `src/main.cpp` -> `GameApplication`
 
-### 2.3 シーン遷移と実行フロー
+### 2.4 シーン遷移と実行フロー
 - `SceneStack`で遷移管理。
 - 起動時は`TitleScene -> BattleScene -> CampScene`導線（現行運用）。
 - キャンプ終了で`BattleScene::startRunFromCamp`。
@@ -81,25 +91,30 @@ Owner: Rebaseline Working Draft
 - ネームド:
   - ミリー/マリー/ココ。後衛傾向、危険回避、各1スキルの最小構成。
 - 敵:
-  - スライム、ゴブリン、マジシャン、バット、トリトリ、ゴーレム、ドラゴン（+資料によりウォールブレイカー）。
+  - スライム、ゴブリン、マジシャン、バット、トリトリ、ゴーレム、ドラゴン。
 
-### 3.2 プレイヤー入力（再設計軸）
-- 移動: `WASD`（資料により矢印も補助）
+### 3.2 プレイヤー入力（正本）
+- 移動: `WASD`
 - ダッシュ: `Space`
-- スキル/行動: `J`/`K`/`L`/`I`/`Q`（体験版仕様）
-- デバッグ/補助: `F8`速度、`F9`表示切替、`F10`デバッグ
-- MVP文書側での補助キー（F1-F4, Z/X, R等）も現行実装に残るため、再定義時に統一が必要。
+- `J`: 主魔法 `fire_ball`
+- `K`: ガード
+- `L`: 号令 / 防衛集合
+- `I`: 回復パルス
+- `Q`: リング操作 / ちび挙動制御
+- デバッグ/補助: `F8`速度、`F9`リロード/表示切替、`F10`デバッグ
+- 矢印、`F1-F4`、`Z/X`、`U`、右クリック発動などの旧MVP入力は移行期間の互換扱いであり、本仕様の正本入力ではない。
 
 ### 3.3 号令・陣形・スキル
 - 号令:
-  - MVP系: F1-F4で10秒上書き（突撃/前進/追従/防衛）。
-  - 体験版系: Lで防衛号令中心の最小入力セット。
+  - `L` で防衛/集合系の号令を出す最小入力セットを正本とする。
+  - 追加の号令バリエーションは HUD/入力負荷を見て段階導入する。旧MVPの4種号令は参考案として扱う。
 - 陣形:
-  - Swarm/Wedge/Line/Ring（資料差分あり）。
-  - 整列中ペナルティ（例: 1.0s、被ダメ増）をMVP追加案として定義。
+  - 初期実装は `Q` によるリング制御を優先する。
+  - Swarm/Wedge/Line/Ring の固定プリセットは拡張候補として保持し、導入時は整列ペナルティ込みで再評価する。
 - スキル:
-  - MVP: Rally/Wall/Surge/Self Destructなど。
+  - 本フェーズのユウナ基本セットは `fire_ball` / `guard` / `orders` / `heal_pulse` / `ring_control`。
   - 体験版v1.1確定差分: ユウナの主魔法は`fire_ball`（Dmg4/CD2.4/MP10/速度160）。
+  - `Rally` / `Wall` / `Surge` / `Self Destruct` など旧MVPスキルは再採用する場合のみ別途仕様復帰させる。
 
 ### 3.4 ガード仕様（体験版v1.1確定差分）
 - K長押しでガード、移動不可。
@@ -398,4 +413,3 @@ Owner: Rebaseline Working Draft
 - 保存/持ち越し/リセット範囲が明文化された
 - テレメトリとQA受け入れ条件がセットである
 - 未確定事項に期限と担当がある
-

@@ -41,7 +41,10 @@ add_executable(kusozako
   src/input/ActionBuffer.cpp
   src/input/InputMapper.cpp
   src/game/CampShop.cpp
+  src/scenes/BattleScene.cpp
+  src/scenes/CampScene.cpp
   src/scenes/EditorScene.cpp
+  src/scenes/TitleScene.cpp
   src/config/AppConfig.cpp
   src/config/AppConfigLoader.cpp
   src/services/ServiceLocator.cpp
@@ -50,8 +53,8 @@ add_executable(kusozako
   src/telemetry/TelemetrySink.cpp
   src/telemetry/ConsoleTelemetrySink.cpp
   src/telemetry/PerformanceBudgetMonitor.cpp
-  src/game/CampShop.cpp
   src/world/LegacySimulation.cpp
+  src/world/WorldState.cpp
   src/world/spawn/Spawner.cpp
   src/world/spawn/WaveController.cpp
   ${WORLD_SYSTEM_SOURCES}
@@ -95,7 +98,10 @@ set(WORLD_STATE_CORE_SOURCES
   src/input/ActionBuffer.cpp
   src/input/InputMapper.cpp
   src/game/CampShop.cpp
+  src/scenes/BattleScene.cpp
+  src/scenes/CampScene.cpp
   src/scenes/EditorScene.cpp
+  src/scenes/TitleScene.cpp
   src/services/ServiceLocator.cpp
   src/scenes/SceneStack.cpp
   src/telemetry/FileTelemetrySink.cpp
@@ -103,6 +109,7 @@ set(WORLD_STATE_CORE_SOURCES
   src/telemetry/ConsoleTelemetrySink.cpp
   src/telemetry/PerformanceBudgetMonitor.cpp
   src/world/LegacySimulation.cpp
+  src/world/WorldState.cpp
   src/world/spawn/Spawner.cpp
   src/world/spawn/WaveController.cpp
   ${WORLD_SYSTEM_SOURCES}

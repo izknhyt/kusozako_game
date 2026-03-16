@@ -8,6 +8,10 @@ This file defines the reading order and source-of-truth docs for this repository
 
 ### When you need to...
 
+- Understand the product concept and implementation scope:
+  - `docs/requirements_rebaseline_all_in_one_ja.md`
+- Review product idea memos before they become specs:
+  - `docs/gameplay/idea_memo_20260316.md` (Draft)
 - Understand the whole game quickly:
   - `docs/system_overview_ja.md`
 - Check actual controls / debug keys:
@@ -18,28 +22,33 @@ This file defines the reading order and source-of-truth docs for this repository
   - `docs/yuuna_visual_profile.md`
 - Find where gameplay parameters are defined:
   - `docs/ASSET_DATA_INDEX.md`
-- Rebaseline requirements from a single file:
-  - `docs/requirements_rebaseline_all_in_one_ja.md` (Draft)
 - Check documentation operation rules:
   - `docs/DOCS_GOVERNANCE.md`
 
 ## 2. Quick Read Order
 
-1. `docs/system_overview_ja.md` (current runtime overview)
-2. `docs/controls_and_commands.md` (actual controls)
-3. `docs/testing.md` (validation entry point)
+1. `docs/requirements_rebaseline_all_in_one_ja.md` (product concept / implementation scope)
+2. `docs/system_overview_ja.md` (current runtime overview)
+3. `docs/controls_and_commands.md` (actual controls)
+4. `docs/testing.md` (validation entry point)
 
 Use domain-specific docs below only when you work on that domain.
 
 ## 3. Source of Truth by Domain
 
-### Runtime gameplay/balance
+### Product concept / implementation scope
+- Primary: `docs/requirements_rebaseline_all_in_one_ja.md`
+- Supporting:
+  - `mvp_spec_v_3.md` (repo root)
+  - `くそざこ体験版_新仕様_v_1.md` (repo root)
+  - `docs/trial_design_detail.md`
+  - `docs/gameplay/idea_memo_20260316.md` (Draft memo)
+
+### Current runtime overview
 - Primary: `docs/system_overview_ja.md`
 - Supporting:
   - `docs/mvp_design.md`
   - `docs/ASSET_DATA_INDEX.md`
-  - `mvp_spec_v_3.md` (repo root)
-  - `くそざこ体験版_新仕様_v_1.md` (repo root)
 
 ### Trial redesign
 - Primary: `docs/trial_design_detail.md`
@@ -101,7 +110,7 @@ If multiple docs overlap, keep exactly one `Active` doc per domain.
   - `docs/system_overview_ja.md`
   - new files -> `docs/world/`
 - Gameplay systems/spec:
-  - existing Active docs in `docs/`
+  - `docs/requirements_rebaseline_all_in_one_ja.md`
   - new files -> `docs/gameplay/`
 - Runtime parameter JSON:
   - current runtime files: `assets/*.json` (legacy + active)

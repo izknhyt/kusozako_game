@@ -41,8 +41,10 @@ float length(const Vec2 &v);
 Vec2 normalize(const Vec2 &v);
 
 Vec2 tileToWorld(const Vec2 &tile, int tileSize);
+Vec2 leftmostGateWorld(const MapDefs &defs);
 std::vector<Vec2> computeFormationOffsets(Formation formation, std::size_t count);
 const char *stanceLabel(ArmyStance stance);
+const char *temperamentBehaviorName(TemperamentBehavior behavior);
 
 namespace world::spawn
 {

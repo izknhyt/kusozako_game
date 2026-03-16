@@ -17,6 +17,8 @@ enum class UnitJob
 
 inline constexpr std::size_t UnitJobCount = 3;
 
+enum class GameResult { Playing, Victory, Defeat };
+
 struct HUDState
 {
     static constexpr std::size_t kHudActionCount = 7;
@@ -24,6 +26,20 @@ struct HUDState
     float telemetryTimer = 0.0f;
     std::string resultText;
     float resultTimer = 0.0f;
+    struct ResultStats
+    {
+        bool available = false;
+        GameResult result = GameResult::Playing;
+        float durationSeconds = 0.0f;
+        int chibiDeaths = 0;
+        int chibiSurvivors = 0;
+        int enemyKills = 0;
+        int manaEarned = 0;
+        int manaCap = 0;
+        int manaBonusPercent = 0;
+        int basesSealed = 0;
+        int basesTotal = 0;
+    } resultStats;
     std::size_t unconsumedEvents = 0;
 
     struct AlignmentCountdown
@@ -132,9 +148,3 @@ struct HUDState
     } aiDebug;
 };
 
-enum class GameResult
-{
-    Playing,
-    Victory,
-    Defeat,
-};

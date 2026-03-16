@@ -8,7 +8,30 @@
 
 #include <algorithm>
 #include <string>
+#include <unordered_map>
 #include <vector>
+
+namespace world
+{
+struct StageAllyBaseState
+{
+    std::string id;
+    float hp = 0.0f;
+    float maxHp = 0.0f;
+    bool destroyed = false;
+    float auraRadiusPx = 0.0f;
+};
+
+struct StageEnemyBaseState
+{
+    std::string id;
+    float hp = 0.0f;
+    float maxHp = 0.0f;
+    bool sealed = false;
+    float radiusPx = 0.0f;
+    std::unordered_map<std::string, float> weights;
+};
+} // namespace world
 
 enum class ChibiAction
 {
@@ -101,6 +124,7 @@ struct CommanderUnit
     float mp = 0.0f;
     float mpMax = 0.0f;
     bool alive = true;
+    bool guardActive = false;
 };
 
 struct CommanderStats
@@ -162,28 +186,13 @@ struct LegacySimulation
     bool orderActive = false;
     float orderTimer = 0.0f;
     float orderDuration = 0.0f;
-    struct StubAllyBase
-    {
-        std::string id;
-        float hp = 0.0f;
-        float maxHp = 0.0f;
-        bool destroyed = false;
-        float auraRadiusPx = 0.0f;
-    };
-    struct StubEnemyBase
-    {
-        std::string id;
-        float hp = 0.0f;
-        float maxHp = 0.0f;
-        bool sealed = false;
-    };
     struct StageRuntimeState
     {
         bool enabled = false;
         bool dragonDefeated = false;
         StageVictoryRequirements victory{};
-        std::vector<StubAllyBase> allyBases;
-        std::vector<StubEnemyBase> enemyBases;
+        std::vector<StageAllyBaseState> allyBases;
+        std::vector<StageEnemyBaseState> enemyBases;
     } stage;
 
     bool isOrderActive() const { return orderActive; }

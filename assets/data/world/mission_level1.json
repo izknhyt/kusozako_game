@@ -11,7 +11,7 @@
       "slam": { "period_s": 10, "windup_s": 1.2, "radius_px": 140, "damage": 90 }
     }
   },
-  "ui": { "show_goal_text": "ドラゴンを倒せ！", "show_timer": true, "boss_hp_bar": true },
+  "ui": { "show_goal_text": true, "goal_text": "ドラゴンを倒せ！", "show_timer": true, "show_boss_hp": true },
   "fail": { "base_hp_zero": true },
-  "win": { "boss_down": true }
+  "win_boss_down": true
 }

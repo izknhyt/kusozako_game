@@ -18,66 +18,57 @@
   "enemy_bases": [
     {
       "id": "enemy_north",
-      "pos": [
-        2,
-        10
-      ],
+      "pos": [2, 10],
       "hp": 400,
       "radius_px": 60,
-      "rate_per_s": 0.025,
-      "rate_max": 0.045,
+      "rate_per_s": 0.08,
+      "rate_max": 0.20,
       "weights": {
-        "slime": 40,
+        "slime": 50,
         "goblin": 30,
-        "bat": 15,
-        "magician": 10,
-        "toritori": 5
+        "bat": 10,
+        "magician": 7,
+        "toritori": 3
       }
     },
     {
       "id": "enemy_center",
-      "pos": [
-        2,
-        22
-      ],
+      "pos": [2, 22],
       "hp": 450,
       "radius_px": 60,
-      "rate_per_s": 0.025,
-      "rate_max": 0.045,
+      "rate_per_s": 0.10,
+      "rate_max": 0.22,
       "weights": {
-        "slime": 40,
-        "goblin": 30,
-        "bat": 15,
-        "magician": 10,
-        "toritori": 5
+        "slime": 45,
+        "goblin": 35,
+        "bat": 10,
+        "magician": 7,
+        "toritori": 3
       }
     },
     {
       "id": "enemy_south",
-      "pos": [
-        2,
-        34
-      ],
+      "pos": [2, 34],
       "hp": 450,
       "radius_px": 60,
-      "rate_per_s": 0.025,
-      "rate_max": 0.045,
+      "rate_per_s": 0.08,
+      "rate_max": 0.20,
       "weights": {
-        "slime": 40,
+        "slime": 50,
         "goblin": 30,
-        "bat": 15,
-        "magician": 10,
-        "toritori": 5
+        "bat": 10,
+        "magician": 7,
+        "toritori": 3
       }
     }
   ],
   "global_caps": {
-    "enemies": 40,
+    "enemies": 60,
     "chibi": 200
   },
   "victory": {
     "require_dragon": true,
-    "require_all_bases": true
+    "require_all_bases": false
   },
   "speed": {
     "steps": [

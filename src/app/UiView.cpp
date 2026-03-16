@@ -32,6 +32,105 @@ const std::array<SDL_Color, HUDState::kHudActionCount> kActionHistoryColors = {
     SDL_Color{255, 214, 102, 220}, // DefendBase
     SDL_Color{160, 176, 185, 220}  // Wander
 };
+
+constexpr SDL_Color kHudPanelFill{9, 16, 28, 228};
+constexpr SDL_Color kHudPanelFillAlt{15, 24, 40, 236};
+constexpr SDL_Color kHudPanelBorder{128, 104, 66, 255};
+constexpr SDL_Color kHudPanelInnerBorder{212, 189, 129, 255};
+constexpr SDL_Color kHudPanelAccentBlue{59, 93, 134, 255};
+constexpr SDL_Color kHudPanelAccentAmber{189, 140, 64, 255};
+constexpr SDL_Color kHudPanelAccentGreen{66, 112, 84, 255};
+constexpr SDL_Color kHudPanelAccentRed{142, 68, 68, 255};
+
+SDL_Rect insetRect(const SDL_Rect &rect, int inset)
+{
+    return SDL_Rect{rect.x + inset, rect.y + inset, std::max(0, rect.w - inset * 2), std::max(0, rect.h - inset * 2)};
+}
+
+void fillRect(SDL_Renderer *renderer, const SDL_Rect &rect, const SDL_Color &color, RenderStats &stats)
+{
+    if (rect.w <= 0 || rect.h <= 0)
+    {
+        return;
+    }
+    SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, color.a);
+    countedRenderFillRect(renderer, &rect, stats);
+}
+
+void drawRect(SDL_Renderer *renderer, const SDL_Rect &rect, const SDL_Color &color, RenderStats &stats)
+{
+    if (rect.w <= 0 || rect.h <= 0)
+    {
+        return;
+    }
+    SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, color.a);
+    countedRenderDrawRect(renderer, &rect, stats);
+}
+
+void drawHudPanel(SDL_Renderer *renderer, const SDL_Rect &rect, RenderStats &stats, const SDL_Color &accent,
+                  const SDL_Color &fill = kHudPanelFill)
+{
+    SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+    fillRect(renderer, rect, fill, stats);
+
+    const SDL_Rect inner = insetRect(rect, 2);
+    fillRect(renderer, inner, kHudPanelFillAlt, stats);
+
+    const SDL_Rect accentBand{inner.x + 4, inner.y + 3, std::max(0, inner.w - 8), std::min(4, std::max(0, inner.h - 6))};
+    fillRect(renderer, accentBand, accent, stats);
+
+    const SDL_Rect bottomShade{inner.x + 4, inner.y + inner.h - 5, std::max(0, inner.w - 8), 2};
+    fillRect(renderer, bottomShade, SDL_Color{6, 9, 16, 220}, stats);
+
+    drawRect(renderer, rect, kHudPanelBorder, stats);
+    drawRect(renderer, inner, kHudPanelInnerBorder, stats);
+
+    // Small corner blocks help sell the old-school framed look without new assets.
+    const std::array<SDL_Rect, 4> corners = {
+        SDL_Rect{rect.x + 3, rect.y + 3, 3, 3},
+        SDL_Rect{rect.x + rect.w - 6, rect.y + 3, 3, 3},
+        SDL_Rect{rect.x + 3, rect.y + rect.h - 6, 3, 3},
+        SDL_Rect{rect.x + rect.w - 6, rect.y + rect.h - 6, 3, 3},
+    };
+    for (const SDL_Rect &corner : corners)
+    {
+        fillRect(renderer, corner, accent, stats);
+    }
+    SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
+}
+
+void drawHudBar(SDL_Renderer *renderer, const SDL_Rect &rect, float ratio, const SDL_Color &fill, RenderStats &stats)
+{
+    SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+    fillRect(renderer, rect, SDL_Color{20, 27, 39, 220}, stats);
+    const SDL_Rect inner = insetRect(rect, 1);
+    fillRect(renderer, inner, SDL_Color{10, 14, 22, 220}, stats);
+    const SDL_Rect fillRectInner{inner.x + 1, inner.y + 1,
+                                 static_cast<int>(std::round(std::max(0, inner.w - 2) * std::clamp(ratio, 0.0f, 1.0f))),
+                                 std::max(0, inner.h - 2)};
+    fillRect(renderer, fillRectInner, fill, stats);
+    if (fillRectInner.w > 8)
+    {
+        SDL_Rect sheen{fillRectInner.x, fillRectInner.y, fillRectInner.w, std::max(1, fillRectInner.h / 3)};
+        fillRect(renderer, sheen, SDL_Color{255, 255, 255, 45}, stats);
+    }
+    drawRect(renderer, rect, kHudPanelBorder, stats);
+    drawRect(renderer, inner, kHudPanelInnerBorder, stats);
+    SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
+}
+
+SDL_Color commanderHpColor(float ratio)
+{
+    if (ratio > 0.66f)
+    {
+        return SDL_Color{70, 200, 70, 255};
+    }
+    if (ratio > 0.33f)
+    {
+        return SDL_Color{230, 200, 50, 255};
+    }
+    return SDL_Color{255, 90, 90, 255};
+}
 } // namespace
 
 UiView::UiView() = default;
@@ -187,8 +286,7 @@ void UiView::render(const DrawContext &context) const
 
     const int topUiAnchorBase = 20;
     int topUiAnchor = topUiAnchorBase;
-
-    const bool minimalHud = true;
+    int topRightAnchorY = topUiAnchorBase;
 
     if (context.showSpeedIndicator)
     {
@@ -199,19 +297,10 @@ void UiView::render(const DrawContext &context) const
         const int padX = 12;
         const int padY = 6;
         const int textWidth = measureWithFallback(font, speedText, lineHeight);
-        SDL_Rect speedRect{20, topUiAnchor, textWidth + padX * 2, lineHeight + padY * 2};
-        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
-        SDL_Color bgColor = clampedScale > 1.0f ? SDL_Color{60, 40, 100, 220} : SDL_Color{30, 30, 60, 160};
-        SDL_SetRenderDrawColor(renderer, bgColor.r, bgColor.g, bgColor.b, bgColor.a);
-        countedRenderFillRect(renderer, &speedRect, stats);
-        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
-        font.drawText(renderer, speedText, speedRect.x + padX, speedRect.y + padY, &stats, SDL_Color{255, 255, 255, 255});
-        topUiAnchor = speedRect.y + speedRect.h + 10;
-    }
-
-    if (minimalHud)
-    {
-        return;
+        SDL_Rect speedRect{screenW - (textWidth + padX * 2) - 20, topRightAnchorY, textWidth + padX * 2, lineHeight + padY * 2};
+        drawHudPanel(renderer, speedRect, stats, clampedScale > 1.0f ? kHudPanelAccentAmber : kHudPanelAccentBlue);
+        font.drawText(renderer, speedText, speedRect.x + padX, speedRect.y + padY, &stats, SDL_Color{255, 244, 214, 255});
+        topRightAnchorY = speedRect.y + speedRect.h + 10;
     }
 
     if (sim.missionMode != MissionMode::None && sim.missionUI.showGoalText && !sim.missionUI.goalText.empty())
@@ -220,12 +309,9 @@ void UiView::render(const DrawContext &context) const
         const int padY = 8;
         const int textWidth = measureWithFallback(font, sim.missionUI.goalText, lineHeight);
         SDL_Rect goalRect{screenW / 2 - (textWidth + padX * 2) / 2, topUiAnchor, textWidth + padX * 2, lineHeight + padY * 2};
-        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
-        SDL_SetRenderDrawColor(renderer, 0, 0, 0, 180);
-        countedRenderFillRect(renderer, &goalRect, stats);
-        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
+        drawHudPanel(renderer, goalRect, stats, kHudPanelAccentAmber);
         font.drawText(renderer, sim.missionUI.goalText, goalRect.x + padX, goalRect.y + padY, &stats,
-                      SDL_Color{230, 240, 255, 255});
+                      SDL_Color{255, 239, 185, 255});
         topUiAnchor = goalRect.y + goalRect.h + 10;
     }
 
@@ -239,17 +325,74 @@ void UiView::render(const DrawContext &context) const
         const int padY = 6;
         const int textWidth = measureWithFallback(font, timerText, lineHeight);
         SDL_Rect timerRect{screenW / 2 - (textWidth + padX * 2) / 2, topUiAnchor, textWidth + padX * 2, lineHeight + padY * 2};
-        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
-        SDL_SetRenderDrawColor(renderer, 0, 0, 0, 160);
-        countedRenderFillRect(renderer, &timerRect, stats);
-        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
-        font.drawText(renderer, timerText, timerRect.x + padX, timerRect.y + padY, &stats);
+        drawHudPanel(renderer, timerRect, stats, kHudPanelAccentBlue);
+        font.drawText(renderer, timerText, timerRect.x + padX, timerRect.y + padY, &stats, SDL_Color{230, 240, 255, 255});
         topUiAnchor = timerRect.y + timerRect.h + 10;
     }
 
     if (sim.stageState().enabled)
     {
         const auto &stage = sim.stageState();
+        const std::size_t sealedBases = sim.sealedEnemyBases();
+        const std::size_t totalBases = stage.enemyBases.size();
+        std::size_t destroyedAllyBases = 0;
+        for (const auto &base : stage.allyBases)
+        {
+            if (base.destroyed)
+            {
+                ++destroyedAllyBases;
+            }
+        }
+
+        std::ostringstream objectiveText;
+        objectiveText << "OBJECTIVE  ";
+        if (totalBases > 0)
+        {
+            objectiveText << "Seal " << sealedBases << '/' << totalBases;
+        }
+        if (stage.victory.requireDragon)
+        {
+            if (totalBases > 0)
+            {
+                objectiveText << "  |  ";
+            }
+            objectiveText << "Dragon " << (stage.dragonDefeated ? "Down" : "Alive");
+        }
+
+        const int summaryPadX = 22;
+        const int summaryPadY = 10;
+        const int summaryWidth = measureWithFallback(font, objectiveText.str(), lineHeight);
+        SDL_Rect summaryRect{screenW / 2 - (summaryWidth + summaryPadX * 2) / 2, topUiAnchor,
+                             summaryWidth + summaryPadX * 2, lineHeight + summaryPadY * 2};
+        drawHudPanel(renderer, summaryRect, stats, kHudPanelAccentAmber);
+        font.drawText(renderer, objectiveText.str(), summaryRect.x + summaryPadX, summaryRect.y + summaryPadY, &stats,
+                      SDL_Color{255, 239, 185, 255});
+        topUiAnchor = summaryRect.y + summaryRect.h + 10;
+
+        std::ostringstream pressureText;
+        pressureText << "ALLY BASES ";
+        if (!stage.allyBases.empty())
+        {
+            pressureText << (stage.allyBases.size() - destroyedAllyBases) << '/' << stage.allyBases.size() << " alive";
+        }
+        else
+        {
+            pressureText << "N/A";
+        }
+        if (!sim.commander.alive)
+        {
+            pressureText << "  |  Commander Down";
+        }
+        const int pressurePadX = 18;
+        const int pressurePadY = 8;
+        const int pressureWidth = measureWithFallback(font, pressureText.str(), lineHeight);
+        SDL_Rect pressureRect{screenW / 2 - (pressureWidth + pressurePadX * 2) / 2, topUiAnchor,
+                              pressureWidth + pressurePadX * 2, lineHeight + pressurePadY * 2};
+        drawHudPanel(renderer, pressureRect, stats, sim.commander.alive ? kHudPanelAccentGreen : kHudPanelAccentRed);
+        font.drawText(renderer, pressureText.str(), pressureRect.x + pressurePadX, pressureRect.y + pressurePadY, &stats,
+                      sim.commander.alive ? SDL_Color{210, 255, 220, 255} : SDL_Color{255, 220, 220, 255});
+        topUiAnchor = pressureRect.y + pressureRect.h + 12;
+
         std::vector<std::string> lines;
         auto makeName = [](const std::string &id, std::size_t index, const char *prefix) {
             if (!id.empty())
@@ -321,10 +464,7 @@ void UiView::render(const DrawContext &context) const
             }
             SDL_Rect stageRect{20, topUiAnchor, panelWidth + padX * 2,
                                static_cast<int>(lines.size()) * lineHeight + padY * 2};
-            SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
-            SDL_SetRenderDrawColor(renderer, 12, 18, 26, 170);
-            countedRenderFillRect(renderer, &stageRect, stats);
-            SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
+            drawHudPanel(renderer, stageRect, stats, kHudPanelAccentBlue);
             int textY = stageRect.y + padY;
             for (const std::string &line : lines)
             {
@@ -342,10 +482,7 @@ void UiView::render(const DrawContext &context) const
         const int textWidth = measureWithFallback(font, sim.hud.stageBanner.text, lineHeight);
         SDL_Rect bannerRect{screenW / 2 - (textWidth + padX * 2) / 2, topUiAnchor,
                             textWidth + padX * 2, lineHeight + padY * 2};
-        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
-        SDL_SetRenderDrawColor(renderer, 32, 28, 12, 200);
-        countedRenderFillRect(renderer, &bannerRect, stats);
-        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
+        drawHudPanel(renderer, bannerRect, stats, kHudPanelAccentAmber);
         font.drawText(renderer, sim.hud.stageBanner.text, bannerRect.x + padX, bannerRect.y + padY, &stats,
                       SDL_Color{255, 230, 120, 255});
         topUiAnchor = bannerRect.y + bannerRect.h + 10;
@@ -356,11 +493,8 @@ void UiView::render(const DrawContext &context) const
         const int padX = 14;
         const int padY = 6;
         const int textWidth = measureWithFallback(font, sim.hud.tip.text, lineHeight);
-        SDL_Rect tipRect{20, topUiAnchor, textWidth + padX * 2, lineHeight + padY * 2};
-        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
-        SDL_SetRenderDrawColor(renderer, 12, 26, 40, 200);
-        countedRenderFillRect(renderer, &tipRect, stats);
-        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
+        SDL_Rect tipRect{screenW / 2 - (textWidth + padX * 2) / 2, topUiAnchor, textWidth + padX * 2, lineHeight + padY * 2};
+        drawHudPanel(renderer, tipRect, stats, kHudPanelAccentGreen);
         font.drawText(renderer, sim.hud.tip.text, tipRect.x + padX, tipRect.y + padY, &stats,
                       SDL_Color{200, 235, 255, 255});
         topUiAnchor = tipRect.y + tipRect.h + 10;
@@ -386,19 +520,16 @@ void UiView::render(const DrawContext &context) const
         {
             width = std::max(width, measureWithFallback(font, line, lineHeight));
         }
-        SDL_Rect ecoRect{20, topUiAnchor, width + padX * 2,
+        SDL_Rect ecoRect{screenW - (width + padX * 2) - 20, topRightAnchorY, width + padX * 2,
                          static_cast<int>(lines.size()) * lineHeight + padY * 2};
-        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
-        SDL_SetRenderDrawColor(renderer, 15, 32, 18, 180);
-        countedRenderFillRect(renderer, &ecoRect, stats);
-        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
+        drawHudPanel(renderer, ecoRect, stats, kHudPanelAccentGreen);
         int textY = ecoRect.y + padY;
         for (const std::string &line : lines)
         {
             font.drawText(renderer, line, ecoRect.x + padX, textY, &stats, SDL_Color{210, 255, 210, 255});
             textY += lineHeight;
         }
-        topUiAnchor = ecoRect.y + ecoRect.h + 10;
+        topRightAnchorY = ecoRect.y + ecoRect.h + 10;
     }
 
     if (sim.isOrderActive())
@@ -411,10 +542,7 @@ void UiView::render(const DrawContext &context) const
         const int padY = 8;
         const int textWidth = measureWithFallback(font, bannerText, lineHeight);
         SDL_Rect bannerRect{screenW / 2 - (textWidth + padX * 2) / 2, 12, textWidth + padX * 2, lineHeight + padY * 2};
-        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
-        SDL_SetRenderDrawColor(renderer, 0, 0, 0, 190);
-        countedRenderFillRect(renderer, &bannerRect, stats);
-        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
+        drawHudPanel(renderer, bannerRect, stats, kHudPanelAccentAmber);
         font.drawText(renderer, bannerText, bannerRect.x + padX, bannerRect.y + padY, &stats,
                       SDL_Color{255, 220, 120, 255});
         topUiAnchor = bannerRect.y + bannerRect.h + 12;
@@ -472,24 +600,14 @@ void UiView::render(const DrawContext &context) const
         const int extraHeight = alignmentProgress > 0.0f ? 6 : 0;
         SDL_Rect alignRect{screenW / 2 - (textWidth + padX * 2) / 2, topUiAnchor, textWidth + padX * 2,
                            lineHeight + padY * 2 + extraHeight};
-        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
-        SDL_SetRenderDrawColor(renderer, 0, 0, 0, 180);
-        countedRenderFillRect(renderer, &alignRect, stats);
-        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
+        drawHudPanel(renderer, alignRect, stats, kHudPanelAccentAmber);
         font.drawText(renderer, alignmentBanner, alignRect.x + padX, alignRect.y + padY, &stats,
                       SDL_Color{255, 208, 144, 255});
         if (alignmentProgress > 0.0f)
         {
             const int barMargin = 10;
             SDL_Rect barBg{alignRect.x + barMargin, alignRect.y + alignRect.h - 8, alignRect.w - barMargin * 2, 4};
-            SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
-            SDL_SetRenderDrawColor(renderer, 60, 40, 20, 220);
-            countedRenderFillRect(renderer, &barBg, stats);
-            SDL_Rect barFill{barBg.x, barBg.y,
-                             static_cast<int>(std::round(barBg.w * std::clamp(alignmentProgress, 0.0f, 1.0f))), barBg.h};
-            SDL_SetRenderDrawColor(renderer, 255, 208, 144, 230);
-            countedRenderFillRect(renderer, &barFill, stats);
-            SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
+            drawHudBar(renderer, barBg, alignmentProgress, SDL_Color{255, 208, 144, 230}, stats);
         }
         topUiAnchor = alignRect.y + alignRect.h + 10;
     }
@@ -516,17 +634,16 @@ void UiView::render(const DrawContext &context) const
     const int barHeight = 10;
     const int rowGap = 10;
     const int rowHeight = lineHeight + barHeight + rowGap;
-    const int rows = 3;
+    const int rows = 4;
     SDL_Rect statusPanel{panelX,
                          panelY,
                          barWidth + padX * 2,
                          padY * 2 + rows * rowHeight - rowGap};
-    SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
-    SDL_SetRenderDrawColor(renderer, 12, 20, 32, 210);
-    countedRenderFillRect(renderer, &statusPanel, stats);
-    SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
+    drawHudPanel(renderer, statusPanel, stats, kHudPanelAccentBlue);
 
     int statusY = statusPanel.y + padY;
+    font.drawText(renderer, "Commander", statusPanel.x + padX, statusY, &stats, SDL_Color{255, 239, 185, 255});
+    statusY += lineHeight + 4;
     auto drawStatusBar = [&](const std::string &label, float value, float max, SDL_Color fill, bool dim) {
         const int valueInt = static_cast<int>(std::round(std::max(value, 0.0f)));
         const int maxInt = static_cast<int>(std::round(std::max(max, 0.0f)));
@@ -537,15 +654,7 @@ void UiView::render(const DrawContext &context) const
 
         const float ratio = max > 0.0f ? std::clamp(value / max, 0.0f, 1.0f) : 0.0f;
         SDL_Rect bg{statusPanel.x + padX, statusY + lineHeight + 4, barWidth, barHeight};
-        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
-        SDL_SetRenderDrawColor(renderer, 20, 30, 40, 200);
-        countedRenderFillRect(renderer, &bg, stats);
-        SDL_Rect fillRect{bg.x + 2, bg.y + 2, static_cast<int>((bg.w - 4) * ratio), bg.h - 4};
-        SDL_SetRenderDrawColor(renderer, fill.r, fill.g, fill.b, 230);
-        countedRenderFillRect(renderer, &fillRect, stats);
-        SDL_SetRenderDrawColor(renderer, 60, 70, 90, 220);
-        countedRenderDrawRect(renderer, &bg, stats);
-        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
+        drawHudBar(renderer, bg, ratio, fill, stats);
 
         statusY = bg.y + bg.h + rowGap;
     };
@@ -553,13 +662,20 @@ void UiView::render(const DrawContext &context) const
     drawStatusBar("Commander HP",
                   sim.commander.alive ? sim.commander.hp : 0.0f,
                   commanderHpMax,
-                  SDL_Color{255, 120, 120, 255},
+                  commanderHpColor(commanderHpMax > 0.0f ? sim.commander.hp / commanderHpMax : 0.0f),
                   !sim.commander.alive);
     drawStatusBar("Commander MP",
                   sim.commander.alive ? sim.commander.mp : 0.0f,
                   commanderMpMax > 0.0f ? commanderMpMax : 1.0f,
                   SDL_Color{90, 170, 255, 255},
                   !sim.commander.alive);
+    {
+        const std::string guardText = sim.commander.guardActive ? "Guard: READY" : "Guard: OPEN";
+        const SDL_Color guardColor = sim.commander.guardActive ? SDL_Color{120, 255, 220, 255}
+                                                               : SDL_Color{255, 210, 140, 255};
+        font.drawText(renderer, guardText, statusPanel.x + padX, statusY, &stats, guardColor);
+        statusY += lineHeight + rowGap;
+    }
     drawStatusBar("Base HP",
                   static_cast<float>(baseHpInt),
                   baseHpMax,
@@ -573,16 +689,8 @@ void UiView::render(const DrawContext &context) const
     {
         const float ratio = std::clamp(sim.boss.maxHp > 0.0f ? sim.boss.hp / sim.boss.maxHp : 0.0f, 0.0f, 1.0f);
         SDL_Rect bossBg{screenW / 2 - 200, infoPanelAnchor, 400, 18};
-        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
-        SDL_SetRenderDrawColor(renderer, 30, 10, 60, 200);
-        countedRenderFillRect(renderer, &bossBg, stats);
-        SDL_Rect bossFill{bossBg.x + 4, bossBg.y + 4, static_cast<int>((bossBg.w - 8) * ratio), bossBg.h - 8};
-        SDL_SetRenderDrawColor(renderer, 180, 70, 200, 230);
-        countedRenderFillRect(renderer, &bossFill, stats);
-        SDL_SetRenderDrawColor(renderer, 110, 60, 150, 230);
-        countedRenderDrawRect(renderer, &bossBg, stats);
-        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
-        font.drawText(renderer, "Boss HP", bossBg.x, bossBg.y - lineHeight, &stats);
+        drawHudBar(renderer, bossBg, ratio, SDL_Color{180, 70, 200, 230}, stats);
+        font.drawText(renderer, "Boss HP", bossBg.x, bossBg.y - lineHeight, &stats, SDL_Color{255, 239, 185, 255});
         infoPanelAnchor = bossBg.y + bossBg.h + 20;
     }
     else
@@ -626,10 +734,7 @@ void UiView::render(const DrawContext &context) const
         const int padY = 8;
         SDL_Rect panel{12, hudLeftAnchor, moraleWidth + padX * 2,
                        static_cast<int>(moraleLines.size()) * lineHeight + padY * 2};
-        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
-        SDL_SetRenderDrawColor(renderer, 0, 0, 0, 150);
-        countedRenderFillRect(renderer, &panel, stats);
-        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
+        drawHudPanel(renderer, panel, stats, kHudPanelAccentRed);
         int lineY = panel.y + padY;
         for (const auto &entry : moraleLines)
         {
@@ -712,10 +817,7 @@ void UiView::render(const DrawContext &context) const
         const int padY = 8;
         SDL_Rect panel{12, hudLeftAnchor, jobWidth + padX * 2,
                        static_cast<int>(jobLines.size()) * lineHeight + padY * 2};
-        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
-        SDL_SetRenderDrawColor(renderer, 0, 0, 0, 150);
-        countedRenderFillRect(renderer, &panel, stats);
-        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
+        drawHudPanel(renderer, panel, stats, kHudPanelAccentBlue);
         int lineY = panel.y + padY;
         for (const auto &entry : jobLines)
         {
@@ -742,17 +844,8 @@ void UiView::render(const DrawContext &context) const
 
     infoPanelAnchor = std::max(infoPanelAnchor, hudLeftAnchor);
 
-    const int commanderHpInt = static_cast<int>(std::round(std::max(sim.commander.hp, 0.0f)));
     std::vector<std::string> infoLines;
     infoLines.push_back("Allies: " + std::to_string(static_cast<int>(sim.yunas.size())));
-    if (sim.commander.alive)
-    {
-        infoLines.push_back("Commander HP: " + std::to_string(commanderHpInt));
-    }
-    else
-    {
-        infoLines.push_back("Commander: Down");
-    }
     infoLines.push_back("Enemies: " + std::to_string(static_cast<int>(sim.enemies.size())));
     if (sim.missionMode == MissionMode::Boss && sim.boss.maxHp > 0.0f)
     {
@@ -823,10 +916,7 @@ void UiView::render(const DrawContext &context) const
         const int infoPadding = 8;
         const int infoPanelHeight = static_cast<int>(infoLines.size()) * lineHeight + infoPadding * 2;
         SDL_Rect infoPanel{12, infoPanelAnchor, infoPanelWidth + infoPadding * 2, infoPanelHeight};
-        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
-        SDL_SetRenderDrawColor(renderer, 0, 0, 0, 160);
-        countedRenderFillRect(renderer, &infoPanel, stats);
-        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
+        drawHudPanel(renderer, infoPanel, stats, kHudPanelAccentAmber);
         int infoY = infoPanel.y + infoPadding;
         for (const std::string &line : infoLines)
         {
@@ -838,7 +928,7 @@ void UiView::render(const DrawContext &context) const
         }
     }
 
-    int topRightAnchorY = sim.isOrderActive() ? topUiAnchor : 12;
+    topRightAnchorY = std::max(topRightAnchorY, sim.isOrderActive() ? topUiAnchor : 12);
     if (context.showDebugHud && context.framePerf)
     {
         const FramePerf &perf = *context.framePerf;
@@ -875,10 +965,7 @@ void UiView::render(const DrawContext &context) const
         const int debugPadY = 8;
         SDL_Rect debugPanel{screenW - (debugWidth + debugPadX * 2) - 12, topRightAnchorY,
                             debugWidth + debugPadX * 2, static_cast<int>(perfLines.size()) * debugLineHeight + debugPadY * 2};
-        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
-        SDL_SetRenderDrawColor(renderer, 0, 0, 0, 170);
-        countedRenderFillRect(renderer, &debugPanel, stats);
-        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
+        drawHudPanel(renderer, debugPanel, stats, kHudPanelAccentBlue);
         int debugY = debugPanel.y + debugPadY;
         for (const std::string &line : perfLines)
         {
@@ -971,10 +1058,7 @@ void UiView::render(const DrawContext &context) const
         SDL_Rect diagPanel{screenW - (diagWidth + diagPadX * 2) - 12, topRightAnchorY,
                            diagWidth + diagPadX * 2,
                            static_cast<int>(diagLines.size()) * debugLineHeight + diagPadY * 2};
-        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
-        SDL_SetRenderDrawColor(renderer, 0, 0, 0, 170);
-        countedRenderFillRect(renderer, &diagPanel, stats);
-        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
+        drawHudPanel(renderer, diagPanel, stats, kHudPanelAccentBlue);
         int diagY = diagPanel.y + diagPadY;
         for (const std::string &line : diagLines)
         {
@@ -1189,15 +1273,38 @@ void UiView::render(const DrawContext &context) const
     {
         const bool showRestartHint = sim.restartCooldown <= 0.0f;
         const std::string restartHintText = "Rキーで再挑戦";
+        std::vector<std::string> detailLines;
+        if (sim.hud.resultStats.available)
+        {
+            std::ostringstream sealedLine;
+            sealedLine << "Bases sealed " << sim.hud.resultStats.basesSealed << '/' << sim.hud.resultStats.basesTotal;
+            detailLines.push_back(sealedLine.str());
+            std::ostringstream manaLine;
+            manaLine << "Mana " << sim.hud.resultStats.manaEarned << '/' << sim.hud.resultStats.manaCap;
+            if (sim.hud.resultStats.manaBonusPercent > 0)
+            {
+                manaLine << "  (+" << sim.hud.resultStats.manaBonusPercent << "%)";
+            }
+            detailLines.push_back(manaLine.str());
+            std::ostringstream battleLine;
+            battleLine << "Kills " << sim.hud.resultStats.enemyKills << "  Survivors " << sim.hud.resultStats.chibiSurvivors
+                       << "  Lost " << sim.hud.resultStats.chibiDeaths;
+            detailLines.push_back(battleLine.str());
+        }
         const int resultPadX = 24;
         const int resultPadY = 12;
         const int hintSpacing = 6;
         int contentWidth = measureWithFallback(font, sim.hud.resultText, lineHeight);
+        for (const std::string &line : detailLines)
+        {
+            contentWidth = std::max(contentWidth, measureWithFallback(font, line, lineHeight));
+        }
         if (showRestartHint)
         {
             contentWidth = std::max(contentWidth, measureWithFallback(font, restartHintText, lineHeight));
         }
         int panelHeight = lineHeight + resultPadY * 2;
+        panelHeight += static_cast<int>(detailLines.size()) * lineHeight;
         if (showRestartHint)
         {
             panelHeight += hintSpacing + lineHeight;
@@ -1210,10 +1317,18 @@ void UiView::render(const DrawContext &context) const
         SDL_SetRenderDrawColor(renderer, 0, 0, 0, 200);
         countedRenderFillRect(renderer, &resultPanel, stats);
         SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
-        font.drawText(renderer, sim.hud.resultText, resultPanel.x + resultPadX, resultPanel.y + resultPadY, &stats);
+        int resultTextY = resultPanel.y + resultPadY;
+        font.drawText(renderer, sim.hud.resultText, resultPanel.x + resultPadX, resultTextY, &stats,
+                      SDL_Color{255, 239, 185, 255});
+        resultTextY += lineHeight;
+        for (const std::string &line : detailLines)
+        {
+            font.drawText(renderer, line, resultPanel.x + resultPadX, resultTextY, &stats, SDL_Color{225, 235, 245, 255});
+            resultTextY += lineHeight;
+        }
         if (showRestartHint)
         {
-            const int hintY = resultPanel.y + resultPadY + lineHeight + hintSpacing;
+            const int hintY = resultTextY + hintSpacing;
             const SDL_Color hintColor{235, 235, 235, 255};
             font.drawText(renderer, restartHintText, resultPanel.x + resultPadX, hintY, &stats, hintColor);
         }

@@ -3,7 +3,7 @@
   "layers": { "floor": "Floor", "block": "Block", "deco": "Deco" },
   "base_tile": [70, 22],
   "spawn_tile_yuna": [69, 22],
-  "gate_tiles": { "A": [2, 10] },
+  "gate_tiles": { "A": [2, 10], "B": [2, 22], "C": [2, 34] },
   "collision_rule": "Block レイヤで non-zero タイルは通行不可",
   "notes": "TMX は 80x45。原点は📦中心。📦周囲3x3はBlockで封鎖する。"
 }
